@@ -1,0 +1,206 @@
+\documentclass{standalone}
+\usepackage{tikz}
+\usepackage{xcolor}                  
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit, backgrounds, arrows.meta, calc}
+
+
+
+
+
+\begin{document}
+ 
+\begin{tikzpicture}
+
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm
+] (sumOxy) at (0,0) {};
+
+
+% OxyValve
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    left=2cm of sumOxy
+]  (controller) {$\frac{K}{1+Ts}$};
+
+
+
+
+
+
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    above=2cm of controller
+]  (oxyValve2) {$\frac{K}{1+Ts}$};
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    below=2cm of controller
+]  (oxyValve3) {$\frac{K}{1+Ts}$};
+
+
+
+
+
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    right=2cm of sumOxy
+] (sum){};
+
+
+
+
+
+% integrator
+\node [draw,
+    minimum width=.5cm,
+    minimum height=.5cm,
+    right = 2cm of sum
+]  (integrator){$\frac{1}{s}$};
+
+% feedbackloop
+\node [isosceles triangle,draw,
+    minimum width=.2cm,
+    minimum height=.2cm,
+    below = 1cm of integrator,
+    shape border rotate=180
+]  (oxyfeedback){$\frac{K_{qo}}{V}$};
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    left= 1cm of oxyfeedback
+] (sumDecay){};
+
+
+
+
+% pumpcont
+\node [isosceles triangle,draw,
+    minimum width=.5cm,
+    minimum height=.5cm,
+    shape border rotate=-90,
+    above = 1cm of sum
+]  (pumpgain){$K_2$};
+
+% Sum shape watahh
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    above=2cm of pumpgain
+] (sumWatah){};
+
+
+ %Sum details
+\draw (sum.north east) -- (sum.south west)
+    (sum.north west) -- (sum.south east);
+\draw (sum.north east) -- (sum.south west)
+(sum.north west) -- (sum.south east);
+\node[left=-1pt] at (sum.center){\tiny $+$};
+\node[below] at (sum.center){\tiny $-$};
+\node[above] at (sum.center){\tiny $+$};
+
+ %Sum details oxy
+\draw (sumOxy.north east) -- (sumOxy.south west)
+    (sumOxy.north west) -- (sumOxy.south east);
+\draw (sumOxy.north east) -- (sumOxy.south west)
+(sumOxy.north west) -- (sumOxy.south east);
+\node[left=-1pt] at (sumOxy.center){\tiny $+$};
+\node[below] at (sumOxy.center){\tiny $+$};
+\node[above] at (sumOxy.center){\tiny $+$};
+
+ 
+
+
+ %Sum details
+\draw (sumWatah.north east) -- (sumWatah.south west)
+    (sumWatah.north west) -- (sumWatah.south east);
+\draw (sumWatah.north east) -- (sumWatah.south west)
+(sumWatah.north west) -- (sumWatah.south east);
+\node[left=-1pt] at (sumWatah.center){\tiny $+$};
+\node[right=-1pt] at (sumWatah.center){\tiny $+$};
+\node[above] at (sumWatah.center){\tiny $+$};
+
+ %Sum decay
+\draw (sumDecay.north east) -- (sumDecay.south west)
+    (sumDecay.north west) -- (sumDecay.south east);
+\draw (sumDecay.north east) -- (sumDecay.south west)
+(sumDecay.north west) -- (sumDecay.south east);
+\node[below=-1pt] at (sumDecay.center){\tiny $+$};
+\node[right=-1pt] at (sumDecay.center){\tiny $+$};
+
+
+
+%\draw[-stealth] (controller) -- (sum) 
+%    node[midway, above]{$x_2$};
+
+\draw[-stealth] (sum) -- (integrator) 
+    node[midway, above]{$\dot{x_2}$};
+
+\draw[-stealth] (integrator.east) -- ++ (3,0) 
+    node[midway](output1){}node[midway,above]{$\mathrm{x_2}$};
+
+\draw[-stealth] (integrator.east) +(2,0) |- (oxyfeedback)
+    node[midway,above]{};
+
+
+\draw[-stealth] (oxyfeedback) -- (sumDecay) node[near end,left]{};
+\draw[-stealth] (sumDecay) -- (sum) node[near end,left]{};
+
+\draw[-stealth] (pumpgain) -- (sum) 
+    node[midway, above]{};
+
+
+\draw[stealth-] (sumWatah.north) -- ++ (0,2) node[above]{$\mathrm{U_2}$};
+\draw[stealth-] (sumWatah.west) -| ++ (-1,2) node[above]{$\mathrm{U_1}$};
+\draw[stealth-] (sumWatah.east) -| ++ (1,2) node[above]{$\mathrm{U_3}$};
+
+
+\draw[-stealth] (controller) -- (sumOxy) node[near start, above]{$x_4$};
+\draw[-stealth] (oxyValve2) -| (sumOxy) node[near start, above]{$x_3$};
+\draw[-stealth] (oxyValve3) -| (sumOxy) node[near start, above]{$x_5$};
+\draw[-stealth] (sumOxy) -- (sum) node[near start, above]{};
+
+
+
+\draw[stealth-] (controller.west) -- ++ (-3,0) 
+    node[midway](output1){}node[midway,above]{$\mathrm{U_5}$};
+
+\draw[stealth-] (oxyValve2.west) -- ++ (-3,0) 
+    node[midway](output1){}node[midway,above]{$\mathrm{U_4}$};
+
+\draw[stealth-] (oxyValve3.west) -- ++ (-3,0) 
+    node[midway](output1){}node[midway,above]{$\mathrm{U_6}$};
+
+
+
+\draw[-stealth] (sumDecay.south) +(0,-2) -- (sumDecay)
+    node[below=2.5cm]{$U_7$};
+
+
+
+
+\draw[-stealth] (sumWatah) -- (pumpgain) node[near start, above]{};
+
+
+
+
+
+
+
+
+ 
+
+\end{tikzpicture}
+ 
+
+
+\end{document}

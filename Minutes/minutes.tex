@@ -1,0 +1,97 @@
+\documentclass{article}
+\usepackage[margin=2.5cm, includefoot]{geometry}
+\usepackage[utf8]{inputenc}
+%\usepackage[norsk]{babel}									% English language/hyphenation
+\usepackage[protrusion=true,expansion=true]{microtype}	
+\usepackage{amsmath,amsfonts,amsthm}					% Math packages
+\usepackage[pdftex]{graphicx}									% Enable pdflatex
+\usepackage[svgnames]{xcolor}	
+\usepackage{fancyhdr}
+\usepackage{longtable}
+
+
+
+\usepackage{caption}   
+\usepackage{subcaption}
+\usepackage{pdfpages}
+\setlength\parindent{0pt}
+
+
+\usepackage{hyperref}
+% \hypersetup{
+%     colorlinks,
+%     linkcolor={green!20!black},
+%     citecolor={blue!50!black},
+%     urlcolor={blue!80!black}
+% }
+
+\usepackage{tabularx} %Flere funksjoner i tabeller
+\usepackage{array} % Brukt i tittelsiden, definere kolonnebredde
+\usepackage{multirow} 
+
+\usepackage{textpos}
+
+\usepackage{tikz} %Pakke for å tegne figurer
+\usetikzlibrary{calc,decorations.markings,shapes,arrows,positioning,fit,backgrounds} %Tilleggspakke for TikZ
+\usepgflibrary{arrows} %flere alternativ av piler
+\usepackage{circuitikz}
+
+
+%FIXED LENGTH TABULAR
+\usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+
+\usepackage{multirow}
+%date
+\usepackage{datetime}
+\newdateformat{monthyeardate}{%
+  \THEDAY-\monthname[\THEMONTH]-\THEYEAR}
+
+
+
+
+
+
+\begin{document}
+
+
+\pagenumbering{gobble}
+\thispagestyle{plain}
+
+\newgeometry{left=.5cm, right=.5cm,top=1cm,bottom=1.9cm}
+
+
+\begin{tabular}{|C{2cm}|L{4cm}|L{12cm}|} % 3 cells
+\hline 
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|r|}{\includegraphics[scale=0.1]{scale-aq_logo-color.png}}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{\huge{\textbf{Minutes}} }\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{\huge{\textbf{CAS}} }\\
+\multicolumn{3}{|c|}{\huge{\textbf{Pumpesystem}}}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{2}{|l}{} & \multicolumn{1}{l|}{\textbf{Action list}}\\
+\multicolumn{2}{|l}{Date:} & \multicolumn{1}{l|}{\today} \\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{}\\
+\hline
+\textbf{Saksnr. } & \textbf{Ansvarlig} & \textbf{Beskrivelse}\\
+\hline
+01 & Framo & Signaldokument som beskriver signaler mellom Framo sine tre PLS'er og ScaleAQ sin overordnede PLS. Beskrivelsen bør inkludere datatype/struktur, signalnavn, variabelnavn og OPC server endpoint for de tre pumpene.\\
+\hline
+02 & Framo & Funskjonsbeskrivelse for evakueringssytem.\\
+\hline
+
+
+\end{tabular}
+
+\end{document}

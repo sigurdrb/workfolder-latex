@@ -1,0 +1,271 @@
+\documentclass{standalone}
+\usepackage{tikz}
+\usepackage{xcolor}                  
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit, backgrounds, arrows.meta, calc}
+
+
+
+
+
+\begin{document}
+ 
+\begin{tikzpicture}
+ 
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+] (sum) at (0,0){};
+ 
+\draw (sum.north east) -- (sum.south west)
+    (sum.north west) -- (sum.south east);
+ 
+\draw (sum.north east) -- (sum.south west)
+(sum.north west) -- (sum.south east);
+ 
+\node[left=-1pt] at (sum.center){\tiny $+$};
+\node[below] at (sum.center){\tiny $-$};
+ 
+% Controller
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of sum
+]  (controller) {$G_{C_1}(s)$};
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    right=2cm of controller
+] (sum2) {};
+
+\draw (sum2.north east) -- (sum2.south west)
+    (sum2.north west) -- (sum2.south east);
+ 
+\draw (sum2.north east) -- (sum2.south west)
+(sum2.north west) -- (sum2.south east);
+ 
+\node[left=-1pt] at (sum2.center){\tiny $+$};
+\node[below] at (sum2.center){\tiny $-$};
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    below=4cm of sum2
+] (sum3) {};
+
+\draw (sum3.north east) -- (sum3.south west)
+    (sum3.north west) -- (sum3.south east);
+ 
+\draw (sum3.north east) -- (sum3.south west)
+(sum3.north west) -- (sum3.south east);
+ 
+\node[left=-1pt] at (sum3.center){\tiny $+$};
+\node[below] at (sum3.center){\tiny $-$};
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    above=6cm of sum2
+] (sum4) {};
+
+\draw (sum4.north east) -- (sum4.south west)
+    (sum4.north west) -- (sum4.south east);
+ 
+\draw (sum4.north east) -- (sum4.south west)
+(sum4.north west) -- (sum4.south east);
+ 
+\node[left=-1pt] at (sum4.center){\tiny $+$};
+\node[below] at (sum4.center){\tiny $-$};
+
+
+% controller
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of sum2
+]  (contrOx) {$G_{C_{11}}(s)$};
+
+% controller
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of sum3
+]  (contrOx2) {$G_{C_{12}}(s)$};
+
+% controller
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of sum4
+]  (contrOx3) {$G_{C_{13}}(s)$};
+
+% ValveOx
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of contrOx
+]  (valveOx) {$G_{11}(s)$};
+
+% ValveOx
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of contrOx2
+]  (valveOx2) {$G_{12}(s)$};
+
+% ValveOx
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of contrOx3
+]  (valveOx3) {$G_{13}(s)$};
+ 
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    right=2cm of valveOx
+] (sumT) {};
+
+\draw (sumT.north east) -- (sumT.south west)
+    (sumT.north west) -- (sumT.south east);
+ 
+\draw (sumT.north east) -- (sumT.south west)
+(sumT.north west) -- (sumT.south east);
+ 
+\node[left=-1pt] at (sumT.center){\tiny $+$};
+\node[below] at (sumT.center){\tiny $+$};
+\node[above] at (sumT.center){\tiny $+$};
+
+% System H(s)
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm,
+    right=1.5cm of sumT
+] (system) {$H_{1}(s)$};
+
+
+ 
+% Sensor block
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm, 
+    below = 1cm of valveOx
+]  (sensor) {$G_{M_{11}}(s)$};
+
+% Sensor block
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm, 
+    below = 1cm of valveOx2
+]  (sensor3) {$G_{M_{12}}(s)$};
+
+% Sensor block
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm, 
+    below = 1cm of valveOx3
+]  (sensor4) {$G_{M_{13}}(s)$};
+
+% Sensor block
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm, 
+    below = 7cm of sensor
+]  (sensor2) {$G_{M_2}(s)$};
+ 
+
+\draw[-stealth] (sum.east) -- (controller.west) 
+    node[midway,above]{$\mathrm{e_1}$};
+
+
+\draw[-stealth] (controller) -- (sum2)
+    node[midway,above]{$\mathrm{u_{1}}$};
+
+\draw[-stealth] (controller.east) +(.5,0) |- (sum4)
+    node[midway,above]{};
+
+\draw[-stealth] (sum2) -- (contrOx)
+    node[midway,above]{};
+
+\draw[-stealth] (sum3) -- (contrOx2)
+    node[midway,above]{};
+
+\draw[-stealth] (sum4) -- (contrOx3)
+    node[midway,above]{};
+
+\draw[-stealth] (contrOx) -- (valveOx)
+    node[midway,above]{};
+
+\draw[-stealth] (contrOx2) -- (valveOx2)
+    node[midway,above]{};
+
+\draw[-stealth] (contrOx3) -- (valveOx3)
+    node[midway,above]{};
+
+
+\draw[-stealth] (valveOx) -- (sumT)
+    node[midway,above]{$\mathrm{x_{11}}$};
+
+\draw[-stealth] (system.east) -- ++ (2,0) 
+    node[midway](output1){}node[midway,above]{$\mathrm{x_1}$};
+    
+
+\draw[-stealth] (sensor.west) -| (sum2.south) 
+    node[near end,left]{$y_{11}$};
+
+\draw[-stealth] (sensor3.west) -| (sum3.south) 
+    node[near end,left]{$y_{12}$};
+
+\draw[-stealth] (sensor4.west) -| (sum4.south) 
+    node[near end,left]{$y_{13}$};
+
+\draw[-stealth] (valveOx.east) +(1,0) |- (sensor.east) 
+    node[midway, right]{};
+
+\draw[-stealth] (valveOx2.east) +(1,0) |- (sensor3.east) 
+    node[midway, right]{};
+
+\draw[-stealth] (valveOx3.east) +(1,0) |- (sensor4.east) 
+    node[midway, right]{};
+
+\draw[-stealth] ( system.east) +(1,0) |- (sensor2.east) 
+    node[midway, right]{};
+
+\draw[-stealth] (sensor2.west) -| (sum.south) 
+    node[near end,left]{$y_1$};
+
+\draw (sum.west) -- ++(-1,0) 
+    node[midway,above]{$\mathrm{x_{ref}}$};
+
+\draw (controller.east) +(.5,0) |- (sum3.west)
+    node[near end,above]{};
+
+\draw[-stealth] (valveOx2.east) -| (sumT.south) 
+    node[near end,left]{$\mathrm{x_{12}}$};
+
+\draw[-stealth] (valveOx3.east) -| (sumT.north) 
+    node[near end,left]{$\mathrm{x_{13}}$};
+
+\draw[-stealth] (sumT.east) -- (system.west) 
+    node[midway, above]{};
+
+
+
+\node[above right=3cm and 12cm of sum4, align=left] (text) {$G_{C_1}$ - oxygen controller\\
+$G_{C_{11}}$, $G_{C_{12}}$, $G_{C_{13}}$ - flow controller\\
+$H_{1}$ - plant\\
+$G_{M_{11}}$, $G_{M_{12}}$, $G_{M_{13}}$ - measurement\\
+$G_{11}$, $G_{12}$, $G_{13}$ - flow valve
+};
+
+
+
+\end{tikzpicture}
+ 
+\end{document}

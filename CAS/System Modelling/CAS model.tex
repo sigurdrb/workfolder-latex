@@ -1,0 +1,525 @@
+\documentclass{article}
+\usepackage[left=3cm,right=3cm,top=3cm,bottom=2cm]{geometry} % page settings
+\usepackage{amsmath} % provides many mathematical environments & tools
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{tikz}
+\usepackage{xcolor}                  
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit, backgrounds, arrows.meta, calc}
+
+\setlength{\parindent}{0mm}
+
+\begin{document}
+
+\title{Mathematical modelling and control of CAS}
+\author{Sigurd R. Brekk}
+\date{\today}
+\maketitle
+
+\section{Introduction}
+Dynamical model of CAS system.
+
+Formula for flow vs speed:
+$Q = K_1 \cdot H \cdot n$, where n is the impeller speed in RPM, and Q is $m^3/h$
+For the SR2000 pump the area of operation is between 40-130 rpm.
+If we linearize around the rated point and switch to units $m^3/s$, we get: \newline
+
+$\dfrac{20000}{60^2} =K_1 \cdot 130 \Longrightarrow K_1 \approx 0.042735$. \newline
+
+The flow out of the pen is designed so we have an exchange rate of 35 minute for the entire volume of the pen which is $20 000m^3$.
+If we switch units to $m^3/h$ and linearize around 0.06m, we get: \newline
+\begin{align}  
+K_{qo} = \dfrac{20 000m^3}{35\cdot (60s)} \approx 9.5238m^3/s\\
+q_o = \dfrac{K_{qo}}{0.06} \cdot x_1
+\end{align}
+where $x_1$ is the height difference inside-outside the pen.
+C is the capacitance of the tank \newline
+\begin{align}
+C&=\dfrac{\partial V}{\partial h} = \pi r^2 = \pi \cdot 25.25m^2\\
+&\approx  1288.25m^2
+\end{align}
+
+\begin{align}
+    C \dot{x_1} &= q_i - q_o\\
+    &= K_1 \cdot u_1 - \dfrac{K_{qo}}{0.06}x_1\\
+    \dot{x_1}&= -\dfrac{K_{qo}}{0.06\cdot C}x_1 + \dfrac{K_1}{C}u_1 \label{eq:flow}
+\end{align}
+\
+\subsection{Oxygen model}
+
+\begin{align}
+    \dot{a} &= c_\text{in}\cdot r_\text{in} - c_\text{out}\cdot r_\text{out}
+\end{align}
+
+Where $a$ is the amount of oxygen in the system, $c_\text{in} \left[ \frac{\text{kg}}{\text{m}^3} \right] $ is the concentration going in, 
+$c_\text{out}$ is the concentration going out. $r_\text{in}\left[ \frac{\text{m}^3}{h} \right]$ is the rate of the amount going in and 
+$r_\text{in}$ is the rate of oksygen going out.
+Substituting this with the state variables the equation becomes when linearized around 0.06cm
+\begin{equation} \label{eq:ox_simp}
+    \dot{x_2} =  +K_2(u_1+u_2+u_3) + x_3 -K_4-K_{qo}\cdot \dfrac{x_2}{20000}
+\end{equation}
+
+where F(s) is the transfer function between
+We also have an additional contribution to $x_2$ from the oxygenation system, which is on the from
+
+\begin{align*}
+    \dfrac{X_2}{U_4} &= \dfrac{K_3}{1+T_1s}-K_{qo}\cdot \dfrac{x_2}{20000}
+\end{align*}
+
+
+Where $K_2$ is the amount of oxygen inside the sea water (concentration times flow). $u_1$, $u_2$, $u_3$ are the control signals to the inlet pump (in RPM). 
+$u_4$, $u_5$, $u_6$ is the control signal to the control valve for the oxygenation system.
+$G_1(s)$ is the transfer function from the control signal to the valve to the outout flow
+$K_4$ is the assumed constant consumption of oxygen from the fish.\newline
+
+\begin{align} \label{eq:valve}
+    G_1(s)&=\dfrac{K_5}{1+T_1s}
+\end{align}
+
+$K_5$
+
+The constant $K_2$ is relating the pump speed to rate of oxygen that is inserted in the pen $\frac{g}{h}$.
+
+Normal $O_2$ levels in sea water is $\frac{7g}{m^3}$.
+
+From equation \ref{eq:flow} we have the relationship between RPM and oxygen into the CAS (with assumption of constant oxygen concentration of $\frac{7g}{m^3}$). \newline
+\begin{equation}
+    \dfrac{x_2}{u_1} = K_2 =  7\frac{g}{m^3} \cdot K_1 \approx 0.299145\frac{g}{s}
+\end{equation}
+
+
+
+Maximum $o_2$ injection pr. inlet branch is specified to be $104.2kg/h$ ($\approx 29g/s$)
+If we assume a linear relationship between the control signal and outlet flow, where the maximum oxygen flow is $\approx 29g/s$ pr. specification, we get:
+
+\begin{equation}
+    \dfrac{x_2}{u_4} = K_5 =\frac{1}{100}\cdot 29\frac{g}{s} = 2.9\frac{g}{s}
+\end{equation}
+where $u_4$ is a control signal between 0-100\%.\newline
+
+The time constant for the Burkert 2865 valve is given to  $<20\mathrm{ms}$. Whit the possibility to introduce a ramp delay between 0..10s \newline
+
+Equation \ref{eq:valve} then becomes
+\begin{equation}
+    G_1(s) = \dfrac{2.9}{1+0.02s}
+\end{equation}
+
+The average consumption of fish in this model is $500mg O_2/kgh$. 
+If we switch units to seconds and gram, and assume a total of 1 000 000kg salmon we get the value of $K_4$ to be \newline
+$500 \cdot \dfrac{1000000}{60^2\cdot 1000}\frac{g O_2}{s} \approx 139 g O_2/s $
+
+
+
+\section{Block diagram of oxygen system}
+
+
+\resizebox{1\textwidth}{!}{%
+\begin{tikzpicture}
+ 
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+] (sum) at (0,0){};
+ 
+\draw (sum.north east) -- (sum.south west)
+    (sum.north west) -- (sum.south east);
+ 
+\draw (sum.north east) -- (sum.south west)
+(sum.north west) -- (sum.south east);
+ 
+\node[left=-1pt] at (sum.center){\tiny $+$};
+\node[below] at (sum.center){\tiny $-$};
+ 
+% Controller
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of sum
+]  (controller) {$G_{C_1}(s)$};
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    right=2cm of controller
+] (sum2) {};
+
+\draw (sum2.north east) -- (sum2.south west)
+    (sum2.north west) -- (sum2.south east);
+ 
+\draw (sum2.north east) -- (sum2.south west)
+(sum2.north west) -- (sum2.south east);
+ 
+\node[left=-1pt] at (sum2.center){\tiny $+$};
+\node[below] at (sum2.center){\tiny $-$};
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    below=4cm of sum2
+] (sum3) {};
+
+\draw (sum3.north east) -- (sum3.south west)
+    (sum3.north west) -- (sum3.south east);
+ 
+\draw (sum3.north east) -- (sum3.south west)
+(sum3.north west) -- (sum3.south east);
+ 
+\node[left=-1pt] at (sum3.center){\tiny $+$};
+\node[below] at (sum3.center){\tiny $-$};
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    above=6cm of sum2
+] (sum4) {};
+
+\draw (sum4.north east) -- (sum4.south west)
+    (sum4.north west) -- (sum4.south east);
+ 
+\draw (sum4.north east) -- (sum4.south west)
+(sum4.north west) -- (sum4.south east);
+ 
+\node[left=-1pt] at (sum4.center){\tiny $+$};
+\node[below] at (sum4.center){\tiny $-$};
+
+
+% controller
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of sum2
+]  (contrOx) {$G_{C_{11}}(s)$};
+
+% controller
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of sum3
+]  (contrOx2) {$G_{C_{12}}(s)$};
+
+% controller
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of sum4
+]  (contrOx3) {$G_{C_{13}}(s)$};
+
+% ValveOx
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of contrOx
+]  (valveOx) {$G_{11}(s)$};
+
+% ValveOx
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of contrOx2
+]  (valveOx2) {$G_{12}(s)$};
+
+% ValveOx
+\node [draw,
+    minimum width=2cm,
+    minimum height=1.2cm,
+    right=1cm of contrOx3
+]  (valveOx3) {$G_{13}(s)$};
+ 
+
+% Sum shape
+\node[draw,
+    circle,
+    minimum size=0.6cm,
+    right=2cm of valveOx
+] (sumT) {};
+
+\draw (sumT.north east) -- (sumT.south west)
+    (sumT.north west) -- (sumT.south east);
+ 
+\draw (sumT.north east) -- (sumT.south west)
+(sumT.north west) -- (sumT.south east);
+ 
+\node[left=-1pt] at (sumT.center){\tiny $+$};
+\node[below] at (sumT.center){\tiny $+$};
+\node[above] at (sumT.center){\tiny $+$};
+
+% System H(s)
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm,
+    right=1.5cm of sumT
+] (system) {$H_{1}(s)$};
+
+
+ 
+% Sensor block
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm, 
+    below = 1cm of valveOx
+]  (sensor) {$G_{M_{11}}(s)$};
+
+% Sensor block
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm, 
+    below = 1cm of valveOx2
+]  (sensor3) {$G_{M_{12}}(s)$};
+
+% Sensor block
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm, 
+    below = 1cm of valveOx3
+]  (sensor4) {$G_{M_{13}}(s)$};
+
+% Sensor block
+\node [draw,
+    minimum width=2cm, 
+    minimum height=1.2cm, 
+    below = 7cm of sensor
+]  (sensor2) {$G_{M_2}(s)$};
+ 
+
+\draw[-stealth] (sum.east) -- (controller.west) 
+    node[midway,above]{$\mathrm{e_1}$};
+
+
+\draw[-stealth] (controller) -- (sum2)
+    node[midway,above]{$\mathrm{u_{1}}$};
+
+\draw[-stealth] (controller.east) +(.5,0) |- (sum4)
+    node[midway,above]{};
+
+\draw[-stealth] (sum2) -- (contrOx)
+    node[midway,above]{};
+
+\draw[-stealth] (sum3) -- (contrOx2)
+    node[midway,above]{};
+
+\draw[-stealth] (sum4) -- (contrOx3)
+    node[midway,above]{};
+
+\draw[-stealth] (contrOx) -- (valveOx)
+    node[midway,above]{};
+
+\draw[-stealth] (contrOx2) -- (valveOx2)
+    node[midway,above]{};
+
+\draw[-stealth] (contrOx3) -- (valveOx3)
+    node[midway,above]{};
+
+
+\draw[-stealth] (valveOx) -- (sumT)
+    node[midway,above]{$\mathrm{x_{11}}$};
+
+\draw[-stealth] (system.east) -- ++ (2,0) 
+    node[midway](output1){}node[midway,above]{$\mathrm{x_1}$};
+    
+
+\draw[-stealth] (sensor.west) -| (sum2.south) 
+    node[near end,left]{$y_{11}$};
+
+\draw[-stealth] (sensor3.west) -| (sum3.south) 
+    node[near end,left]{$y_{12}$};
+
+\draw[-stealth] (sensor4.west) -| (sum4.south) 
+    node[near end,left]{$y_{13}$};
+
+\draw[-stealth] (valveOx.east) +(1,0) |- (sensor.east) 
+    node[midway, right]{};
+
+\draw[-stealth] (valveOx2.east) +(1,0) |- (sensor3.east) 
+    node[midway, right]{};
+
+\draw[-stealth] (valveOx3.east) +(1,0) |- (sensor4.east) 
+    node[midway, right]{};
+
+\draw[-stealth] ( system.east) +(1,0) |- (sensor2.east) 
+    node[midway, right]{};
+
+\draw[-stealth] (sensor2.west) -| (sum.south) 
+    node[near end,left]{$y_1$};
+
+\draw (sum.west) -- ++(-1,0) 
+    node[midway,above]{$\mathrm{x_{ref}}$};
+
+\draw (controller.east) +(.5,0) |- (sum3.west)
+    node[near end,above]{};
+
+\draw[-stealth] (valveOx2.east) -| (sumT.south) 
+    node[near end,left]{$\mathrm{x_{12}}$};
+
+\draw[-stealth] (valveOx3.east) -| (sumT.north) 
+    node[near end,left]{$\mathrm{x_{13}}$};
+
+\draw[-stealth] (sumT.east) -- (system.west) 
+    node[midway, above]{};
+
+
+
+\node[above right=3cm and 12cm of sum4, align=left] (text) {$G_{C_1}$ - oxygen controller\\
+$G_{C_{11}}$, $G_{C_{12}}$, $G_{C_{13}}$ - flow controller\\
+$H_{1}$ - plant\\
+$G_{M_{11}}$, $G_{M_{12}}$, $G_{M_{13}}$ - measurement\\
+$G_{11}$, $G_{12}$, $G_{13}$ - flow valve
+};
+
+
+
+\end{tikzpicture}
+} 
+
+
+\section{State space description of the system}
+
+\begin{align}
+    \begin{matrix}
+    \mathbf{\dot{x}(t)}\\    
+    \end{matrix}
+    &=
+    \mathbf{A}
+    \begin{matrix}
+        \mathbf{\dot{x}(t)}\\    
+    \end{matrix}
+    +
+    \mathbf{B}
+    \begin{matrix}
+        \mathbf{u(t)}\\    
+    \end{matrix} \\
+    \begin{matrix}
+        \mathbf{y(t)}\\    
+    \end{matrix}
+     &=
+    \mathbf{C}
+    \begin{matrix}
+        \mathbf{x(t)}\\    
+    \end{matrix}
+\end{align}
+
+linearize around inner head at 6cm
+\begin{align*}
+    x_1 &= \text{inner water height difference}                         & u_1&= \text{pump 1 speed [rpm]}\\
+    x_2 &= \text{amount of oxygen inside the pen}                       & u_2&= \text{pump 2 speed [rpm]}\\
+    x_3 &= \text{ O2 flow injector number 1 }\left[\frac{g}{s}\right]                   & u_3&= \text{pump 2 speed [rpm]}\\
+    x_4 &= \text{ O2 flow injector number 2 }\left[\frac{g}{s}\right]                   & u_4&= \text{control signal to O2 injector valve 1 [0-100\%]}\\
+    x_5 &= \text{ O2 flow injector number 3 }\left[\frac{g}{s}\right]                   & u_5&= \text{control signal to O2 injector valve 2 [0-100\%]}\\
+        &                                                               & u_6&= \text{control signal to O2 injector valve 3} [0-100\%]\\
+        &                                                               & u_7&= \text{Oxygen consumption of fish }\frac{g(O_2)}{s}
+\end{align*}
+
+Constants:
+
+\begin{align*}
+    \rho &= 1025 \text{ sea water density} & K_1&= \text{constant relating RPM to $g/m^3$ of oxygen}\\
+    C&=\frac{\partial V}{\partial h} = \pi \cdot r^2 \approx 1886 \text{ Capacity of tank} & K_1 &= 6512.5 \text{ gain of control signal to O2 massflow}\\
+    T_1&= 2 \text{ time constant of O2 control valve} & V&=20000 \text{ volume of tank}\\
+    Kq_o &= 1.749985\cdot 10^{-6}\text{ Resistance of outlet}
+\end{align*}
+
+\begin{equation}
+    \begin{bmatrix}
+    \dot{x_1}\\    
+    \dot{x_2}\\
+    \dot{x_3}\\
+    \dot{x_4}\\
+    \dot{x_5}
+    \end{bmatrix}
+    =
+    \begin{bmatrix}
+        -\dfrac{K_{qo}}{0.06\cdot C} & 0 & 0 & 0 &0\\ 
+        0 & -\frac{K_{qo}}{V} & 1 & 1 & 1\\
+        0 & 0 & -\frac{1}{T} & 0 & 0\\
+        0 & 0 & 0 &  -\frac{1}{T} & 0\\
+        0 & 0 & 0 & 0 &  -\frac{1}{T}
+    \end{bmatrix}
+    \begin{bmatrix}
+        x_1\\    
+        x_2\\
+        x_3\\
+        x_4\\
+        x_5
+    \end{bmatrix}
+    +
+    \begin{bmatrix}
+        \frac{K_1}{C} & \frac{K_1}{C} & \frac{K_1}{C} & 0 & 0  & 0 & 0  \\    
+         K_2 &  K_2 &  K_2 &0& 0&0&-1\\
+         0& 0& 0& K/T& 0& 0& 0\\
+         0& 0& 0& 0&K/T& 0& 0\\
+         0& 0& 0& 0& 0& K/T& 0\\
+
+    \end{bmatrix}
+    \begin{bmatrix}
+        u_1\\    
+        u_2\\
+        u_3\\
+        u_4\\
+        u_5\\
+        u_6\\
+        u_7
+    \end{bmatrix}
+\end{equation}
+
+\begin{equation}
+    \begin{bmatrix}
+    y_1\\    
+    y_2\\
+    y_3\\
+    y_4\\
+    y_5
+    \end{bmatrix}
+    =
+    \begin{bmatrix}
+        1 & 0 &0&0&0\\
+        0 & \frac{1}{V}&0&0&0\\
+        0 & 0 & 1 & 0 & 0\\
+        0 & 0 & 0 & 1 & 0\\
+        0 & 0 & 0 & 0 & 1\\
+    \end{bmatrix}
+    \begin{bmatrix}
+        x_1\\    
+        x_2\\
+        x_3\\
+        x_4\\
+        x_5
+    \end{bmatrix}
+\end{equation}
+
+
+
+
+\section{ZOH discretization of system}
+Z-transforms and difference equations
+\begin{align}
+    \dfrac{Y_1(z)}{U_1(z)} &= \dfrac{3.29694276e-06}{z-0.98775421}\\
+    \dfrac{Y_2(z)}{U_1(z)} &= \dfrac{1.49569088e-06}{z-0.99995238}\\
+    \dfrac{Y_2(z)}{U_4(z)} &= \dfrac{\left(3.55844420e-06\right)z+3.49957382e-06}{z^2-1.95118181z+0.95118413}\\
+    \dfrac{Y_2(z)}{U_7(z)} &= \dfrac{-4.99988095e-06}{z-0.99995238}\\
+    \dfrac{Y_2(z)}{X_3(z)} &= \dfrac{0.09999762}{z-0.99995238}\\
+    \dfrac{X_3(z)}{U_4(z)} &= \dfrac{28.74941831}{z-0.006738}\\
+\end{align}
+
+\begin{align*}
+    y_{1_{k}} &= 0.98775421\cdot y_{1_{k-1}} + \num{3.29694276e-06}\cdot u_{1_{k-1}} \\
+    y_{2_{k}} &= 0.99995238\cdot y_{1_{k-1}} + \num{1.49569088e-06}\cdot u_{1_{k-1}} \\
+     y_{2_{k}} &= 1.95118181\cdot y_{2_{k-1}} - 0.95118413\cdot y_{2_{k-2}} + \num{3.55844420e-06}\cdot u_{4_{k-1}}+ \num{3.49957382e-06}\cdot u_{4_{k-2}}\\
+    y_{2_{k}}    &= 0.99995238\cdot y_{2_{k-1}} - 0.00069443\cdot u_{7_{k-1}}\\
+    y_{2_{k}}    &= 0.99995238\cdot y_{2_{k-1}} + 0.09999762\cdot x_{3_{k-1}}\\
+    x_{3_{k}}    &= 0.006738\cdot x_{3_{k-1}} + 28.74941831\cdot u_{4_{k-1}}\\
+\end{align*}
+
+Final value theorem:
+\begin{equation}
+    x[\infty] = \lim_{x\to 1} (z-1) X(z)
+\end{equation}
+
+Z-transform of a step function is $\dfrac{z}{z  -1}$
+\section{Control theory method for regulation of CAS}
+
+
+\section{Results}
+\end{document}
