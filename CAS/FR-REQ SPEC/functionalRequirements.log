@@ -1,10 +1,10 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.3) (preloaded format=pdflatex 2025.3.19)  20 MAY 2025 13:35
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.3) (preloaded format=pdflatex 2025.3.19)  26 JAN 2026 09:07
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
-**"c:/GIT/LaTeX/CAS/FR-REQ SPEC/functionalRequirements.tex"
-(c:/GIT/LaTeX/CAS/FR-REQ SPEC/functionalRequirements.tex
+**"c:/GIT/workfolder-latex/CAS/FR-REQ SPEC/functionalRequirements.tex"
+(c:/GIT/workfolder-latex/CAS/FR-REQ SPEC/functionalRequirements.tex
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/beamer\beamer.cls
@@ -1013,14 +1013,14 @@ Package rerunfilecheck Info: File `functionalRequirements.out' has not changed.
  ) 
 Here is how much of TeX's memory you used:
  21682 strings out of 473523
- 422523 string characters out of 5711242
+ 422641 string characters out of 5711242
  787055 words of memory out of 5000000
  44406 multiletter control sequences out of 15000+600000
  568466 words of font info for 70 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 128i,14n,123p,449b,563s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 128i,14n,123p,460b,563s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmss10.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmss12.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmss8.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmss9.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmssbx10.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmssi8.pfb>
-Output written on functionalRequirements.pdf (29 pages, 11200594 bytes).
+Output written on functionalRequirements.pdf (29 pages, 11200832 bytes).
 PDF statistics:
  806 PDF objects out of 1000 (max. 8388607)
  59 named destinations out of 1000 (max. 500000)

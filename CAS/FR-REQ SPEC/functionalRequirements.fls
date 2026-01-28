@@ -1,6 +1,6 @@
-PWD c:\GIT\LaTeX\CAS\FR-REQ SPEC
+PWD c:\GIT\workfolder-latex\CAS\FR-REQ SPEC
 INPUT C:\Users\sigurd.brekk\AppData\Local\MiKTeX\miktex\data\le\pdftex\pdflatex.fmt
-INPUT c:\GIT\LaTeX\CAS\FR-REQ SPEC\functionalRequirements.tex
+INPUT c:\GIT\workfolder-latex\CAS\FR-REQ SPEC\functionalRequirements.tex
 OUTPUT functionalRequirements.log
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\beamer\beamer.cls
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\beamer\beamer.cls

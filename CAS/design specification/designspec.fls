@@ -1,6 +1,6 @@
-PWD c:\GIT\LaTeX\CAS\design specification
+PWD c:\GIT\workfolder-latex\CAS\design specification
 INPUT C:\Users\sigurd.brekk\AppData\Local\MiKTeX\miktex\data\le\pdftex\pdflatex.fmt
-INPUT c:\GIT\LaTeX\CAS\design specification\designspec.tex
+INPUT c:\GIT\workfolder-latex\CAS\design specification\designspec.tex
 OUTPUT designspec.log
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\standalone\standalone.cls
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\standalone\standalone.cls

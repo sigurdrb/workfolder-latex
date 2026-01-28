@@ -1,0 +1,94 @@
+\documentclass{article}
+\usepackage[margin=1.5cm, includefoot]{geometry}
+\usepackage[utf8]{inputenc}
+%\usepackage[norsk]{babel}									% English language/hyphenation
+\usepackage{amsmath,amsfonts,amsthm}					% Math packages
+\usepackage[pdftex]{graphicx}							% Enable pdflatex
+
+\usepackage[en-GB]{datetime2}
+\DTMlangsetup[en-GB]{ord=raise,showyear=true}
+
+\usepackage{tabularx} %Flere funksjoner i tabeller
+
+
+
+%FIXED LENGTH TABULAR
+\usepackage{array}
+\newcolumntype{N}{>{\bfseries\huge}l}   % Number column
+\newcolumntype{D}{>{\bfseries\large}X} % Description column
+\newcolumntype{T}{>{\bfseries\large}r} % Time column
+
+\usepackage{multirow}
+%date
+\usepackage{datetime}
+\newdateformat{monthyeardate}{%
+  \THEDAY-\monthname[\THEMONTH]-\THEYEAR}
+
+
+
+
+
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{center}
+    \huge MEETING AGENDA \\
+    \vspace{0.3cm}
+    \huge AquaElevate (automated dead fish system)
+\end{center}
+
+\vskip 0.5cm 
+
+\noindent
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+    \textbf{Date:} & \DTMdate{2026-01-29} \\
+    \textbf{Time: } & 9:00 AM - 11:00 AM \\
+\end{tabularx}
+
+\vskip 0.5cm
+
+\noindent\rule{\textwidth}{0.4pt}
+
+\vskip 0.5cm
+
+\noindent
+\begin{tabularx}{\textwidth}{@{}N@{\hspace{2cm}}D T@{}}
+    01 & Introduction & (10 minutes)\\[0.5em]
+    \hline\\[0.5em] 
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Brief introduction of the industrial process that are to be controlled & \\
+    \hline\\
+    02 & Technical information about the subsystems  & (20 minutes)\\[0.5em]
+    \hline\\[0.5em] 
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Ensilage & \\
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Liftup & \\
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Compressor & \\
+    \hline\\
+    03 & Network topology & (10 minutes)\\[0.5em]
+    \hline\\[0.5em] 
+    & \normalfont\normalsize \textbullet\hspace{0.5em}  Hardware devices& \\
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Communication protocols & \\
+    \hline\\
+    04 & Software and program design & (20 minutes)\\[0.5em]
+    \hline\\[0.5em] 
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Functional requirements& \\
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Control logic & \\
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Use cases & \\
+    \hline\\
+    05 & Process responsibility in SiteControl & (20 minutes)\\[0.5em]
+    \hline\\[0.5em] 
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Controlling and monitoring system& \\
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Logging and alarms & \\
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Troubleshooting equipment& \\
+    \hline\\
+    06 & Integration of other systems & (20 minutes)\\[0.5em]
+    \hline\\[0.5em] 
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Cameras& \\
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Fish diagnostics & \\
+    & \normalfont\normalsize \textbullet\hspace{0.5em} Air filling (subsea) & \\
+    \hline\\
+    07 & Open discussion& (20 minutes)\\[0.5em]
+    \hline\\[0.5em] 
+\end{tabularx}
+
+\end{document}
+ 
