@@ -14,31 +14,39 @@
 \frame{\titlepage}
 
 \begin{frame}
+\includegraphics[width=\textwidth]{overview.png}
+\end{frame}
+
+\begin{frame}
+  \frametitle{System overview}
 \begin{minipage}[t]{0.5\textwidth}
 \scriptsize 
     \begin{enumerate}
     \vspace{0pt} % <-- forces top alignment inside the minipage
     \item<1-> Dead fish are gathered at the bottom of the pen.
     \item<2-> The fish flows through a GRP pipe from the pen and up to the LiftUp unit.
-    \item<3-> It then moves through the liftup-unit by means of gravity and a VSD controlled conveyor belt
-    \item<4-> Flushing system
-    \item<5-> Camera unit / vision system
-    \item<6-> Stunner unit (state mandatory)
+    \item<3-> Stunner unit (state mandatory)
+    \item<4-> It then moves through the liftup-unit by means of gravity and a VSD controlled conveyor belt
+    \item<5-> Flushing system
+    \item<6-> Camera unit / vision system
     \item <7-> Distance sensor
     \item <8-> Moves through a pre-grinder
     \item <9-> Stored in tanks and continuously circulated/grinded in the ensilage system.
     \item <10-> Automatic handling of acid dosing
-    \item <11-> 
     \end{enumerate}
 \end{minipage}%
 \hfill%
 \begin{minipage}[t]{0.5\textwidth}
     \vspace{0pt} % top alignment for images
     \includegraphics<1>[width=0.8\textwidth]{deadfishpen.png}
-    \includegraphics<2>[width=0.7\textwidth]{airliftpump.png}
+    \includegraphics<2>[width=0.7\textwidth]{airliftpumppres.png}
+    \includegraphics<3>[width=0.8\textwidth]{liftup2.jpg}
+    \includegraphics<4-6>[width=0.8\textwidth]{liftupmodel.png}
+    \includegraphics<7>[width=0.8\textwidth]{fishpresent.png}
     %
-    \includegraphics<2>[width=0.5\textwidth]{liftup1.jpg}
-    \includegraphics<3-4>[width=0.8\textwidth]{liftup2.jpg}
+    \includegraphics<7>[width=0.8\textwidth]{sick.png}
+    \includegraphics<8>[width=0.8\textwidth]{pregrinder.png}
+    \includegraphics<9-10>[width=0.8\textwidth]{ensilage.png}
 
 \end{minipage}
 
@@ -46,47 +54,71 @@
 
 
 \begin{frame}
-\frametitle{Functional requirements}
-\includegraphics [width=\textwidth]{cas_top.png}
-\tiny \textbf{FUNCTIONAL REQUIREMENT SPECIFICATION FOR PUMP\\ INLET SYSTEM: Level control}\\[.2cm]
-\tiny
-\begin{tabularx}{\textwidth}{llX}
-1. &Process: &Regulate the internal water level relative to the outer sea level (delta height). Required to accurate measure levels down to 1mm.\\[.2cm]
-2. & Inputs: &\textit{Field instruments}: \newline Pressure, distance (ultrasonic), RPM, Power, valve position \newline \textit{User}: \newline delta height set point, RPM, regulator parameters, control commands\\[.5cm]
-3. &Outputs: & RPM control signal to pumps, control commands to FRAMO PLC controller\\[.2cm]
-4. &Major error: & Loss of IO inputs, fatal error on VSD's, disturbance due to weather/waves\\[.2cm]
-5. &Exception response & Switch to manual operation with default values, trip VSD (2oo3) 
-\end{tabularx}
+  \frametitle{Compressor}
+  \begin{minipage}[t]{0.5\textwidth}
+\scriptsize 
+    \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Will be continuously running in subsea applications. Will only run when dead fish system is active on other pens.
+    \item<2-> Responsibilities are delivering air to
+    \begin{itemize}
+      \item<3-> {\footnotesize a buffer tank used for refilling the air domes in the susbea pens}.
+      \item<4-> {\footnotesize the air pump at the bottom of the pens for collecting dead fish.}
+    \end{itemize}
+    \item<5-> Controlled and monitored in the PLC by hardwired (+24VDC) signals.
+    \item Has its own local user interface with configuration and setting possibilities.
+    \end{enumerate}
+\end{minipage}%
+\hfill%
+\begin{minipage}[t]{0.5\textwidth}
+    \vspace{0pt} % top alignment for images
+    \includegraphics<1->[width=0.8\textwidth]{ga30vsd.png}
+\end{minipage}
 \end{frame}
 
 \begin{frame}
-
-\frametitle{Functional requirements}
-\includegraphics [width=.5\textwidth]{cas_top_oxy.png} \newline
-\tiny \textbf{FUNCTIONAL REQUIREMENT SPECIFICATION FOR OXYGENATOR INJECTOR}\\[.2cm]
-\tiny
-\begin{tabularx}{\textwidth}{llX}
-1. &Process: &Inject oxygen into branch of each inlet pump.\\[.2cm]
-2. &Inputs: &\textit{Field instruments}: \newline $O_2$ concentration, pressure, \newline \textit{User}: \newline oxygen concentration set point, regulator parameters, oxygen control valve position\\[.2cm]
-3. &Outputs: & RPM control signal to pumps, control commands to FRAMO PLC controller\\[.2cm]
-4. &Major error: & Loss of oxygen reading, loss of pump speed, control valve / solenoid malfunction, centrifugal pump/VSD error\\[.2cm]
-5. &Exception response & Switch to manual operation with default values, trip oxygenator system
-\end{tabularx}
+  \frametitle{LiftUp unit}
+  \begin{minipage}[t]{0.5\textwidth}
+\scriptsize 
+    \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Consists of different subsystems.
+    \begin{itemize}
+    \item<2-> Stunner
+    \item<3-> Flusher
+    \item<4-> Pen selector control
+    \item<5-> Conveyor belt
+    \item<6-> Camera diagnostic unit
+    \end{itemize}
+    \item<7-> All components connected to Framo's local PLC on the unit.
+    \item<8-> Modbus TCP/IP interface to the local PLC for monitoring and control.
+    \item<9-> Local user interfcace
+    \end{enumerate}
+\end{minipage}%
+\hfill%
+\begin{minipage}[t]{0.5\textwidth}
+    \vspace{0pt} % top alignment for images
+    \includegraphics<1-8>[width=0.8\textwidth]{liftup3.jpg}
+    \includegraphics<9>[width=1.2\textwidth]{liftupUI.png}
+\end{minipage}
 \end{frame}
 
 \begin{frame}
-\frametitle{Functional requirements}
-\includegraphics [width=.5\textwidth]{cas_subsea.png} \newline
-\tiny \textbf{FUNCTIONAL REQUIREMENT SPECIFICATION FOR OUTLET VALVE}\\[.2cm]
-\tiny
-\begin{tabularx}{\textwidth}{llX}
-1. &Process: & Control the water exchange rate \\[.2cm]
-2. & Inputs: &\textit{Field instruments}: \newline Outlet valve position, RPM of inlet pumps, power consumptin inlet pumps \newline \textit{User}: \newline  set point position outlet valve \\[.2cm]
-3. &Outputs: & Control signal to outlet valve\\[.2cm]
-4. &Major error: &Loss of inlet pumps, outlet valve malfunction, clogging\\[.2cm]
-5. &Exception response & Close outlet valve, trip inlet pumps, reduce water level height on inlet pump system\\[.2cm]
-\end{tabularx}
+  \frametitle{Ensilage unit}
+  \begin{minipage}[t]{0.5\textwidth}
+\scriptsize 
+    \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Consists of different subsystems.
+    \end{enumerate}
+\end{minipage}%
+\hfill%
+\begin{minipage}[t]{0.5\textwidth}
+    \vspace{0pt} % top alignment for images
+    \includegraphics<1-8>[width=0.8\textwidth]{liftup3.jpg}
+\end{minipage}
 \end{frame}
+
 
 \begin{frame}
 \frametitle{Scenarios}
