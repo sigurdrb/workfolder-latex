@@ -65,7 +65,7 @@
       \item<3-> {\footnotesize a buffer tank used for refilling the air domes in the susbea pens}.
       \item<4-> {\footnotesize the air pump at the bottom of the pens for collecting dead fish.}
     \end{itemize}
-    \item<5-> Controlled and monitored in the PLC by hardwired (+24VDC) signals.
+    \item<5-> Controlled and monitored in the ensilage PLC by hardwired (+24VDC) signals.
     \item Has its own local user interface with configuration and setting possibilities.
     \end{enumerate}
 \end{minipage}%
@@ -109,101 +109,58 @@
 \scriptsize 
     \begin{enumerate}
     \vspace{0pt} % <-- forces top alignment inside the minipage
-    \item<1-> Consists of different subsystems.
+    \item<1-> Consists of two different PLC's. 
+      \begin{itemize}
+        \item<2-> Ensilage PLC. Responsible for reading different tank levels, valve- and pump control.
+        \item<3-> Acid dosing PLC. Responsible for dosing the correct amount of acid in the grinder tank.
+      \end{itemize}
+    \item<4-> pre-grinder
+    \begin{itemize}
+      \item <4-> controlled by hardwired signals from the PLC (+24VDC).
+    \end{itemize}
+      \item<5-> interface to the compressor by HW signals.
+      \item<6-> interface to LiftUp system over Modbus TCP.
+      \item<7-> single point interface to SiteControl through OPC UA.
     \end{enumerate}
 \end{minipage}%
 \hfill%
 \begin{minipage}[t]{0.5\textwidth}
     \vspace{0pt} % top alignment for images
-    \includegraphics<1-8>[width=0.8\textwidth]{liftup3.jpg}
+    \includegraphics<1-3,5-7>[width=0.8\textwidth]{ensilage.png}
+    \includegraphics<4>[width=0.8\textwidth]{pregrinder.png}
 \end{minipage}
 \end{frame}
 
 
 \begin{frame}
-\frametitle{Scenarios}
-\includegraphics [width=.53\textwidth]{siphon.png} \newline
-\framebox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{
-\scriptsize \begin{enumerate}
-\item<1-> All systems are powered up and outlet valve is in position within valid range.
-\item<2-> User sends start command to pump no. 1
-\item<3-> System checks condition of process and begins the starting sequence of inlet pump.
-\item<4-> The pumps starts at reduced speed, vacuum system starts and anti-siphon valve closes.
-\item<5-> After a limit switch at outlet piping triggers, the vacuum pump stops and the pump starts running at reduced speed
-\item<6-> System changes to "remote operation" and in "manual mode" at 50 RPM.
-\end{enumerate}
-\textbf{Finish}
-\vspace{0.1cm}
-\hrule
-\vspace{0.1cm}
-Scenario 1 - Cold start of inlet pump no. 1 into manual operation mode at a given speed.
-  }}
-
-
+  \frametitle{Network topology}
+  \includegraphics[width=.8\textwidth]{networktopo.drawio.png}
 \end{frame}
+
 
 \begin{frame}
-\frametitle{Scenarios}
-\includegraphics [width=.53\textwidth]{siphon.png} \newline
-\framebox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{
-\scriptsize \begin{enumerate}
-\item<1-> All systems are powered up and outlet valve is in position within valid range.
-\item<2-> User sends start command to pump no. 1
-\item<3-> System checks condition of process and begins the starting sequence of inlet pump.
-\item<4-> The pumps starts at reduced speed, vacuum system starts and anti-siphon valve closes.
-\item<5-> Limit switch has not triggered within the defined time.
-\item<6-> System changes to "failed to start", stop command is sent to the pump and anti siphon valve opens.
-\end{enumerate}
-\textbf{Finish}
-\vspace{0.1cm}
-\hrule
-\vspace{0.1cm}
-Scenario 2 - Cold start of inlet pump no. 1 into failed to start state.
-  }}
-
+  \frametitle{System control}
+    \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Manual mode
+    \begin{itemize}
+    \item<2-> Can start each subsystems manually. 
+    \item<3-> More familiarity of the process.
+    \item<4-> Need to have personell on board for operating.
+    \end{itemize}
+    \item<5-> Semi auto mode
+    \begin{itemize}
+      \item<6-> The controller checks if every necessary subsystem for remote control is available.
+      \item<7-> Manually select each pen. The controller takes care of starting the necessary subsystems in correct order.
+    \end{itemize}
+    \item<8-> Auto mode
+    \begin{itemize}
+      \item<9-> Similar as semi-auto, but schedule based. Starts up at regular time intervals, run each pen for a predetermined time
+    \end{itemize}
+    \item<10-> More manual control modes from sitecontrol?
+    \end{enumerate}
 \end{frame}
 
-\begin{frame}
-\frametitle{Scenarios}
-\onslide<4->{\includegraphics[width=\textwidth]{snip1.png}} \newline
-\framebox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{
-\footnotesize \begin{enumerate}
-\item<1-> All pumps have started and is running in remote operation at 50RPM.
-\item<2-> Send auto command to controller.Verify that the controller set point is updated with the current value.
-\item<3-> Verify that the RPM control signal to the pumps are stable at around 50RPM.
-\item<4-> Change set point to 7cm. Verify that RPM control signal and delta height is stable and rising towards stationary values.
-\end{enumerate}
-\textbf{Finish}
-\vspace{0.1cm}
-\hrule
-\vspace{0.1cm}
-Scenario 3 - Putting the pumps in auto mode after startup and update the set point to the regulator.
-  }}
-
-\end{frame}
-
-\begin{frame}
-\frametitle{Scenarios}
-\includegraphics [width=.65\textwidth]{o2_distr_draw.png} \newline
-\framebox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{
-\footnotesize \begin{enumerate}
-\item<1-> Inlet pump no. 1 is running at above minimum speed.
-\item<2-> We have minimum pressure at oxygen piping manifold.
-\item<3-> Operator sends start signal to the oxygenator system no. 1.
-\item<4-> Control valve is set to a manual predefined position.
-\item<5-> Solenoid valve opens.
-\item<6-> Operator sends "auto mode" signal.
-\item<7-> Operator changes set point to the desired oxygen concentration.
-\item<8-> Operator verifies that the valve control signal and oxygen concentration levels are stable and moving towards a stationary value.
-\end{enumerate}
-\textbf{Finish}
-\vspace{0.1cm}
-\hrule
-\vspace{0.1cm}
-Scenario 3 - Start oxygenator system from cold start to auto mode
-  }}
-
-\end{frame}
 
 
 \end{document}
