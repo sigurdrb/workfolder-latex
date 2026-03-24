@@ -1,0 +1,205 @@
+\documentclass{beamer}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{multimedia}
+\usepackage{hyperref}
+\usepackage[norsk]{babel}
+%Information to be included in the title page:
+\title{Status automasjonssystemer på Flåte/Lukket merd}
+\subtitle{Flåtestyring \- dødfisksystem \- Heimdall}
+%\author{Anonymous}
+\institute{Operational systems - ScaleAQ}
+\date{\today}
+
+\hypersetup{
+  colorlinks, linkcolor=red
+}
+
+\begin{document}
+
+\begin{frame}
+  \frametitle{Barge Control}
+    \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Lensepumpestyring
+    \item<2-> Tanknivå 
+    \item<3-> Hardwiret signaler til generator (start ved lekkasje), vannforing og F\&G-system
+    \item<4-> Kommunikasjon til SiteControl over OPCUA
+    \item<5-> Generatormonitorering (direktekommunikasjon i SiteControl)
+    \item<6-> Kjøres på lab i Bergen (10.1.2.31) tilgjengelig over VPN (Global Protect)
+    
+
+    \end{enumerate}
+    \includegraphics<1->[width=0.8\textwidth]{barge_dashboard.png}
+
+
+\end{frame}
+
+
+\begin{frame}
+  \frametitle{Barge Control - utrulling til lokasjon}
+  \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> \href{https://steinsvik.sharepoint.com/sites/ScaleAQService}{ScaleAQ Service $\,\to\,$ Barge Control 2.0}
+    \item<2-> Tekniker bruker software WAGOupload. Enkeltfil som inneholder codesys-applikasjon med config og fw
+    \item<2-> Enkeltfilen (.appload) som brukes av WAGOupload må genereres fra kompilert codesys-applikasjon.
+    \item<4-> Prosedyre står beskrevet i `Commissioning guide' i ScaleAQ Service.
+    \end{enumerate}
+
+    \includegraphics<2>[width=0.8\textwidth]{WAGOupload.png}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Barge Control - vedlikehold}
+  \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Utrullet på 10+ lokasjoner
+    \item<2-> Skal i utgangspunktet ikke være mye oppdateringer
+    \item<3-> Teknikere er kjent med utrullingsprosedyre og har vært lite behov for hjelp til dette
+    \item<4-> Kan være behov for å ha en mer automatisert måte og oppdatere program til PLS'er på. F.eks ´Wago Device Sphere' eller lignende. Begynner å bli tungvint med manuelle oppdateringer via feedstation VM
+    \end{enumerate}
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{Automatisert dødfisksystem - prosessflyt}
+\begin{minipage}[t]{0.5\textwidth}
+\scriptsize 
+    \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Død fisk samles i bunn av merd
+    \item<2-> Fisk blir ledet til flåte ved hjelp av trykkluft
+    \item<3-> Stunnerenhet(myndighetspålagt ved remotestyring av prosess)
+    \item<4-> Beveger seg gjennom LiftUp-enhet på et VSD-styrt rullebånd
+    \item<5-> Vaskepumpe
+    \item<6-> Kameraenhet / visionsystem
+    \item <7-> Avstandssensor (ultrasonisk)
+    \item <8-> Blir sluppet ned i grovkvern
+    \item <9-> Blir lagret i tanker og sirkulert av ensilasjesystemet
+    \item <10-> Automatisk håndtering av syredosering
+    \end{enumerate}
+\end{minipage}%
+\hfill%
+\begin{minipage}[t]{0.5\textwidth}
+    \vspace{0pt} % top alignment for images
+    \includegraphics<1>[width=0.8\textwidth]{deadfishpen.png}
+    \includegraphics<2>[width=0.7\textwidth]{airliftpumppres.png}
+    \includegraphics<3>[width=0.8\textwidth]{liftup2.jpg}
+    \includegraphics<4-6>[width=0.8\textwidth]{liftupmodel.png}
+    \includegraphics<7>[width=0.8\textwidth]{fishpresent.png}
+    %
+    \includegraphics<7>[width=0.8\textwidth]{sick.png}
+    \includegraphics<8>[width=0.8\textwidth]{pregrinder.png}
+    \includegraphics<9-10>[width=0.8\textwidth]{ensilage.png}
+
+\end{minipage}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Dødfisksystem - nettverkstopologi}
+    \includegraphics<1->[width=0.8\textwidth]{networktopo.drawio.png}
+
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{Dødfisksystem - manuell modus}
+  \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Kan starte delprosesser manuelt.
+    \item<2-> Ikke avhengig av at alle underprosesser er tilgjengelig for styresystemte (kompressor, ensilasje, stunner etc.)
+    \item<3-> Typisk use case er:
+    \begin{enumerate}
+      \item<4-> Se hvilke undersystemer som er \texttt{available} (tilgjengelig og uten feilmeldinger)
+      \item <5-> Start kompressor - se at statussignal endres til \texttt{running}
+      \item <6-> Start rullebånd - verifiser at vi får \texttt{running} signal fra VSD
+      \item <7-> Send signal til liftup om hvilken merd vi skal pumpe fra (1,2,3,...) og verifiser at vi får \texttt{pen x active} signal fra system.
+      \item <8-> send \texttt{dead fish active} signal til ensilasjesystem.
+      \item <9-> Stopp alle delprosesser når man er ferdig
+    \end{enumerate}
+    \end{enumerate}
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{Dødfisksystem - semiauto modus}
+  \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Nødvendige delsystemer må være \texttt{available} og \texttt{enabled}. Dette vises i \texttt{status} strukturen for hele liftup-objektet (\texttt{DeadFishUnit}).
+    \item<2-> Setter systemet i \texttt{semi-auto} modus.
+    \item<3-> Aktiver \texttt{penStartPumping} (UINT)
+    \item<4-> Verifiser at nødvendige delsystemer starter opp. Se at vi får tilsvarende \texttt{penRunning}-signal tilbake fra status-strukturen.
+    \item<5-> Gi ny verdi til \texttt{penStartPumping} for pumping på en annen merd.
+    \item<6-> Stopp systemet ved å sende \texttt{penStopPumping}.
+    \end{enumerate}
+  \end{frame}
+
+
+
+    \begin{frame}
+  \frametitle{Dødfisksystem - auto modus}
+  \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Skriv config-verdier for hvilke merder som er aktive, hvor lenge hver enkelt merd skal pumpes fra og når man starter sekvensen på dagen og hvor hyppig.
+    \item<2-> Programmet tar hånd om at alle delsystemer er tilgjengelige, og at ting starter opp i riktig sekvens.
+    \item<3-> Denne modusen er ikke ferdig programmert - eller testet.
+    \item<4-> Tanken er at i første omgang kan dette kun startes i manuel / semi-auto modus. Når systemet er gjennomtestet nok og vi føler oss trygg på at dette kan kjøres schedule-basert så implementerer vi denne funksjonen.
+    \end{enumerate}
+\end{frame}
+
+    \begin{frame}
+  \frametitle{Dødfisksystem - status}
+  \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Program er utrullet på enilasje-PLS på Buholmen.
+    \item<2-> Kommunikasjon er opprettet mot LiftUp-system.
+    \item<3-> Styremodul for kompressor er ikke installert eller testet.
+    \item<4-> Vi har testet remote manuell start av systemene. (semi-auto kunne ikke testes pga. manglende oppsett i LiftUp-enhet). Programmet var avhengig av at stunner og flusher var oppe å gå, noe det ikke var under test-tidspunkt.
+    \item<5-> Testrapport legges i Confluence-siden sammen med funksjonsbeskrivelser.
+    \item<6-> Når SiteControl skal begynne og integrere mot PLS må noen ta hånd om at PLS-program kjøres i simuleringsmodus, og bistå teamet med eventuell inormasjon og oppdateringer.
+    \item<7-> PLS kjører på 10.1.2.35 på labben i bergen. Liftup-simulering (modbus-server) kjøres i dockerfil på 10.1.2.101
+    \end{enumerate}
+\end{frame}
+
+
+
+\begin{frame}
+  \frametitle{CAS - Heimdall}
+\begin{minipage}[t]{0.5\textwidth}
+\scriptsize 
+    \begin{enumerate}
+    \vspace{0pt} % <-- forces top alignment inside the minipage
+    \item<1-> Lukket system i sjø
+    \item<2-> Tre VSD-styrte neddykkede inntaktspumper med tilhørende PLS fra leverandør.
+    \item<3-> Hydraulikkstyrt regulerbar utløpsventil. Estimerer posisjon ved å starte/stoppe hydraulikkpumpe, ventiler og måling av oljeflow.
+    \item<4-> Tre stk. oksygeneringssystem som henger på tilhørende inntaksdelstrøm
+    \item<6-> Diverse IO for sensorikk og ventiler/aktuatorer
+    \item<7-> Modbuskommunikasjon mot 3 stk RIO plassert på merdkant
+    \item<8-> OPC-kommunikasjon mot 3 stk. OPC-servere for lesing/styring fra tilhørende VSD (pumpeinnstrømning)
+    \end{enumerate}
+\end{minipage}%
+\hfill%
+\begin{minipage}[t]{0.5\textwidth}
+    \vspace{0pt} % top alignment for images
+    \includegraphics<1-2>[width=1\textwidth]{cas.png}
+    \includegraphics<3,6,8>[width=1\textwidth]{cas_subsea.png}
+    \includegraphics<4>[width=1\textwidth]{cas_top_oxy.png}
+    \includegraphics<7>[width=1\textwidth]{magnus.png}
+    \includegraphics<7>[width=1\textwidth,trim=0 0 0 -3cm]{scale_lin.png}
+\end{minipage}
+\end{frame}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{document}
