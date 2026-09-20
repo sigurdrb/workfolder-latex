@@ -1,0 +1,340 @@
+% =====================================================================
+%  Halloween-bursdagsinvitasjon for Sander
+%  4 sider i A5 liggende (210 x 148,5 mm) = ett A4-ark brettet
+%  vannrett pa midten. Leserekkefolge: 1 forside, 2-3 innside, 4 bakside.
+%  Bygg med:  pdflatex invitasjon.tex   (kjor to ganger)
+%  For utskrift: se invitasjon-utskrift.tex
+% =====================================================================
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[norsk]{babel}
+\usepackage[sfdefault]{cabin}
+\usepackage{comfortaa}
+\usepackage{microtype}
+\usepackage[paperwidth=210mm,paperheight=148.5mm,margin=0mm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{calc}
+
+\renewcommand{\familydefault}{\sfdefault}
+\pagestyle{empty}
+
+% ---------- Opplysninger som er lette aa endre ------------------------
+\newcommand{\bursdagsbarn}{Sander}
+\newcommand{\adresse}{Solbakken 24}
+\newcommand{\dagdato}{lørdag 31. oktober}
+\newcommand{\starttid}{kl. 16.00}
+\newcommand{\svarfrist}{så snart som mulig}
+\newcommand{\kontakt}{Sigurd Rød Brekk, mobil 932 80 515}
+
+% ---------- Farger ----------------------------------------------------
+\definecolor{natt}{HTML}{2A1B3D}
+\definecolor{nattlys}{HTML}{3E2A57}
+\definecolor{krem}{HTML}{FFF4E2}
+\definecolor{gresskar}{HTML}{F2892E}
+\definecolor{gresskarm}{HTML}{DC6F1B}
+\definecolor{gresskarl}{HTML}{FFA850}
+\definecolor{stilk}{HTML}{5C8C3A}
+\definecolor{maanefarge}{HTML}{FFE9A8}
+\definecolor{skygge}{HTML}{1A1026}
+\definecolor{lilla}{HTML}{7A5AA8}
+\definecolor{rosa}{HTML}{FFB3C1}
+\definecolor{bein}{HTML}{F7F1E3}
+\definecolor{beinskygge}{HTML}{DDD2BA}
+
+% ---------- Sidemal ---------------------------------------------------
+% Hver side tegnes som ett fullt tikz-lerret med origo nede til venstre.
+\newcommand{\side}[1]{%
+  \begin{tikzpicture}[remember picture,overlay,x=1cm,y=1cm]
+    \begin{scope}[shift={(current page.south west)}]
+      #1
+    \end{scope}
+  \end{tikzpicture}\null\newpage}
+
+\newcommand{\sidebredde}{21}
+\newcommand{\sidehoyde}{14.85}
+
+% Slaa av orddeling i loepende tekst (penere i korte avsnitt).
+% NB: maa staa ETTER \selectfont, ellers gjelder den feil font.
+\newcommand{\nohyph}{\hyphenchar\font=-1\relax}
+\newcommand{\bakgrunn}[1]{\fill[#1] (0,0) rectangle (\sidebredde,\sidehoyde);}
+
+% ---------- Tegninger -------------------------------------------------
+% Gresskar: \gresskar[skala]{x}{y}
+\newcommand{\gresskar}[3][1]{%
+\begin{scope}[shift={(#2,#3)},scale=#1]
+  \draw[stilk,line width=1.1mm,line cap=round]
+        (0,0.9) .. controls (0.08,1.25) and (0.38,1.22) .. (0.30,1.55);
+  \fill[gresskarm] (0,0) ellipse (1.25 and 1.00);
+  \fill[gresskar]  (-0.52,0) ellipse (0.66 and 0.96);
+  \fill[gresskar]  (0.52,0) ellipse (0.66 and 0.96);
+  \fill[gresskarl] (0,0) ellipse (0.74 and 1.00);
+  % oyne
+  \fill[natt] (-0.40,0.26) -- (-0.10,0.26) -- (-0.25,0.60) -- cycle;
+  \fill[natt] (0.40,0.26) -- (0.10,0.26) -- (0.25,0.60) -- cycle;
+  % smil
+  \fill[natt] (-0.52,0.02) .. controls (-0.26,-0.54) and (0.26,-0.54) .. (0.52,0.02)
+              .. controls (0.26,-0.26) and (-0.26,-0.26) .. (-0.52,0.02) -- cycle;
+  \fill[gresskarl] (-0.23,-0.19) -- (-0.07,-0.19) -- (-0.15,-0.40) -- cycle;
+  \fill[gresskarl] (0.23,-0.19) -- (0.07,-0.19) -- (0.15,-0.40) -- cycle;
+\end{scope}}
+
+% Spokelse: \spokelse[skala]{x}{y}, kantfarge styres av \spokelsekant
+\newcommand{\spokelsekant}{krem}
+\newcommand{\spokelse}[3][1]{%
+\begin{scope}[shift={(#2,#3)},scale=#1]
+  \filldraw[fill=krem,draw=\spokelsekant,line width=0.35mm,line join=round]
+    (-0.58,-0.45) -- (-0.58,0.12)
+    .. controls (-0.58,0.98) and (0.58,0.98) .. (0.58,0.12) -- (0.58,-0.45)
+    .. controls (0.53,-0.80) and (0.35,-0.80) .. (0.29,-0.45)
+    .. controls (0.24,-0.80) and (0.06,-0.80) .. (0.00,-0.45)
+    .. controls (-0.06,-0.80) and (-0.24,-0.80) .. (-0.29,-0.45)
+    .. controls (-0.35,-0.80) and (-0.53,-0.80) .. (-0.58,-0.45) -- cycle;
+  \fill[rosa] (-0.36,0.16) circle (0.08);
+  \fill[rosa] (0.36,0.16) circle (0.08);
+  \fill[natt] (-0.20,0.38) ellipse (0.08 and 0.11);
+  \fill[natt] (0.20,0.38) ellipse (0.08 and 0.11);
+  \fill[natt] (0,0.16) ellipse (0.09 and 0.07);
+\end{scope}}
+
+% Lite, snilt skjelett med skjerf og gresskarlykt: \skjelett[skala]{x}{y}
+% (y = bakkenivaa, altsaa under foettene)
+\newcommand{\skjelett}[3][1]{%
+\begin{scope}[shift={(#2,#3)},scale=#1]
+  % ---- skjaer fra lykta (bakerst)
+  \shade[inner color=gresskarl,outer color=natt,opacity=0.55]
+        (-0.72,0.28) circle (0.50);
+  % ---- bein og foetter
+  \draw[bein,line width=1.5mm,line cap=round] (-0.17,0.08) -- (-0.17,0.60);
+  \draw[bein,line width=1.5mm,line cap=round] (0.17,0.08) -- (0.17,0.60);
+  \fill[skygge,opacity=0.30] (0,0.03) ellipse (0.72 and 0.11);
+  \fill[bein] (-0.23,0.07) ellipse (0.14 and 0.07);
+  \fill[bein] (0.23,0.07) ellipse (0.14 and 0.07);
+  % ---- hofte og brystkasse
+  \fill[bein,rounded corners=0.07] (-0.25,0.56) rectangle (0.25,0.78);
+  % brystkasse: smalere nede, med ribbein
+  \fill[bein] (-0.34,1.38) .. controls (-0.42,1.10) and (-0.30,0.90) .. (-0.21,0.80)
+              -- (0.21,0.80) .. controls (0.30,0.90) and (0.42,1.10) .. (0.34,1.38)
+              -- cycle;
+  \draw[beinskygge,line width=0.9mm,line cap=round] (0,1.34) -- (0,0.86);
+  \foreach \yy/\dx in {1.24/0.29,1.08/0.31,0.92/0.26}{%
+    \draw[beinskygge,line width=0.5mm,line cap=round]
+      (-\dx,\yy+0.04) .. controls (0,\yy-0.07) .. (\dx,\yy+0.04);}
+  % ---- armer: en ned med lykt, en vinker
+  \draw[bein,line width=1.4mm,line cap=round,line join=round]
+       (-0.35,1.28) -- (-0.62,1.04) -- (-0.72,0.76);
+  \draw[bein,line width=1.4mm,line cap=round,line join=round]
+       (0.35,1.30) -- (0.68,1.50) -- (0.86,1.80);
+  \fill[bein] (-0.72,0.72) circle (0.10);
+  \fill[bein] (0.88,1.84) circle (0.10);
+  % ---- hodeskalle
+  \draw[bein,line width=1.2mm,line cap=round] (0,1.34) -- (0,1.48);
+  \fill[bein] (0,1.92) ellipse (0.44 and 0.46);
+  \fill[bein] (0,1.62) ellipse (0.24 and 0.14);
+  \fill[skygge] (-0.16,1.98) ellipse (0.115 and 0.135);
+  \fill[skygge] (0.16,1.98) ellipse (0.115 and 0.135);
+  \fill[bein] (-0.12,2.02) circle (0.035);
+  \fill[bein] (0.12,2.02) circle (0.035);
+  \fill[rosa,opacity=0.55] (-0.33,1.80) circle (0.09);
+  \fill[rosa,opacity=0.55] (0.33,1.80) circle (0.09);
+  \fill[skygge] (-0.05,1.80) -- (0.05,1.80) -- (0,1.71) -- cycle;
+  \draw[skygge,line width=0.4mm,line cap=round]
+       (-0.19,1.66) .. controls (-0.07,1.57) and (0.07,1.57) .. (0.19,1.66);
+  \foreach \xx in {-0.09,0,0.09}{%
+    \draw[skygge,line width=0.3mm,line cap=round] (\xx,1.60) -- (\xx,1.655);}
+  % ---- skjerf
+  \fill[gresskar,rounded corners=0.09] (-0.29,1.34) rectangle (0.29,1.51);
+  \fill[gresskar] (0.03,1.51) -- (0.20,1.51) -- (0.24,1.14)
+      .. controls (0.15,1.07) and (0.07,1.09) .. (0.05,1.16) -- cycle;
+  \draw[krem,line width=0.3mm] (0.05,1.40) -- (0.22,1.40);
+  \draw[krem,line width=0.3mm] (0.06,1.26) -- (0.23,1.26);
+  % ---- gresskarlykt i haanden
+  \gresskar[0.30]{-0.72}{0.26}
+\end{scope}}
+
+% Flaggermus: \flaggermus[skala]{x}{y}, farge styres av \flagfarge
+\newcommand{\flagfarge}{skygge}
+\newcommand{\flaggermus}[3][1]{%
+\begin{scope}[shift={(#2,#3)},scale=#1]
+  \fill[\flagfarge] (0,0) ellipse (0.15 and 0.19);
+  \fill[\flagfarge] (-0.09,0.15) -- (-0.15,0.33) -- (-0.01,0.22) -- cycle;
+  \fill[\flagfarge] (0.09,0.15) -- (0.15,0.33) -- (0.01,0.22) -- cycle;
+  \fill[\flagfarge] (-0.11,0.09)
+    .. controls (-0.42,0.30) and (-0.70,0.24) .. (-0.95,0.04)
+    .. controls (-0.70,0.11) and (-0.58,-0.06) .. (-0.44,-0.13)
+    .. controls (-0.30,-0.17) and (-0.19,-0.10) .. (-0.11,-0.05) -- cycle;
+  \fill[\flagfarge] (0.11,0.09)
+    .. controls (0.42,0.30) and (0.70,0.24) .. (0.95,0.04)
+    .. controls (0.70,0.11) and (0.58,-0.06) .. (0.44,-0.13)
+    .. controls (0.30,-0.17) and (0.19,-0.10) .. (0.11,-0.05) -- cycle;
+  \fill[krem] (-0.06,0.03) circle (0.025);
+  \fill[krem] (0.06,0.03) circle (0.025);
+\end{scope}}
+
+% Edderkopp i traad: \edderkopp[skala]{x}{y}
+\newcommand{\edderkopp}[3][1]{%
+\begin{scope}[shift={(#2,#3)},scale=#1]
+  \draw[krem,opacity=0.55,line width=0.22mm] (0,0.25) -- (0,3.4);
+  \foreach \s in {-1,1}{
+    \draw[skygge,line width=0.5mm,line cap=round]
+       (\s*0.16,0.08) .. controls (\s*0.45,0.26) .. (\s*0.58,-0.06);
+    \draw[skygge,line width=0.5mm,line cap=round]
+       (\s*0.18,0.02) .. controls (\s*0.50,0.10) .. (\s*0.62,-0.22);
+    \draw[skygge,line width=0.5mm,line cap=round]
+       (\s*0.17,-0.05) .. controls (\s*0.46,-0.06) .. (\s*0.56,-0.36);
+    \draw[skygge,line width=0.5mm,line cap=round]
+       (\s*0.14,-0.11) .. controls (\s*0.38,-0.20) .. (\s*0.44,-0.44);}
+  \fill[skygge] (0,-0.05) circle (0.26);
+  \fill[skygge] (0,0.20) circle (0.15);
+  \fill[krem] (-0.06,0.24) circle (0.045);
+  \fill[krem] (0.06,0.24) circle (0.045);
+  \fill[skygge] (-0.06,0.24) circle (0.02);
+  \fill[skygge] (0.06,0.24) circle (0.02);
+\end{scope}}
+
+% Stjerne: \stjerne[skala]{x}{y}
+\newcommand{\stjerne}[3][1]{%
+\begin{scope}[shift={(#2,#3)},scale=#1]
+  \fill[krem,opacity=0.85] (0,0.13) .. controls (0.03,0.03) .. (0.13,0)
+    .. controls (0.03,-0.03) .. (0,-0.13) .. controls (-0.03,-0.03) .. (-0.13,0)
+    .. controls (-0.03,0.03) .. (0,0.13) -- cycle;
+\end{scope}}
+
+% Maane: \maane[skala]{x}{y}
+\newcommand{\maane}[3][1]{%
+\begin{scope}[shift={(#2,#3)},scale=#1]
+  \fill[maanefarge,opacity=0.18] (0,0) circle (1.45);
+  \fill[maanefarge] (0,0) circle (1.1);
+  \fill[maanefarge!80!gresskar,opacity=0.5] (-0.35,0.30) circle (0.22);
+  \fill[maanefarge!80!gresskar,opacity=0.5] (0.30,-0.10) circle (0.15);
+  \fill[maanefarge!80!gresskar,opacity=0.5] (0.05,0.55) circle (0.10);
+\end{scope}}
+
+% Ramme til innsidene
+\newcommand{\ramme}{%
+  \draw[gresskar,line width=0.9mm,rounded corners=6mm]
+       (0.75,0.75) rectangle (20.25,14.10);
+  \draw[gresskar,line width=0.25mm,rounded corners=5mm,opacity=0.6]
+       (1.05,1.05) rectangle (19.95,13.80);}
+
+\begin{document}
+
+% =============================== SIDE 1: FORSIDE =====================
+\side{%
+  \bakgrunn{natt}
+  \fill[nattlys,opacity=0.75] (0,0) ellipse (16 and 4.6);
+  \maane[1]{17.6}{12.0}
+  \foreach \p in {(1.6,13.4),(3.4,12.2),(5.2,13.8),(7.0,12.6),(9.4,13.6),
+                  (12.0,12.9),(14.2,13.9),(2.4,10.6),(19.6,9.2),(1.0,8.4),
+                  (20.2,13.1),(6.2,11.0)}
+      {\stjerne[1]\p{}}
+  \flaggermus[1.5]{13.6}{12.9}
+  \flaggermus[1.0]{15.3}{11.2}
+  \flaggermus[0.8]{4.6}{9.6}
+  \edderkopp[1.0]{9.0}{11.2}
+
+  \node[anchor=center,text=krem] at (10.5,10.2)
+    {\fontsize{13}{16}\selectfont\textls[300]{DU ER INVITERT TIL}};
+  \node[anchor=center,text=gresskarl] at (10.5,8.2)
+    {\comfortaa\bfseries\fontsize{37}{42}\selectfont Halloween-bursdag};
+  \node[anchor=center,text=krem] at (10.5,6.3)
+    {\comfortaa\fontsize{24}{28}\selectfont hos \bursdagsbarn};
+
+  \gresskar[2.1]{3.7}{4.6}
+  \skjelett[1.7]{17.4}{2.60}
+
+  \fill[gresskar] (0,0) rectangle (21,2.0);
+  \node[anchor=center,text=natt] at (10.5,1.0)
+    {\comfortaa\bfseries\fontsize{15}{18}\selectfont
+     \dagdato\ \ $\cdot$\ \ \starttid\ \ $\cdot$\ \ \adresse};
+}
+
+% =============================== SIDE 2: PROGRAM =====================
+\side{%
+  \bakgrunn{krem}
+  \ramme
+  \renewcommand{\flagfarge}{lilla}
+  \renewcommand{\spokelsekant}{lilla}
+  \flaggermus[0.8]{2.6}{13.2}
+  \flaggermus[0.6]{18.8}{13.4}
+  \flaggermus[0.5]{18.9}{2.3}
+
+  \gresskar[0.75]{4.6}{12.7}
+  \node[anchor=center,text=gresskarm] at (10.8,12.7)
+    {\comfortaa\bfseries\fontsize{30}{34}\selectfont Program};
+  \spokelse[0.85]{16.9}{12.6}
+
+  \draw[gresskar,line width=0.4mm,dash pattern=on 0.6mm off 1.4mm,line cap=round]
+       (7.05,11.2) -- (7.05,3.6);
+
+  \foreach \y/\tid/\tekst in {%
+    10.6/16.00/{Velkommen! Vi er ute, og bålet er tent.},
+     8.7/{16.00--16.45}/{Utelek, og pølser som grilles på bålet.},
+     6.8/16.45/{Vi går inn og varmer oss, og så spiser vi kake.},
+     4.6/17.30/{Halloween-tog i Solbakken for de som vil.}}{%
+    \fill[gresskar] (7.05,\y) circle (0.16);
+    \node[anchor=east,text=gresskarm] at (6.6,\y)
+      {\comfortaa\bfseries\fontsize{17}{20}\selectfont kl. \tid};
+    \node[anchor=west,text=natt,align=left,text width=11.6cm] at (7.6,\y)
+      {\fontsize{14}{18}\selectfont\nohyph \tekst};}
+
+  \node[anchor=center,text=lilla] at (10.8,2.4)
+    {\comfortaa\fontsize{12}{15}\selectfont Kle deg etter været, vi er mest ute!};
+}
+
+% =============================== SIDE 3: GODT AA VITE ================
+\side{%
+  \bakgrunn{krem}
+  \ramme
+  \renewcommand{\flagfarge}{lilla}
+  \renewcommand{\spokelsekant}{lilla}
+  \flaggermus[0.5]{18.6}{13.3}
+
+  \node[anchor=center,text=gresskarm] at (10.5,12.8)
+    {\comfortaa\bfseries\fontsize{30}{34}\selectfont Praktisk info};
+
+  \foreach \y/\tekst in {%
+    11.3/{Vi er mye ute, så kle deg etter været. Vi har tak over hodet ute hvis det regner.},
+     9.85/{Utkledning er gøy, men helt frivillig. Kom akkurat som du vil.},
+     8.4/{Vi serverer pølser som grilles på bålet, og kake inne.},
+     6.95/{Naboene i Solbakken pynter mye, så toget kan bli litt skummelt.},
+     5.5/{Det er gratis parkering langs gaten utenfor.},
+     4.05/{Er det noe vi bør vite om mat, allergier eller annet, så gi oss en lyd.}}{%
+    \gresskar[0.30]{2.6}{\y}
+    \node[anchor=north west,text=natt,align=left,text width=15.6cm] at (3.3,\y+0.45)
+      {\fontsize{13.5}{18}\selectfont\nohyph \tekst};}
+
+  \fill[gresskar,rounded corners=3mm] (2.2,1.5) rectangle (18.8,3.3);
+  \node[anchor=center,text=natt,align=center,text width=17cm] at (10.5,2.4)
+    {\comfortaa\fontsize{12}{17}\selectfont\nohyph
+     Gi gjerne beskjed \svarfrist\\ til \kontakt};
+}
+
+% =============================== SIDE 4: BAKSIDE =====================
+\side{%
+  \bakgrunn{natt}
+  \fill[nattlys,opacity=0.75] (10.5,0) ellipse (14 and 4.0);
+  \foreach \p in {(2.0,12.9),(4.6,13.8),(7.8,12.4),(13.4,13.6),(16.6,12.7),
+                  (19.0,13.9),(1.4,10.2),(19.8,10.6)}
+      {\stjerne[0.9]\p{}}
+  \flaggermus[1.1]{16.2}{11.4}
+  \flaggermus[0.7]{4.2}{11.2}
+
+  \node[anchor=center,text=krem,align=center,text width=17cm] at (10.5,9.6)
+    {\comfortaa\fontsize{25}{31}\selectfont Vi gleder oss til\\ å feire med deg!};
+  \node[anchor=center,text=gresskarl] at (10.5,7.0)
+    {\comfortaa\bfseries\fontsize{21}{25}\selectfont Hilsen \bursdagsbarn};
+
+  \gresskar[1.25]{4.0}{3.6}
+  \spokelse[1.3]{17.2}{3.8}
+
+  \node[anchor=center,text=krem] at (10.5,3.9)
+    {\fontsize{13}{16}\selectfont \adresse};
+  \node[anchor=center,text=krem] at (10.5,3.1)
+    {\fontsize{13}{16}\selectfont \dagdato};
+  \node[anchor=center,text=krem] at (10.5,2.3)
+    {\fontsize{13}{16}\selectfont \starttid};
+}
+
+\end{document}

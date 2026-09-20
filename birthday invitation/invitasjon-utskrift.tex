@@ -1,0 +1,46 @@
+% =====================================================================
+%  Utskriftsversjon: setter de 4 A5-sidene fra invitasjon.pdf
+%  paa ETT A4-ark som brettes vannrett paa midten.
+%
+%  Ark, forside (side 1 i denne PDF-en):
+%     oevre halvdel = invitasjonens forside, snudd 180 grader
+%     nedre halvdel = baksiden
+%  Ark, bakside (side 2 i denne PDF-en):
+%     oevre halvdel = program, nedre halvdel = godt aa vite
+%
+%  Skriv ut tosidig med vending paa LANGSIDEN, 100 % / faktisk stoerrelse.
+%  Bygg invitasjon.pdf foerst, deretter:  pdflatex invitasjon-utskrift.tex
+% =====================================================================
+\documentclass{article}
+\usepackage[a4paper,margin=0mm]{geometry}
+\usepackage{graphicx}
+\usepackage{tikz}
+\pagestyle{empty}
+
+% \plasser{y-posisjon}{sidenummer i invitasjon.pdf}{rotasjon i grader}
+\newcommand{\plasser}[3]{%
+  \node[anchor=south west,inner sep=0pt] at (0,#1)
+    {\includegraphics[page=#2,angle=#3,origin=c]{invitasjon.pdf}};}
+
+\newcommand{\ark}[1]{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \begin{scope}[shift={(current page.south west)}]
+      #1
+    \end{scope}
+  \end{tikzpicture}\null\newpage}
+
+\begin{document}
+
+% ---- Arkets forside: utsiden av kortet ----
+\ark{%
+  \plasser{0mm}{4}{0}        % nedre halvdel: bakside
+  \plasser{148.5mm}{1}{180}  % oevre halvdel: forside, snudd
+}
+
+% ---- Arkets bakside: innsiden av kortet ----
+\ark{%
+  \plasser{0mm}{3}{0}        % nedre halvdel: godt aa vite
+  \plasser{148.5mm}{2}{0}    % oevre halvdel: program
+}
+
+\end{document}
