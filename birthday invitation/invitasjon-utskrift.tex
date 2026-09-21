@@ -1,25 +1,47 @@
 % =====================================================================
 %  Utskriftsversjon: setter de 4 A5-sidene fra invitasjon.pdf
-%  paa ETT A4-ark som brettes vannrett paa midten.
+%  paa ETT A4-ark LIGGENDE som brettes loddrett paa midten.
 %
 %  Ark, forside (side 1 i denne PDF-en):
-%     oevre halvdel = invitasjonens forside, snudd 180 grader
-%     nedre halvdel = baksiden
+%     venstre halvdel = baksiden
+%     hoeyre halvdel  = invitasjonens forside
 %  Ark, bakside (side 2 i denne PDF-en):
-%     oevre halvdel = program, nedre halvdel = godt aa vite
+%     venstre halvdel = program, hoeyre halvdel = praktisk info
 %
-%  Skriv ut tosidig med vending paa LANGSIDEN, 100 % / faktisk stoerrelse.
-%  Bygg invitasjon.pdf foerst, deretter:  pdflatex invitasjon-utskrift.tex
+%  Skriv ut tosidig, 100 % / faktisk stoerrelse, A4 liggende.
+%  Bygg invitasjon.pdf foerst, deretter denne TO ganger.
+% =====================================================================
+%
+%  KOMMER UTSIDEN OPP NED I FORHOLD TIL INNSIDEN?
+%
+%  Da snur skriveren arket om den andre aksen enn fila regner med.
+%  Vending paa kortsiden og paa langsiden gir akkurat 180 grader
+%  forskjell, og hvilken som er riktig varierer mellom drivere.
+%
+%  Velg EN av disse to fiksene, ikke begge - da er du like langt:
+%
+%    A) Bytt vending (kortside <-> langside) i skriverdialogen,
+%       og la \kompenser staa paa 0.
+%
+%    B) La skriverinnstillingen staa, og sett \kompenser til 1.
+%       Da snus innsiden 180 grader i selve PDF-en i stedet.
+%
+%  \kompenser = 1 staar som standard, fordi skriveren som ble brukt
+%  til dette kortet trengte det. Bryteren staar rett under her.
 % =====================================================================
 \documentclass{article}
-\usepackage[a4paper,margin=0mm]{geometry}
+
+% 0 = innsiden som den er,  1 = innsiden snudd 180 grader. Se over.
+\newcommand{\kompenser}{1}
+
+\usepackage[paperwidth=297mm,paperheight=210mm,margin=0mm]{geometry}
 \usepackage{graphicx}
 \usepackage{tikz}
 \pagestyle{empty}
 
-% \plasser{y-posisjon}{sidenummer i invitasjon.pdf}{rotasjon i grader}
+% \plasser{x-posisjon}{sidenummer i invitasjon.pdf}{rotasjon i grader}
 \newcommand{\plasser}[3]{%
-  \node[anchor=south west,inner sep=0pt] at (0,#1)
+  \node[anchor=south west,inner sep=0pt] at (#1,0)
     {\includegraphics[page=#2,angle=#3,origin=c]{invitasjon.pdf}};}
 
 \newcommand{\ark}[1]{%
@@ -33,14 +55,23 @@
 
 % ---- Arkets forside: utsiden av kortet ----
 \ark{%
-  \plasser{0mm}{4}{0}        % nedre halvdel: bakside
-  \plasser{148.5mm}{1}{180}  % oevre halvdel: forside, snudd
+  \plasser{0mm}{4}{0}        % venstre halvdel: bakside
+  \plasser{148.5mm}{1}{0}    % hoeyre halvdel: forside
 }
 
 % ---- Arkets bakside: innsiden av kortet ----
-\ark{%
-  \plasser{0mm}{3}{0}        % nedre halvdel: godt aa vite
-  \plasser{148.5mm}{2}{0}    % oevre halvdel: program
-}
+% Ved \kompenser=1 snus hele arksiden 180 grader. Da bytter halvdelene
+% plass OGSAA, derfor staar 3 til venstre og 2 til hoeyre her.
+\ifnum\kompenser=0
+  \ark{%
+    \plasser{0mm}{2}{0}        % venstre halvdel: program
+    \plasser{148.5mm}{3}{0}    % hoeyre halvdel: praktisk info
+  }
+\else
+  \ark{%
+    \plasser{0mm}{3}{180}      % blir hoeyre halvdel etter snuing
+    \plasser{148.5mm}{2}{180}  % blir venstre halvdel etter snuing
+  }
+\fi
 
 \end{document}

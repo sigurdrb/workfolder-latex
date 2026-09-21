@@ -1,7 +1,7 @@
 % =====================================================================
 %  Halloween-bursdagsinvitasjon for Sander
-%  4 sider i A5 liggende (210 x 148,5 mm) = ett A4-ark brettet
-%  vannrett pa midten. Leserekkefolge: 1 forside, 2-3 innside, 4 bakside.
+%  4 sider i A5 staaende (148,5 x 210 mm) = ett A4-ark liggende, brettet
+%  loddrett pa midten. Leserekkefolge: 1 forside, 2-3 innside, 4 bakside.
 %  Bygg med:  pdflatex invitasjon.tex   (kjor to ganger)
 %  For utskrift: se invitasjon-utskrift.tex
 % =====================================================================
@@ -13,7 +13,7 @@
 \usepackage[sfdefault]{cabin}
 \usepackage{comfortaa}
 \usepackage{microtype}
-\usepackage[paperwidth=210mm,paperheight=148.5mm,margin=0mm]{geometry}
+\usepackage[paperwidth=148.5mm,paperheight=210mm,margin=0mm]{geometry}
 \usepackage{tikz}
 \usetikzlibrary{calc}
 
@@ -52,8 +52,22 @@
     \end{scope}
   \end{tikzpicture}\null\newpage}
 
-\newcommand{\sidebredde}{21}
-\newcommand{\sidehoyde}{14.85}
+\newcommand{\sidebredde}{14.85}
+\newcommand{\sidehoyde}{21}
+% Midten vannrett - brukes til aa sentrere alt paa sidene.
+\newcommand{\midt}{7.425}
+
+% ---------- Sikker sone ----------------------------------------------
+%  De fleste kontorskrivere kan ikke printe helt ut i papirkanten -
+%  typisk 4-8 mm forsvinner. Bakgrunnene blør derfor med vilje helt ut
+%  (der gjør tapet ingenting, fargen er lik uansett), men ALT som betyr
+%  noe - rammer, tekst, figurer - holdes minst \sikkersone fra kanten.
+%  Da blir det hvit ramme rundt paa en vanlig skriver, men ingenting
+%  blir beskaaret bort.
+%
+%  Flytter du paa noe: hold deg innenfor
+%     x: 1,0 .. 13,85     y: 1,0 .. 20,0
+\newcommand{\sikkersone}{1.0}
 
 % Slaa av orddeling i loepende tekst (penere i korte avsnitt).
 % NB: maa staa ETTER \selectfont, ellers gjelder den feil font.
@@ -213,41 +227,45 @@
 
 % Ramme til innsidene
 \newcommand{\ramme}{%
+  % Ligger innenfor \sikkersone, ellers kutter skriveren av rammen.
   \draw[gresskar,line width=0.9mm,rounded corners=6mm]
-       (0.75,0.75) rectangle (20.25,14.10);
+       (1.10,1.10) rectangle (13.75,19.90);
   \draw[gresskar,line width=0.25mm,rounded corners=5mm,opacity=0.6]
-       (1.05,1.05) rectangle (19.95,13.80);}
+       (1.40,1.40) rectangle (13.45,19.60);}
 
 \begin{document}
 
 % =============================== SIDE 1: FORSIDE =====================
 \side{%
   \bakgrunn{natt}
-  \fill[nattlys,opacity=0.75] (0,0) ellipse (16 and 4.6);
-  \maane[1]{17.6}{12.0}
-  \foreach \p in {(1.6,13.4),(3.4,12.2),(5.2,13.8),(7.0,12.6),(9.4,13.6),
-                  (12.0,12.9),(14.2,13.9),(2.4,10.6),(19.6,9.2),(1.0,8.4),
-                  (20.2,13.1),(6.2,11.0)}
+  \fill[nattlys,opacity=0.75] (\midt,0) ellipse (11.5 and 5.2);
+  \maane[1]{12.3}{18.2}
+  \foreach \p in {(1.7,19.2),(3.2,17.8),(5.0,19.4),(7.0,18.3),(9.2,19.5),
+                  (1.9,15.6),(13.4,15.0),(1.4,12.9),(13.5,19.0),(4.2,15.2),
+                  (13.4,12.2),(2.6,13.4)}
       {\stjerne[1]\p{}}
-  \flaggermus[1.5]{13.6}{12.9}
-  \flaggermus[1.0]{15.3}{11.2}
-  \flaggermus[0.8]{4.6}{9.6}
-  \edderkopp[1.0]{9.0}{11.2}
+  \flaggermus[1.4]{9.1}{17.6}
+  \flaggermus[0.95]{11.6}{15.7}
+  \flaggermus[0.75]{3.1}{14.0}
+  \edderkopp[1.0]{5.9}{15.9}
 
-  \node[anchor=center,text=krem] at (10.5,10.2)
-    {\fontsize{13}{16}\selectfont\textls[300]{DU ER INVITERT TIL}};
-  \node[anchor=center,text=gresskarl] at (10.5,8.2)
-    {\comfortaa\bfseries\fontsize{37}{42}\selectfont Halloween-bursdag};
-  \node[anchor=center,text=krem] at (10.5,6.3)
-    {\comfortaa\fontsize{24}{28}\selectfont hos \bursdagsbarn};
+  \node[anchor=center,text=krem] at (\midt,13.5)
+    {\fontsize{12}{15}\selectfont\textls[300]{DU ER INVITERT TIL}};
+  \node[anchor=center,text=gresskarl] at (\midt,11.7)
+    {\comfortaa\bfseries\fontsize{29}{34}\selectfont Halloween-bursdag};
+  \node[anchor=center,text=krem] at (\midt,10.0)
+    {\comfortaa\fontsize{22}{26}\selectfont hos \bursdagsbarn};
 
-  \gresskar[2.1]{3.7}{4.6}
-  \skjelett[1.7]{17.4}{2.60}
+  \gresskar[1.9]{3.6}{6.6}
+  \skjelett[1.6]{11.6}{4.70}
 
-  \fill[gresskar] (0,0) rectangle (21,2.0);
-  \node[anchor=center,text=natt] at (10.5,1.0)
-    {\comfortaa\bfseries\fontsize{15}{18}\selectfont
-     \dagdato\ \ $\cdot$\ \ \starttid\ \ $\cdot$\ \ \adresse};
+  % Stripa blør ut i kanten, men teksten i den holdes over \sikkersone.
+  \fill[gresskar] (0,0) rectangle (\sidebredde,3.4);
+  \node[anchor=center,text=natt] at (\midt,2.60)
+    {\comfortaa\bfseries\fontsize{14}{17}\selectfont
+     \dagdato\ \ $\cdot$\ \ \starttid};
+  \node[anchor=center,text=natt] at (\midt,1.60)
+    {\comfortaa\bfseries\fontsize{14}{17}\selectfont \adresse};
 }
 
 % =============================== SIDE 2: PROGRAM =====================
@@ -256,31 +274,34 @@
   \ramme
   \renewcommand{\flagfarge}{lilla}
   \renewcommand{\spokelsekant}{lilla}
-  \flaggermus[0.8]{2.6}{13.2}
-  \flaggermus[0.6]{18.8}{13.4}
-  \flaggermus[0.5]{18.9}{2.3}
+  \flaggermus[0.7]{5.3}{19.0}
+  \flaggermus[0.55]{12.7}{19.0}
+  \flaggermus[0.5]{12.4}{2.7}
 
-  \gresskar[0.75]{4.6}{12.7}
-  \node[anchor=center,text=gresskarm] at (10.8,12.7)
-    {\comfortaa\bfseries\fontsize{30}{34}\selectfont Program};
-  \spokelse[0.85]{16.9}{12.6}
+  \gresskar[0.7]{2.9}{18.1}
+  \node[anchor=center,text=gresskarm] at (7.8,18.1)
+    {\comfortaa\bfseries\fontsize{28}{32}\selectfont Program};
+  \spokelse[0.75]{12.2}{18.0}
 
   \draw[gresskar,line width=0.4mm,dash pattern=on 0.6mm off 1.4mm,line cap=round]
-       (7.05,11.2) -- (7.05,3.6);
+       (2.60,16.0) -- (2.60,7.8);
 
+  % Staaende format: klokkeslettet staar OVER teksten, ikke i egen
+  % venstrespalte - spalta blir for smal naar sida er 14,85 cm bred.
   \foreach \y/\tid/\tekst in {%
-    10.6/16.00/{Velkommen! Vi er ute, og bålet er tent.},
-     8.7/{16.00--16.45}/{Utelek, og pølser som grilles på bålet.},
-     6.8/16.45/{Vi går inn og varmer oss, og så spiser vi kake.},
-     4.6/17.30/{Halloween-tog i Solbakken for de som vil.}}{%
-    \fill[gresskar] (7.05,\y) circle (0.16);
-    \node[anchor=east,text=gresskarm] at (6.6,\y)
-      {\comfortaa\bfseries\fontsize{17}{20}\selectfont kl. \tid};
-    \node[anchor=west,text=natt,align=left,text width=11.6cm] at (7.6,\y)
-      {\fontsize{14}{18}\selectfont\nohyph \tekst};}
+    16.4/16.00/{Velkommen! Vi er ute, og bålet er tent.},
+    13.4/{16.00--16.45}/{Utelek, og pølser som grilles på bålet.},
+    10.4/16.45/{Vi går inn og varmer oss, og så spiser vi kake.},
+     7.4/17.30/{Å gå knask-eller-knep i Solbakken for de som vil.}}{%
+    \fill[gresskar] (2.60,\y) circle (0.16);
+    \node[anchor=west,text=gresskarm] at (3.30,\y)
+      {\comfortaa\bfseries\fontsize{16}{19}\selectfont kl. \tid};
+    \node[anchor=north west,text=natt,align=left,text width=10.0cm] at (3.25,\y-0.5)
+      {\fontsize{13.5}{17}\selectfont\nohyph \tekst};}
 
-  \node[anchor=center,text=lilla] at (10.8,2.4)
-    {\comfortaa\fontsize{12}{15}\selectfont Kle deg etter været, vi er mest ute!};
+  \node[anchor=center,text=lilla,align=center,text width=11cm] at (\midt,4.6)
+    {\comfortaa\fontsize{12}{16}\selectfont\nohyph
+     Kle deg etter været, vi er mest ute!};
 }
 
 % =============================== SIDE 3: GODT AA VITE ================
@@ -289,24 +310,24 @@
   \ramme
   \renewcommand{\flagfarge}{lilla}
   \renewcommand{\spokelsekant}{lilla}
-  \flaggermus[0.5]{18.6}{13.3}
+  \flaggermus[0.5]{12.6}{19.0}
 
-  \node[anchor=center,text=gresskarm] at (10.5,12.8)
-    {\comfortaa\bfseries\fontsize{30}{34}\selectfont Praktisk info};
+  \node[anchor=center,text=gresskarm] at (\midt,18.5)
+    {\comfortaa\bfseries\fontsize{28}{32}\selectfont Praktisk info};
 
   \foreach \y/\tekst in {%
-    11.3/{Vi er mye ute, så kle deg etter været. Vi har tak over hodet ute hvis det regner.},
-     9.85/{Utkledning er gøy, men helt frivillig. Kom akkurat som du vil.},
-     8.4/{Vi serverer pølser som grilles på bålet, og kake inne.},
-     6.95/{Naboene i Solbakken pynter mye, så toget kan bli litt skummelt.},
-     5.5/{Det er gratis parkering langs gaten utenfor.},
-     4.05/{Er det noe vi bør vite om mat, allergier eller annet, så gi oss en lyd.}}{%
-    \gresskar[0.30]{2.6}{\y}
-    \node[anchor=north west,text=natt,align=left,text width=15.6cm] at (3.3,\y+0.45)
-      {\fontsize{13.5}{18}\selectfont\nohyph \tekst};}
+    16.8/{Vi er mye ute, så kle deg etter været. Vi har tak over hodet ute hvis det regner.},
+    14.8/{Utkledning er gøy, men helt frivillig. Kom akkurat som du vil.},
+    12.8/{Vi serverer pølser som grilles på bålet, og kake inne.},
+    10.8/{Naboene i Solbakken pynter mye, så runden kan bli litt skummel.},
+     8.8/{Det er gratis parkering langs gaten utenfor.},
+     6.8/{Er det noe vi bør vite om mat, allergier eller annet, så gi oss en lyd.}}{%
+    \gresskar[0.30]{2.35}{\y}
+    \node[anchor=north west,text=natt,align=left,text width=9.7cm] at (3.0,\y+0.45)
+      {\fontsize{13}{17}\selectfont\nohyph \tekst};}
 
-  \fill[gresskar,rounded corners=3mm] (2.2,1.5) rectangle (18.8,3.3);
-  \node[anchor=center,text=natt,align=center,text width=17cm] at (10.5,2.4)
+  \fill[gresskar,rounded corners=3mm] (1.95,3.1) rectangle (12.90,5.4);
+  \node[anchor=center,text=natt,align=center,text width=10.2cm] at (7.425,4.25)
     {\comfortaa\fontsize{12}{17}\selectfont\nohyph
      Gi gjerne beskjed \svarfrist\\ til \kontakt};
 }
@@ -314,26 +335,27 @@
 % =============================== SIDE 4: BAKSIDE =====================
 \side{%
   \bakgrunn{natt}
-  \fill[nattlys,opacity=0.75] (10.5,0) ellipse (14 and 4.0);
-  \foreach \p in {(2.0,12.9),(4.6,13.8),(7.8,12.4),(13.4,13.6),(16.6,12.7),
-                  (19.0,13.9),(1.4,10.2),(19.8,10.6)}
+  \fill[nattlys,opacity=0.75] (\midt,0) ellipse (11 and 4.4);
+  \foreach \p in {(1.8,19.0),(4.0,19.6),(6.6,18.4),(10.0,19.4),(12.6,18.7),
+                  (13.4,15.6),(1.4,16.2),(13.3,11.6),(1.6,12.2),
+                  (1.3,9.4),(13.4,9.0),(2.4,10.4),(12.4,13.4)}
       {\stjerne[0.9]\p{}}
-  \flaggermus[1.1]{16.2}{11.4}
-  \flaggermus[0.7]{4.2}{11.2}
+  \flaggermus[1.05]{11.4}{17.2}
+  \flaggermus[0.7]{3.0}{16.9}
 
-  \node[anchor=center,text=krem,align=center,text width=17cm] at (10.5,9.6)
-    {\comfortaa\fontsize{25}{31}\selectfont Vi gleder oss til\\ å feire med deg!};
-  \node[anchor=center,text=gresskarl] at (10.5,7.0)
-    {\comfortaa\bfseries\fontsize{21}{25}\selectfont Hilsen \bursdagsbarn};
+  \node[anchor=center,text=krem,align=center,text width=12.4cm] at (\midt,13.6)
+    {\comfortaa\fontsize{23}{29}\selectfont Vi gleder oss til\\ å feire med deg!};
+  \node[anchor=center,text=gresskarl] at (\midt,10.7)
+    {\comfortaa\bfseries\fontsize{20}{24}\selectfont Hilsen \bursdagsbarn};
 
-  \gresskar[1.25]{4.0}{3.6}
-  \spokelse[1.3]{17.2}{3.8}
+  \gresskar[1.2]{3.3}{7.2}
+  \spokelse[1.25]{11.6}{7.4}
 
-  \node[anchor=center,text=krem] at (10.5,3.9)
+  \node[anchor=center,text=krem] at (\midt,4.5)
     {\fontsize{13}{16}\selectfont \adresse};
-  \node[anchor=center,text=krem] at (10.5,3.1)
+  \node[anchor=center,text=krem] at (\midt,3.6)
     {\fontsize{13}{16}\selectfont \dagdato};
-  \node[anchor=center,text=krem] at (10.5,2.3)
+  \node[anchor=center,text=krem] at (\midt,2.7)
     {\fontsize{13}{16}\selectfont \starttid};
 }
 
