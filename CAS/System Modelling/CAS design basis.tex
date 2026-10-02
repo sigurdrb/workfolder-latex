@@ -80,6 +80,9 @@ ID & Document \\
 {[SO]}    & Sensor Overview CAS V1.xlsx \\
 {[B8605]} & Bürkert 8605 PWM driver, Linde default setup, 22.02.22 \\
 {[W455]}  & WAGO 750-455 4AI 4--20\,mA product manual, 2453453963, valid from HW 07 / FW 04 \\
+{[RDOM]}  & In-Situ RDO Core Digital Interface Specification (Modbus register map) \\
+{[W652]}  & WAGO 750-652 serial interface RS-232/RS-485 manual, version 2.0.0 \\
+{[HEIM]}  & Heimdall CODESYS project (scaleaq/heimdall-plc): ModbusRTUData, GVL\_CONSTANT \\
 {[TOML]}  & CasDesignBasis/design\_basis.toml, version \CASVersion{} (all parameters) \\
 {[MODEL]} & CasDesignBasis/casdesign/design.py (model equations, used by the simulators) \\
 {[PY]}    & CasDesignBasis/tools/design\_report.py (generates this document's tables) \\
@@ -415,9 +418,22 @@ Section~\ref{sec:op} is an equilibrium of the simulator plant, and that the plan
 exactly $\mathbf A$, $\mathbf B$ and $\mathbf E$ of Section~\ref{sec:linear} in every mode.
 
 The cylinder counters, CO$_2$, total gas pressure and oxy-pump pressures are simulated
-instruments with static curves; they are not part of the design model. The O$_2$ sensor value
-is offered in the simulator control block (holding register 2008, mg/L$\times$100), because the
-PLC does not map the Orbit 864 sensors yet (CommonRIO words 0--11 are unused).
+instruments with static curves; they are not part of the design model.
+
+\textbf{O$_2$ sensors.} The PLC reads the Orbit 864 sensors (In-Situ RDO Core) over Modbus RTU
+through the 750-652 serial module, the first module on CommonRIO, so its 24-byte process image is
+Modbus words 0--11 [W652]. CasRioSim runs that module's handshake on the words the PLC writes and
+reads with FC23 (initialization IR/IA, transmit TR/TA with length OL, receive RR/RA with length
+IL, up to 22 bytes per step), and behind it five Modbus RTU slaves: OT01--03 inside the pen
+(addresses 1--3) read $c_m$, OT21--22 outside (4--5) read $c_\text{in}$ [HEIM]. Each answers
+function code 3 with the register map of [RDOM]: DO in mg/L as a float at registers 40038--39
+(parameter Id 20, unit 117), temperature at 40046, saturation at 40054 (from the same saturation
+formula as $c_\text{sat}$) and O$_2$ partial pressure at 40062. The reply reaches the PLC after
+its wire time at 19200 baud 8E1. One poll of the oxygen block takes about nine Modbus TCP round
+trips, some 0.6\,s. The float word order, the conductivity and pressure blocks Heimdall also
+polls (not in [RDOM]) and the module's register communication are not documented; they are
+settings in the simulator, to be checked against the installed sensors. The same value is in the
+simulator control block (holding register 2008, mg/L$\times$100) for use without a PLC.
 
 \subsection{Framo inlet pump controllers (CasFramoSim)}\label{sec:framo}
 Each inlet pump has its own Framo controller with an OPC UA server [SPEC]. CasFramoSim runs three
