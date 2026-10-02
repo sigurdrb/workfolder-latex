@@ -404,6 +404,48 @@ instruments with static curves; they are not part of the design model. The O$_2$
 is offered in the simulator control block (holding register 2008, mg/L$\times$100), because the
 PLC does not map the Orbit 864 sensors yet (CommonRIO words 0--11 are unused).
 
+\subsection{Framo inlet pump controllers}\label{sec:framo}
+Each inlet pump has its own Framo controller with an OPC UA server [SPEC]. CasRioSim runs three
+identical servers, one container each, with the address space Heimdall's Data Source Manager
+binds to: the same names, numeric node ids and data types, in namespace
+\texttt{FramoPLS\_1}--\texttt{3}. The node list is generated from the Data Source object
+(\texttt{framo\_nodes.csv}, 305 nodes per pump); the ports are set per container (default
+4841--4843, as in the Data Source endpoints).
+
+{\small
+\begin{tabularx}{\textwidth}{@{}L l l l@{}}
+\toprule
+Signal & Node (value) & Type & PLC \\
+\midrule
+SpeedSetpoint & i=33 (\texttt{.Value} i=261) & AnalogValue [rpm] & writes \\
+Start, Stop, Reset & i=30--32 (\texttt{.Active} 257--259) & Event & writes \\
+HeartbeatToggle & i=34 (\texttt{.Active} i=277) & BOOL & writes \\
+MotorVelocity & i=2 (\texttt{.Value} i=59) & AnalogValue [rpm] & reads \\
+MotorFrequency, Current, Power, Voltage, Torque & i=1, 3--6 & AnalogValue & reads \\
+PumpState\ldots{} (7 states) & i=23--29 (\texttt{.Active} 250--256) & Event & reads \\
+Alarms (11) & i=12--22 (\texttt{.Active}, \texttt{.Id}) & Alarm & reads \\
+Simulation (fault injection) & i=40 (members 299--305) & BOOL / REAL & test only \\
+\bottomrule
+\end{tabularx}}
+
+The controller follows the state table in [SPEC] p.~6: UNAVAILABLE $\to$ AVAILABLE when no fault
+is active; Start (rising edge) $\to$ START, where the controller ramps the pump to
+$n_\text{start}$; at $n_\text{start}\pm\Delta n_\text{start}$ (``Sequence END'') $\to$ REMOTE, where
+the pump follows SpeedSetpoint clamped to $n_\text{min}$--$n_\text{max}$. Stop $\to$ STOP, which
+ramps to zero and returns to AVAILABLE. A fault (DriveError, MotorTemperature, EmergencyStop,
+UPSSupplyError, DCUnderVoltageError) in START, REMOTE, HOLD or STOP $\to$ LOCKDOWN, which ramps to
+zero and ends in UNAVAILABLE. With heartbeat supervision on, REMOTE $\to$ HOLD (start speed) when
+HeartbeatToggle stops changing, and back to REMOTE when it toggles again. The ramp is the plant's
+pump lag $T_p$; the command goes to the simulated pen, so the level follows the PLC's speed
+setpoint.
+
+Drive feedback follows the SR2000 data: $f = n z_p/120$, $P = P_\text{max}(n/n_\text{max})^3$,
+torque $P/\omega$ (4407\,Nm at 130\,rpm, as on the datasheet), voltage $\propto f$, current
+scaled from power and voltage to 110\,A at full speed. The evacuation (vacuum) nodes are present
+but static.
+
+\input{generated/params_framo.tex}
+
 \section{Design checks}\label{sec:checks}
 
 \subsection{Oxygen capacity}
@@ -524,6 +566,26 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
         difference, and a WORD difference wraps when the inside level is below the outside one
         (e.g.\ $\Delta h = -h_\rho$ at rest). Computing the over-height from the scaled sensor
         values avoids both.
+  \item \textbf{Framo commands not sent.} In Heimdall, \texttt{InletPump.InternalCommand}
+        (Start, Stop, Reset, VelocitySetpoint) is only read, in \texttt{FramoDataProcessing}, and
+        never written, so no command or speed setpoint reaches the pumps yet.
+  \item \textbf{Framo heartbeat not wired.} \texttt{InletControl} supervises a local
+        \texttt{HeartbeatToggle} that nothing changes, and \texttt{FramoDataProcessing} only reads
+        \texttt{Framo\_n.HeartbeatToggle}. A Framo controller that follows [SPEC] will go REMOTE
+        $\to$ HOLD. The simulator's supervision is off until this is wired.
+  \item \textbf{Copy-paste errors in the Framo data processing.} In
+        \texttt{FramoDataProcessing}, the inlet~2 and~3 blocks write
+        Framo\_1's \texttt{PressureCompressedAir} into \texttt{Inlet[0]}, and Framo\_3's state
+        mapping writes \texttt{Inlet[1].State} in every branch except Unavailable.
+  \item \textbf{Framo interface vs.\ [SPEC].} The Data Source names differ from [SPEC]
+        (SpeedSetpoint vs.\ VelocitySetpoint, DCUnderVoltageError vs.\ DCUndervoltageError,
+        PowerConsumptionCounter vs.\ PowerConsumtionCounter); HeartbeatInterval and
+        HeartbeatElapsed are not mapped; Limit*, DisplayName and Description are BOOL instead of
+        REAL/STRING; each pump has its own namespace URI. Confirm against the delivered Framo
+        PLCs. The simulator follows the Data Source.
+  \item \textbf{Speed setpoint at hand-over.} In REMOTE the pump follows SpeedSetpoint at once.
+        If the PLC has not written it (0), the pump drops to $n_\text{min}$. The PLC should track
+        the actual speed into SpeedSetpoint during START ([FD] bumpless transfer).
   \item \textbf{O$_2$ valve output scaling.} Heimdall's \texttt{AnalogValve.ScaleOutput}
         computes $\text{Setpoint}\cdot(\text{Max}-\text{Min})/32760 + \text{Min}$, which only maps
         0--100\,\% to 0--32760 for an unusual \texttt{Config}; the expected form is
