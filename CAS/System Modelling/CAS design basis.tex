@@ -21,7 +21,7 @@
 % Marks a value that is assumed and must be confirmed
 \newcommand{\assumed}{\textsuperscript{\textcolor{red}{A}}}
 
-% Generated from CasRioSim/design_basis.toml by CasRioSim/tools/design_report.py
+% Generated from CasDesignBasis/design_basis.toml by CasDesignBasis/tools/design_report.py
 \input{generated/values.tex}
 
 \title{CAS (Heimdall) -- design basis for control\\[1mm]
@@ -41,18 +41,19 @@ has a value, a unit, a source and a reason for the choice. It replaces the param
 \emph{CAS model.tex}; Section~\ref{tab:changes} lists the changes.
 
 \textbf{One source of truth.} The parameters live in \texttt{design\_basis.toml} [TOML] and the
-equations in \texttt{casriosim/design.py} [MODEL], both in \texttt{workfolder-python/CasRioSim}.
-The simulator CasRioSim integrates exactly these equations, and its version is the design basis
-version (\CASVersion). The tables, matrices and difference equations in this document are
-generated from the same files by \texttt{tools/design\_report.py} [PY] into
+equations in \texttt{casdesign/design.py} [MODEL], both in \texttt{workfolder-python/CasDesignBasis}.
+Two simulators run them (Section~\ref{sec:sim}): CasRioSim, the remote I/O over Modbus TCP and the
+pen physics, and CasFramoSim, the Framo inlet pump controllers over OPC UA. Their version is the
+design basis version (\CASVersion). The tables, matrices and difference equations in this
+document are generated from the same files by \texttt{tools/design\_report.py} [PY] into
 \texttt{generated/}. To change the design:
 \begin{enumerate}
   \item change \texttt{design\_basis.toml} (or \texttt{design.py}) and bump
         \texttt{meta.version};
-  \item run \texttt{python tools/selftest\_model.py}, which checks that the simulator's model
-        linearizes to exactly the matrices in Section~\ref{sec:linear};
+  \item run \texttt{python tools/selftest\_plant.py}, which checks that the model linearizes to
+        exactly the matrices in Section~\ref{sec:linear};
   \item run \texttt{python tools/design\_report.py} and rebuild this document;
-  \item push to \texttt{main}. CI publishes the simulator image with the new version.
+  \item push to \texttt{main}. CI publishes both simulator images with the new version.
 \end{enumerate}
 
 Values marked \assumed{} are assumptions that are not yet supported by a document. They are
@@ -79,9 +80,9 @@ ID & Document \\
 {[SO]}    & Sensor Overview CAS V1.xlsx \\
 {[B8605]} & Bürkert 8605 PWM driver, Linde default setup, 22.02.22 \\
 {[W455]}  & WAGO 750-455 4AI 4--20\,mA product manual, 2453453963, valid from HW 07 / FW 04 \\
-{[TOML]}  & CasRioSim/design\_basis.toml, version \CASVersion{} (all parameters) \\
-{[MODEL]} & CasRioSim/casriosim/design.py (model equations, used by the simulator) \\
-{[PY]}    & CasRioSim/tools/design\_report.py (generates this document's tables) \\
+{[TOML]}  & CasDesignBasis/design\_basis.toml, version \CASVersion{} (all parameters) \\
+{[MODEL]} & CasDesignBasis/casdesign/design.py (model equations, used by the simulators) \\
+{[PY]}    & CasDesignBasis/tools/design\_report.py (generates this document's tables) \\
 \bottomrule
 \end{tabularx}
 
@@ -371,7 +372,20 @@ The contributions from each input add up. For example, the full measured O$_2$ i
 $y_{3,k} = $ (response to $u_2$) $+$ (response to $u_3$) $+$ (response to $d_1$) $+$
 (response to $u_1$), each computed with its own equation above.
 
-\section{Simulator (CasRioSim)}\label{sec:sim}
+\section{Simulators}\label{sec:sim}
+
+Two simulators run this design basis, split along the PLC's real interfaces:
+\begin{itemize}
+  \item \textbf{CasRioSim}: the four Wago remote I/O stations over Modbus TCP, and the pen
+        physics (level, oxygen, valves, outlet, sensors);
+  \item \textbf{CasFramoSim}: the three Framo inlet pump controllers over OPC UA
+        (Section~\ref{sec:framo}).
+\end{itemize}
+They share nothing but OPC UA and the design basis: CasRioSim's physics reads each pump's
+actual speed from its CasFramoSim server, as an OPC UA client. Both report the design basis
+version, \CASVersion.
+
+\subsection{Remote I/O and pen physics (CasRioSim)}
 
 CasRioSim serves the Heimdall PLC the same Modbus TCP process image as the four Wago remote I/O
 stations. The plant behind it is this design basis: it integrates the nonlinear equations
@@ -382,9 +396,10 @@ it in holding registers 2013--2015.
 The simulator differs from the control design model only where the PLC, not the plant, owns
 the behaviour:
 \begin{itemize}
-  \item \textbf{One speed per pump.} Each inlet has its own setpoint, run flag and speed state
-        $T_p\dot n_j = n_{\text{ref},j} - n_j$, clamped to $n_\text{min}$--$n_\text{max}$. With a
-        common speed this is equation~\eqref{eq:pump}.
+  \item \textbf{One speed per pump.} Each inlet has its own speed state. With CasFramoSim
+        running, the speed is read from the pump's Framo server, which runs the lag
+        $T_p\dot n_j = n_{\text{ref},j} - n_j$ itself; otherwise CasRioSim integrates it from a
+        setpoint in its control block. With a common speed this is equation~\eqref{eq:pump}.
   \item \textbf{O$_2$ valve instead of the closed FIC.} The PLC runs FIC41--43 and writes the
         valve position $u_{\%,j}$. The plant is the valve itself:
         $\tau_v\,\ddot m_j = \sigma_j\,\dot m_\text{max}\,u_{\%,j}/100 - \dot m_j$, zero below
@@ -395,7 +410,7 @@ the behaviour:
         through the outlet; it carries $c_\text{in}$.
   \item \textbf{Start state.} Pumps stopped, $\Delta h = -h_\rho$, $c = c_\text{in}$.
 \end{itemize}
-The self-test (\texttt{tools/selftest\_model.py}) checks that every operating point in
+The self-test (\texttt{CasDesignBasis/tools/selftest\_plant.py}) checks that every operating point in
 Section~\ref{sec:op} is an equilibrium of the simulator plant, and that the plant linearizes to
 exactly $\mathbf A$, $\mathbf B$ and $\mathbf E$ of Section~\ref{sec:linear} in every mode.
 
@@ -404,8 +419,8 @@ instruments with static curves; they are not part of the design model. The O$_2$
 is offered in the simulator control block (holding register 2008, mg/L$\times$100), because the
 PLC does not map the Orbit 864 sensors yet (CommonRIO words 0--11 are unused).
 
-\subsection{Framo inlet pump controllers}\label{sec:framo}
-Each inlet pump has its own Framo controller with an OPC UA server [SPEC]. CasRioSim runs three
+\subsection{Framo inlet pump controllers (CasFramoSim)}\label{sec:framo}
+Each inlet pump has its own Framo controller with an OPC UA server [SPEC]. CasFramoSim runs three
 identical servers, one container each, with the address space Heimdall's Data Source Manager
 binds to: the same names, numeric node ids and data types, in namespace
 \texttt{FramoPLS\_1}--\texttt{3}. The node list is generated from the Data Source object
@@ -436,8 +451,8 @@ ramps to zero and returns to AVAILABLE. A fault (DriveError, MotorTemperature, E
 UPSSupplyError, DCUnderVoltageError) in START, REMOTE, HOLD or STOP $\to$ LOCKDOWN, which ramps to
 zero and ends in UNAVAILABLE. With heartbeat supervision on, REMOTE $\to$ HOLD (start speed) when
 HeartbeatToggle stops changing, and back to REMOTE when it toggles again. The ramp is the plant's
-pump lag $T_p$; the command goes to the simulated pen, so the level follows the PLC's speed
-setpoint.
+pump lag $T_p$, run in CasFramoSim; CasRioSim reads the resulting speed over OPC UA, so the
+simulated level follows the PLC's speed setpoint.
 
 Drive feedback follows the SR2000 data: $f = n z_p/120$, $P = P_\text{max}(n/n_\text{max})^3$,
 torque $P/\omega$ (4407\,Nm at 130\,rpm, as on the datasheet), voltage $\propto f$, current
