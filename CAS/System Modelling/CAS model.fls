@@ -1,6 +1,6 @@
-PWD c:\GIT\LaTeX\CAS\System Modelling
+PWD c:\GIT\workfolder-latex\CAS\System Modelling
 INPUT C:\Users\sigurd.brekk\AppData\Local\MiKTeX\miktex\data\le\pdftex\pdflatex.fmt
-INPUT c:\GIT\LaTeX\CAS\System Modelling\CAS model.tex
+INPUT c:\GIT\workfolder-latex\CAS\System Modelling\CAS model.tex
 OUTPUT CAS model.log
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\base\article.cls
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\base\article.cls
@@ -192,6 +192,8 @@ INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\epstopdf-pkg
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\00miktex\epstopdf-sys.cfg
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\00miktex\epstopdf-sys.cfg
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\00miktex\epstopdf-sys.cfg
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\babel\locale\en\babel-en-US.ini
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\babel\locale\en\babel-en-US.ini
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\translations\dicts\translations-basic-dictionary-english.trsl
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\translations\dicts\translations-basic-dictionary-english.trsl
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\translations\dicts\translations-basic-dictionary-english.trsl

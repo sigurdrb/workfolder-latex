@@ -572,21 +572,22 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
   \item \textbf{$\eta$.} The value 0.8 comes from a small-scale test (900\,l, CT1). Confirm for
         CT10 at full scale.
   \item \textbf{FS of LT21--23.} A full scale of 2\,m is assumed for the accuracy.
-  \item \textbf{Direction of the level signal.} The level span is 2\,m, which the 12-bit 750-455
-        resolves in 4096 steps (0.49\,mm per step). The VEGAPULS C\,21 measures the distance from
+  \item \textbf{Direction of the level signal.} The level span is 2\,m, which the 750-455 resolves
+        in 2048 steps (0.98\,mm per step). The VEGAPULS C\,21 measures the distance from
         its antenna down to the water [VEGA]. Whether raw 0 (4\,mA) is the lowest or the highest
         level depends on the min./max.\ adjustment and current output mode set in each sensor;
         the datasheets do not say. Read the settings in the sensors (VEGA Tools app). Inside
         (LT01--03) and outside (LT21--23) must have the same direction, otherwise the
         over-height, and the sign of LIC01, is wrong. The simulator assumes 0 = lowest level.
-  \item \textbf{Analog input word layout.} WAGO documents two layouts for the 750-455. The
-        table Heimdall is written for puts the 12-bit value in bits 14--3 (20\,mA $=$
-        \texttt{0x7FF8}) with status in bits 2--0. The HW\,07/FW\,04 manual [W455] puts it in bits
-        15--4 (20\,mA $=$ \texttt{0x7FF0}), with bits 3--2 reserved and bits 1--0 diagnostics.
-        Full scale differs by only 8 counts; the resolution is 0.49 or 0.98\,mm on the level.
-        Check the installed hardware version. The simulator serves the 0x7FF8 layout, which
-        decodes correctly either way.
-  \item \textbf{Quality check in the PLC.} In both layouts the status bits are 0 on a healthy
+  \item \textbf{Analog input word layout} (settled). The 750-455 puts the value in bits 14--4
+        (0--2047, 20\,mA $=$ \texttt{0x7FF0}); bit 15 is the sign, always 0 for 4--20\,mA, and
+        WAGO counts it in the stated 12-bit resolution. Bits 3--2 are reserved and bits 1--0 are
+        diagnostics [W455]. WAGO Germany confirmed this layout on 7 October 2026 and called older
+        tables (value in bits 14--3, 20\,mA $=$ \texttt{0x7FF8}) inconsistent. On a 2\,m span one
+        step is 0.98\,mm, so the over-height, the difference of two readings, moves in steps of
+        about 1\,mm against level setpoints of 5\,mm in O-60 and S-75. The simulator serves this
+        layout. Heimdall's \texttt{RawMax} of 32760 reads 20\,mA as 99.98\,\% of span.
+  \item \textbf{Quality check in the PLC.} The diagnostic bits are 0 on a healthy
         channel and set on a fault (both diagnostic bits are 1 on wire break or out of range
         [W455]). Heimdall's \texttt{AnalogSensor.ScaleInput} masks bits 0--2 as ``quality'' and
         accepts the value only when they are \emph{non-zero}, so a healthy channel is reported as
