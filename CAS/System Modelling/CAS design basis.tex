@@ -426,13 +426,24 @@ Modbus words 0--11 [W652]. CasRioSim runs that module's handshake on the words t
 reads with FC23 (initialization IR/IA, transmit TR/TA with length OL, receive RR/RA with length
 IL, up to 22 bytes per step), and behind it five Modbus RTU slaves: OT01--03 inside the pen
 (addresses 1--3) read $c_m$, OT21--22 outside (4--5) read $c_\text{in}$ [HEIM]. Each answers
-function code 3 with the register map of [RDOM]: DO in mg/L as a float at registers 40038--39
-(parameter Id 20, unit 117), temperature at 40046, saturation at 40054 (from the same saturation
-formula as $c_\text{sat}$) and O$_2$ partial pressure at 40062. The reply reaches the PLC after
+function code 3 with the register map of a real Orbit 864, read from the sensor on the test rig on
+7 October 2026. The sensor is an RDO Core IC: one sub-sensor per register block, each laid out like
+the oxygen block of [RDOM] (sensor id at index 0, parameters from index 37, 8 registers apart):
+\begin{itemize}
+  \item oxygen, registers 40001--40066, sensor id 42: DO in mg/L as a float at 40038--39
+        (parameter Id 20, unit 117), temperature at 40046, saturation at 40054 (from the same
+        saturation formula as $c_\text{sat}$) and O$_2$ partial pressure at 40062;
+  \item conductivity, 40873--40957, sensor id 85: actual and specific conductivity, salinity,
+        total dissolved solids, resistivity and water density at 40910, 40918, 40926, 40934,
+        40942 and 40950;
+  \item pressure, 41745--41797, sensor id 84: pressure (psi) at 41782 and depth (m) at 41790.
+\end{itemize}
+[RDOM] documents only the oxygen block. Register 4xxxx is PDU address xxxx$-$1, and floats are
+sent high word first; both were confirmed with consistent readings (8.68\,mg/L at 24.4\,\textdegree C
+is 103.8\,\% saturation). The ``PLC interface'' of [RDOM] (register $5451 + 7(\text{id}-1)$) is
+refused by the sensor. The reply reaches the PLC after
 its wire time at 9600 baud 8N1 (as ScaleAQ configures the sensors). A sensor left idle sleeps and answers the request that wakes it about 3\,s late, as seen on the test rig; register 9210 (Communication Stay Awake) keeps it awake. One poll of the oxygen block takes about nine Modbus TCP round
-trips, some 0.6\,s. The float word order, the conductivity and pressure blocks Heimdall also
-polls (not in [RDOM]) and the module's register communication are not documented; they are
-settings in the simulator, to be checked against the installed sensors. The same value is in the
+trips, some 0.6\,s. The module's register communication is not documented; the simulator answers it generically. The same value is in the
 simulator control block (holding register 2008, mg/L$\times$100) for use without a PLC.
 
 \subsection{Framo inlet pump controllers (CasFramoSim)}\label{sec:framo}
