@@ -429,7 +429,7 @@ IL, up to 22 bytes per step), and behind it five Modbus RTU slaves: OT01--03 ins
 function code 3 with the register map of [RDOM]: DO in mg/L as a float at registers 40038--39
 (parameter Id 20, unit 117), temperature at 40046, saturation at 40054 (from the same saturation
 formula as $c_\text{sat}$) and O$_2$ partial pressure at 40062. The reply reaches the PLC after
-its wire time at 19200 baud 8E1. One poll of the oxygen block takes about nine Modbus TCP round
+its wire time at 9600 baud 8N1 (as ScaleAQ configures the sensors). A sensor left idle sleeps and answers the request that wakes it about 3\,s late, as seen on the test rig; register 9210 (Communication Stay Awake) keeps it awake. One poll of the oxygen block takes about nine Modbus TCP round
 trips, some 0.6\,s. The float word order, the conductivity and pressure blocks Heimdall also
 polls (not in [RDOM]) and the module's register communication are not documented; they are
 settings in the simulator, to be checked against the installed sensors. The same value is in the
