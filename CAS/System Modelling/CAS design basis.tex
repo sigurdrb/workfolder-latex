@@ -629,11 +629,12 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
   \item \textbf{Speed setpoint at hand-over.} In REMOTE the pump follows SpeedSetpoint at once.
         If the PLC has not written it (0), the pump drops to $n_\text{min}$. The PLC should track
         the actual speed into SpeedSetpoint during START ([FD] bumpless transfer).
-  \item \textbf{O$_2$ valve output scaling.} Heimdall's \texttt{AnalogValve.ScaleOutput}
-        computes $\text{Setpoint}\cdot(\text{Max}-\text{Min})/32760 + \text{Min}$, which only maps
-        0--100\,\% to 0--32760 for an unusual \texttt{Config}; the expected form is
-        $(\text{Setpoint}-\text{Min})/(\text{Max}-\text{Min})\cdot 32760$. The 750-563 output
-        format should be checked against its manual, which is not in the design folder.
+  \item \textbf{O$_2$ valve output scaling.} The PLC writes 0--32760 to the 750-563, whose D/A
+        converter turns it into 4--20\,mA (0--100\,\% opening); the simulator decodes that range.
+        Heimdall's \texttt{AnalogValve.ScaleOutput} still computes
+        $\text{Setpoint}\cdot(\text{Max}-\text{Min})/32760 + \text{Min}$, which gives about 0 for
+        any setpoint; it should be
+        $(\text{Setpoint}-\text{Min})/(\text{Max}-\text{Min})\cdot 32760$.
   \item \textbf{Rigid surface.} The tarpaulin is flexible, so the real capacitance may be larger.
   \item \textbf{Maximum flow.} [DB] gives 27\,000\,m$^3$/h as the maximum, while O-35 needs
         34\,000\,m$^3$/h [FD]. The two documents must be aligned.
