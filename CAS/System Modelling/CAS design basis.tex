@@ -83,6 +83,9 @@ ID & Document \\
 {[RDOM]}  & In-Situ RDO Core Digital Interface Specification (Modbus register map) \\
 {[W652]}  & WAGO 750-652 serial interface RS-232/RS-485 manual, version 2.0.0 \\
 {[HEIM]}  & Heimdall CODESYS project (scaleaq/heimdall-plc): ModbusRTUData, GVL\_CONSTANT \\
+{[OGA]}   & K.~Ogata, \emph{Modern Control Engineering}, 5th ed., Prentice Hall, Upper Saddle River, NJ, 2010, ISBN 978-0-13-615673-4 \\
+{[PRO]}   & J.\,G.~Proakis and D.\,G.~Manolakis, \emph{Digital Signal Processing}, 4th ed., Pearson Prentice Hall, Upper Saddle River, NJ, 2007 \\
+{[UPID]}  & CODESYS Util library, function block \texttt{PID} (library documentation) \\
 {[TOML]}  & CasDesignBasis/design\_basis.toml, version \CASVersion{} (all parameters) \\
 {[MODEL]} & CasDesignBasis/casdesign/design.py (model equations, used by the simulators) \\
 {[PY]}    & CasDesignBasis/tools/design\_report.py (generates this document's tables) \\
@@ -101,8 +104,9 @@ The control structure follows [FD] §3.2.2--3.2.4 (Figure~\ref{fig:structure}):
 \begin{itemize}
   \item \textbf{LIC01}, level: PI on $\Delta h_\text{avg}$. It sends one common speed setpoint
         to all running inlet pumps. The dampers are held at a fixed opening per operating mode.
-  \item \textbf{OIC01}, oxygen (master): PI on one pen O$_2$ sensor, normally OT03 at the outlet.
-        Its output is the setpoint for the three O$_2$ flow loops.
+  \item \textbf{OIC01}, oxygen (master): PI on the pen O$_2$ concentration in mg/L. [FD] names
+        OT03 at the outlet, with fallback to the lowest remaining sensor; Heimdall uses the mean of
+        the inside sensors (open item). Its output is the setpoint for the three O$_2$ flow loops.
   \item \textbf{FIC41--43}, O$_2$ flow (slave): PI on the gas flow (FT41--43). It drives the
         PWM proportional valve OV41--43.
 \end{itemize}
@@ -218,7 +222,10 @@ the mode's flow $Q_0$ gives the mode's over-height $\Delta h_0$:
 $k_d = Q_0/\sqrt{\Delta h_0+h_\rho}$.
 
 The outlet follows the orifice law ($q\propto\sqrt{h}$), not a linear resistance. That halves
-the slope compared with a linear outlet, and makes the level time constant twice as long.
+the slope compared with a linear outlet, and makes the level time constant twice as long. This is
+the turbulent liquid-level system of [OGA] §4-2 ($Q=K\sqrt H$, eq.~4-1): its linearized
+resistance $R_t = 2\bar H/\bar Q$ is the slope used for $a_h$ in Section~\ref{sec:linear}, and
+the pen area $A_s$ is the capacitance.
 
 \subsection{Oxygen balance}
 The pen is treated as one fully mixed volume (CSTR). Since
@@ -268,7 +275,9 @@ The linear model in the next section uses O-45 with two pumps, the redundancy ca
 
 \section{Linear model}\label{sec:linear}
 
-Linearize around the operating point $(x_0,u_0,d_0)$ and write $\delta x = x - x_0$. Define
+Linearize around the operating point $(x_0,u_0,d_0)$ by a first-order Taylor expansion
+([OGA] §2-7, eqs.~2-42--2-46) and write $\delta x = x - x_0$. The model holds for small
+deviations from the operating point; the simulators run the nonlinear equations. Define
 \begin{align}
 a_h = \frac{\partial q_\text{out}}{\partial\Delta h}\frac{1}{A_s} = \frac{Q_0}{2A_s(\Delta h_0+h_\rho)},
 \qquad
@@ -329,7 +338,8 @@ FT41--43:
 \end{center}
 
 \subsection{Transfer functions}\label{sec:tf}
-The matrices are triangular, so the transfer functions are products of first-order terms:
+The matrices are triangular, so the transfer functions are products of first-order terms
+([OGA] §5-2):
 \begin{align}
 \frac{\Delta h}{n_\text{ref}}(s) &= \frac{N_pK_n/A_s}{(s+a_h)(1+T_ps)}
   && K = \CASGainLevel\ \text{mm/rpm}\\
@@ -357,9 +367,13 @@ $T_s = \CASTs$\,s. They are in deviation variables (the $\delta$ is dropped), an
 are held constant over each sample.
 
 \subsubsection*{State update}
-The exact ZOH of the full state-space model is
+The solution of $\dot{\mathbf x} = \mathbf A\mathbf x + \mathbf B\mathbf u$ is
+$\mathbf x(t) = e^{\mathbf A t}\mathbf x(0) + \int_0^t e^{\mathbf A(t-\tau)}\mathbf B\mathbf u(\tau)\,d\tau$
+([OGA] §9-4, eq.~9-42). With the input held constant over a sample (zero-order hold) this gives
+the exact ZOH of the full state-space model,
 $\mathbf x_k = \mathbf A_d\mathbf x_{k-1} + \mathbf B_d\mathbf u_{k-1} + \mathbf E_d\mathbf d_{k-1}$,
-with $\mathbf A_d = e^{\mathbf AT_s}$. Row by row:
+with $\mathbf A_d = e^{\mathbf AT_s}$ and $\mathbf B_d = \int_0^{T_s} e^{\mathbf A\lambda}\,d\lambda\,\mathbf B$
+(likewise $\mathbf E_d$). Row by row:
 \input{generated/discrete_state.tex}
 Lines with $\sigma_j = 0$ do not appear in the $c$ equations.
 
@@ -374,6 +388,115 @@ the same as in continuous time.
 The contributions from each input add up. For example, the full measured O$_2$ is
 $y_{3,k} = $ (response to $u_2$) $+$ (response to $u_3$) $+$ (response to $d_1$) $+$
 (response to $u_1$), each computed with its own equation above.
+
+\section{Control design and measurement chain}\label{sec:control}
+
+The controller and filter settings the checks below use are part of [TOML]; they are the
+values in Heimdall's \texttt{ConfigValues}.
+\begin{center}
+\input{generated/params_control.tex}
+\end{center}
+
+\subsection{Level controller LIC01}
+LIC01 is a PI controller, $u = K_c\big(e + \frac{1}{T_i}\int e\,dt\big)$ ([OGA] §2-3), on the
+over-height. The integral action removes the steady-state error after a step disturbance, such as
+a change of the damper opening or of the outside level ([OGA] §5-7). The open loop is the PI, the
+pump lag, the level and the measurement filter, plus a dead time $\theta$:
+\begin{equation}
+L(s) = K_c\Big(1+\frac{1}{T_is}\Big)\,\frac{K}{(1+s/a_h)(1+T_ps)}\,F(s)\,e^{-\theta s},
+\qquad K = \frac{N_pK_n}{A_s a_h}
+\end{equation}
+with $F(s)$ the 2nd-order Butterworth of Section~\ref{sec:filter}. The dead time only lowers the
+phase, by $\omega\theta$, and so sets the upper limit for the gain ([OGA] §7-2, transport lag,
+and Example A-7-10). The margins per mode, at $\theta$ and $2.5\theta$
+([OGA] §7-7; computed by [PY]):
+\begin{center}
+\input{generated/lic_margins.tex}
+\end{center}
+$1/\omega_c$ is the inverse gain-crossover frequency, a measure of the closed-loop time constant.
+The worst case is O-35 on three pumps, where the process gain is highest. [OGA] recommends a phase
+margin of 30--60° and a gain margin above 6\,dB (p.~467). The chosen setting gives
+\CASLicPM° and \CASLicGM\,dB in the worst case: deliberately on the safe side, because $h_\rho$,
+the real outlet conductance and the wave noise are uncertain. Faster settings stay inside the
+recommendation (worst case over the modes, dead time $2.5\theta$):
+\begin{center}
+\input{generated/lic_options.tex}
+\end{center}
+One fixed setting covers all modes and pump counts. The process gain grows with $N_p$, so a gain
+schedule would lower $K_c$ with more pumps; [FD] raises it.
+
+\textbf{Implementation in Heimdall.} LIC01 is \texttt{PIDController} around CODESYS
+\texttt{Util.PID} [UPID]:
+\begin{itemize}
+  \item The integral part is held while the output is at its limits (40--130\,rpm), which acts as
+        anti-windup [UPID]. [OGA] does not treat windup.
+  \item \texttt{Util.PID} applies new parameters only in manual mode, at a reset or at a start
+        [UPID]. A new $T_i$ takes effect at the next start or manual$\to$auto switch.
+  \item \textbf{Start-up tracking ([FD]).} While the pumps in level control are starting and
+        none is in REMOTE, LIC01 runs in manual on their mean actual speed.
+  \item \textbf{Bumpless transfer.} On manual$\to$auto the PID is reset with the offset
+        $Y_\text{off} = u_{k-1} - K_c e_k$, so the first automatic output equals the last manual
+        one; the output is held in the reset cycle, where \texttt{Util.PID} returns
+        $Y_\text{off}$ alone.
+\end{itemize}
+\textbf{Test on 13 October 2026} (PFC200 against CasRioSim and CasFramoSim, three pumps, O-35
+outlet, setpoint 6\,cm, $K_c = 450$\,rpm/m, $T_i = 60$\,s, filter 0.05\,Hz): the pumps reached
+REMOTE at 87\,rpm with no jump in the setpoint; the level overshot to 7.4\,cm, was within 2\,mm
+of the setpoint about 3\,min after the transfer, and settled at 74.3\,rpm (model: 73.9\,rpm).
+Stopping one of the three pumps gave a dip of 3.1\,cm and a slow recovery, since two pumps need
+about 111\,rpm; restarting it gave an overshoot above 7.4\,cm.
+
+\textbf{Set-point kick.} The P part acts on the error, so a setpoint step (e.g.\ a mode change
+from 6 to 0.5\,cm) gives a step in pump speed, and at a manual$\to$auto transfer the offset
+absorbs $K_ce$. The I-PD form, with the P part on the measurement and the setpoint only in the
+integral, avoids both and keeps the same disturbance response ([OGA] §8-5, Examples A-8-8 and
+A-8-9). \texttt{Util.PID} has no such form (open item).
+
+\subsection{Measurement chain}\label{sec:filter}
+\textbf{Sampling.} The PLC reads the level transmitters every Modbus TCP cycle, about 0.1\,s, so
+$F_s/2 \approx 5$\,Hz. Waves of 4--10\,s period (0.1--0.25\,Hz) are far below that, and the
+sensors' own damping acts as the analog pre-filter, so aliasing is negligible ([PRO] §1.4.2,
+eq.~1.4.19; §6.2).
+
+\textbf{Quantization.} The 750-455 resolves the 2\,m span in 2048 steps,
+$\Delta = 0.98$\,mm. Rounding gives an error within $\pm\Delta/2$ with power $\Delta^2/12$, i.e.\
+$\sigma_q = \Delta/\sqrt{12} = 0.28$\,mm ([PRO] §1.4.3--1.4.4, eqs.~1.4.26--1.4.29), well below
+the sensor deviation. That noise model assumes the signal moves across the steps
+([PRO] §6.3.3). A noise-free, slowly drifting level does not; the PI then hunts across one step
+(a sawtooth of $\pm K_c\Delta \approx \pm0.45$\,rpm, seen in the simulator before it had sensor
+noise). The simulator therefore adds the sensor noise $\sigma_\text{LT0x}$, $\sigma_\text{LT2x}$
+([TOML]), which dithers the quantizer as the real sensors will.
+
+\textbf{Filter.} Each level transmitter has a 2nd-order Butterworth low-pass,
+$|H(\Omega)|^2 = 1/\big(1+(\Omega/\Omega_c)^{4}\big)$ ([PRO] §10.3.4, eq.~10.3.45), with cut-off
+$f_c = \CASLevelFc$\,Hz. It is made digital with the bilinear transform
+$s = \frac{2}{T}\frac{1-z^{-1}}{1+z^{-1}}$ and pre-warping of the cut-off,
+$\Omega_c = \frac{2}{T}\tan(\pi f_c T)$, so that the $-3$\,dB point is exactly $f_c$
+([PRO] §10.3.3, eqs.~10.3.40--10.3.43, Example 10.3.5). With $K = \tan(\pi f_cT)$ and
+$n = 1/(1+\sqrt2K+K^2)$:
+\begin{gather}
+y_k = b_0u_k + b_1u_{k-1} + b_2u_{k-2} - a_1y_{k-1} - a_2y_{k-2}\\
+b_0=b_2=K^2n,\quad b_1=2b_0,\quad a_1=2(K^2-1)n,\quad a_2=(1-\sqrt2K+K^2)n \nonumber
+\end{gather}
+\begin{itemize}
+  \item This is one direct-form I section ([PRO] §9.3). With $f_c \ll F_s$ the poles lie close
+        to $z=1$, where finite-precision coefficients allow only a sparse grid of pole positions
+        and the DC gain drifts ([PRO] §9.5, eq.~9.5.13). \texttt{SCL.Butterworth} therefore keeps
+        coefficients and states in LREAL.
+  \item The sample time $T$ is the cycle time of the task that calls the filter (CmpIecTask), so
+        the coefficients follow the task. The first call starts the filter at rest on the input.
+  \item The filter adds phase lag at the loop crossover, which the margins above include
+        ($F(s)$). It attenuates 4--10\,s waves by about 19\,dB.
+  \item The earlier library version applied $2\pi$ twice and put the cut-off about 27 times too
+        high, so it hardly filtered.
+\end{itemize}
+
+\textbf{Oxygen measurement.} The Orbit 864 sensors share one RS-485 line and are polled one at a
+time over the 750-652, the oxygen block every second round. The same sensor is read about every
+$T_{s,\text{O}_2}$ ([TOML]), not every $T_s$. The sensor lag $\tau_s$ band-limits the signal
+well below the Nyquist frequency of that interval, acting as the anti-aliasing filter
+([PRO] §6.2). OIC01 should be designed for that interval; against the pen time constant of
+44\,min it is short.
 
 \section{Simulators}\label{sec:sim}
 
@@ -524,11 +647,11 @@ To resolve this, do one of the following:
         plus the density head, which supports the assumption.
   \item The process gain grows with $N_p$. The controller gain should therefore fall as more
         pumps run ($K_c\propto 1/N_p$). The [FD] table has it the other way round
-        (0.5/1/2 for 1/2/3 pumps).
-  \item In [FD] scaling (PV 0--20\,cm, OUT 40--130\,rpm) the normalized gain at O-45 is 0.60.
-        With $T_i = 600$\,s, which is about $20\times$ the process time constant, the closed loop
-        becomes very slow. As a starting point, SIMC with $\tau_c = 30$\,s gives
-        $K_c \approx 1.3$ and $T_i \approx 31$\,s. Verify by simulation.
+        (0.5/1/2 for 1/2/3 pumps). One fixed setting covers all modes
+        (Section~\ref{sec:control}).
+  \item The [FD] integral time $T_i = 600$\,s is about $20\times$ the process time constant: a
+        closed loop of about 16\,min. LIC01 uses $T_i = \CASLicTi$\,s
+        (Section~\ref{sec:control}); tested on the PFC200 against the simulators.
   \item The setpoint in O-60/S-75 is 5\,mm, and the measurement uncertainty is about
         $\pm 6$\,mm ($\pm2$\,mm inside, $\pm4$\,mm outside). With waves up to $H_s = 2$\,m,
         this calls for heavy filtering, so the level loop cannot be fast.
@@ -576,8 +699,12 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
         the inner water height. Set $h_\rho=0$ if the densities are equal.
   \item \textbf{$T_p$.} Ramp and response of the Framo VSD and the water column, from setpoint
         to speed. Ask Framo [SPEC].
-  \item \textbf{O$_2$ setpoint.} [FD] does not yet give a setpoint, nor whether the unit is
-        \% or mg/L. 90\,\% saturation is taken from [O2S].
+  \item \textbf{O$_2$ setpoint.} OIC01 regulates concentration in mg/L (decided 13 October
+        2026); saturation is averaged for display only. [FD] does not yet give the value;
+        $c_\text{ref}$ at 90\,\% saturation is taken from [O2S]. Heimdall does not yet pass a
+        setpoint to OIC01.
+  \item \textbf{O$_2$ process value.} [FD]: OT03 at the outlet, falling back to the lowest
+        remaining sensor. Heimdall: mean of the inside sensors in good quality.
   \item \textbf{Mixing.} A fully mixed pen is assumed. The delay from injection to OT03 is not
         known; it needs CFD ([DB] §4.4.3) or a step test at commissioning.
   \item \textbf{$\eta$.} The value 0.8 comes from a small-scale test (900\,l, CT1). Confirm for
@@ -598,37 +725,26 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
         step is 0.98\,mm, so the over-height, the difference of two readings, moves in steps of
         about 1\,mm against level setpoints of 5\,mm in O-60 and S-75. The simulator serves this
         layout. Heimdall's \texttt{RawMax} of 32760 reads 20\,mA as 99.98\,\% of span.
-  \item \textbf{Quality check in the PLC.} The diagnostic bits are 0 on a healthy
-        channel and set on a fault (both diagnostic bits are 1 on wire break or out of range
-        [W455]). Heimdall's \texttt{AnalogSensor.ScaleInput} masks bits 0--2 as ``quality'' and
-        accepts the value only when they are \emph{non-zero}, so a healthy channel is reported as
-        bad quality and a wire break is accepted as good. Suggested: fault when
-        \texttt{(word AND 3) = 3}.
-  \item \textbf{Over-height in raw words.} Heimdall's \texttt{deltaHeightCalc} subtracts the
-        inside and outside raw WORDs directly, without scaling to metres. Status bits enter the
-        difference, and a WORD difference wraps when the inside level is below the outside one
-        (e.g.\ $\Delta h = -h_\rho$ at rest). Computing the over-height from the scaled sensor
-        values avoids both.
-  \item \textbf{Framo commands not sent.} In Heimdall, \texttt{InletPump.InternalCommand}
-        (Start, Stop, Reset, VelocitySetpoint) is only read, in \texttt{FramoDataProcessing}, and
-        never written, so no command or speed setpoint reaches the pumps yet.
+  \item \textbf{Quality check in the PLC} (fixed). \texttt{AnalogSensor.ScaleInput} now takes
+        status bits 0 as good. It still tests bit 2, which [W455] calls reserved; testing only
+        bits 1--0 is safer. To be verified on site at commissioning.
+  \item \textbf{Over-height} (settled). Heimdall computes it from the scaled, filtered levels
+        (\texttt{PenInsideSensors}); the old raw-word \texttt{deltaHeightCalc} is not used.
+  \item \textbf{Framo commands} (fixed). \texttt{InletControl} writes
+        \texttt{InternalCommand} (Start, Stop, Reset, VelocitySetpoint).
   \item \textbf{Framo heartbeat not wired.} \texttt{InletControl} supervises a local
         \texttt{HeartbeatToggle} that nothing changes, and \texttt{FramoDataProcessing} only reads
         \texttt{Framo\_n.HeartbeatToggle}. A Framo controller that follows [SPEC] will go REMOTE
         $\to$ HOLD. The simulator's supervision is off until this is wired.
-  \item \textbf{Copy-paste errors in the Framo data processing.} In
-        \texttt{FramoDataProcessing}, the inlet~2 and~3 blocks write
-        Framo\_1's \texttt{PressureCompressedAir} into \texttt{Inlet[0]}, and Framo\_3's state
-        mapping writes \texttt{Inlet[1].State} in every branch except Unavailable.
+  \item \textbf{Copy-paste errors in the Framo data processing} (fixed).
   \item \textbf{Framo interface vs.\ [SPEC].} The Data Source names differ from [SPEC]
         (SpeedSetpoint vs.\ VelocitySetpoint, DCUnderVoltageError vs.\ DCUndervoltageError,
         PowerConsumptionCounter vs.\ PowerConsumtionCounter); HeartbeatInterval and
         HeartbeatElapsed are not mapped; Limit*, DisplayName and Description are BOOL instead of
         REAL/STRING; each pump has its own namespace URI. Confirm against the delivered Framo
         PLCs. The simulator follows the Data Source.
-  \item \textbf{Speed setpoint at hand-over.} In REMOTE the pump follows SpeedSetpoint at once.
-        If the PLC has not written it (0), the pump drops to $n_\text{min}$. The PLC should track
-        the actual speed into SpeedSetpoint during START ([FD] bumpless transfer).
+  \item \textbf{Speed setpoint at hand-over} (fixed). In START the PLC sends the pump's own
+        speed, and LIC01 tracks it until REMOTE (Section~\ref{sec:control}).
   \item \textbf{O$_2$ valve output scaling} (settled). The 750-563 in its factory setting
         (register 32 $=$ \texttt{0x8016}) outputs 4--20\,mA over the full 16-bit word:
         \texttt{0x0000} $=$ 4\,mA (closed), \texttt{0x7FFF} $=$ 12\,mA, \texttt{0xFFFF} $=$
@@ -646,8 +762,22 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
   \item \textbf{Structure in the PLC function flow diagram.} The diagram drives the valves
         directly from OIC01, with no FIC. [FD] rev.~B has the cascade, which this model
         follows. Align the diagram with [FD].
-  \item \textbf{O$_2$ sensor update rate.} The Orbit 864 delivers a value every 2--4\,s, so
-        $T_s$ for OIC01 should be no shorter than that.
+  \item \textbf{O$_2$ sensor update rate.} The Orbit 864 delivers a value every 2--4\,s, but
+        polled on one RS-485 line the same sensor is read about every $T_{s,\text{O}_2}$
+        (Section~\ref{sec:filter}). OIC01 should not run faster than that.
+  \item \textbf{I-PD for LIC01.} P on the measurement instead of the error removes the set-point
+        kick at mode changes and makes the transfer trivially bumpless ([OGA] §8-5). Needs a PI
+        block of its own; \texttt{Util.PID} has only P on the error.
+  \item \textbf{Change of pump count.} A pump stopping or starting changes the flow per rpm, and
+        LIC01 has to rebuild its output through the error (test: 3.1\,cm dip, overshoot on
+        restart). Sharing a total-flow output among the running pumps, with the contribution of a
+        starting pump subtracted, would remove most of it. Deferred.
+  \item \textbf{Outlet dampers for flow control.} Planned: the hydraulic dampers become part of
+        the flow control. The model then needs the damper characteristic (opening $\to k_d$),
+        the stroke time and the hydraulics.
+  \item \textbf{SCL.Butterworth version.} The corrected filter must be the one in the library
+        version Heimdall references; check the source of \texttt{FB.Butterworth} in the
+        installed version.
 \end{enumerate}
 
 \end{document}
