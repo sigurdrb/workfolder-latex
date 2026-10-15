@@ -294,11 +294,11 @@ LOCKDOWN after \texttt{Reset} when the pump has stopped) are set by the Framo co
 \toprule
 State & \var{Output.VelocitySetpoint} & Start allowed & Running & In LIC01 & Comment \\
 \midrule
-UNAVAILABLE & 0 & no & no & no & \\
+UNAVAILABLE & 0 & no & no & no & Also shown while the Framo link is down (no heartbeat answer).\dev{9} \\
 AVAILABLE & \var{Input.MotorVelocity} & yes & no & no & Setpoint follows the actual speed, as [FD] asks. \\
 START & \var{Input.MotorVelocity} & yes & yes & yes & LIC01 tracks the mean speed of the starting pumps (SM~7). \\
 REMOTE & \var{InletPumpSpeedSetpoint} (LIC01 output in auto, \var{Command.Setpoint} in manual) & yes & yes & yes & The only state in which the PLC sets the speed. \\
-HOLD & \var{Input.MotorVelocity} & yes & yes\textsuperscript{*} & no\textsuperscript{*} & Framo runs a preset speed. LIC01 is not frozen.\dev{3} \\
+HOLD & \var{Input.MotorVelocity} & yes & yes\textsuperscript{*} & no\textsuperscript{*} & Framo runs a preset speed. LIC01 is frozen until the pump is back in REMOTE.\dev{3} \\
 STOP & 0 & no & yes & yes & \\
 LOCKDOWN & 0 & no & no & no & Needs \var{Reset}. \\
 \bottomrule
@@ -328,8 +328,9 @@ Framo local controller $n$ & Powered, VSD on, safety switch on, no emergency sto
   vacuum system ready (handled by the local controller). Pump state AVAILABLE. &
   \code{Inlet[i].InletPump.State = Available} \\
 OPC UA link to Framo $n$ & Data source \var{Framo_n} connected, so that commands are written and
-  the state is read. &
-  No explicit check; see \dev{9} \\
+  the state is read; Framo answers the heartbeat. Without it the PLC shows the pump UNAVAILABLE and
+  sends no Start.\dev{9} &
+  \var{Inlet[i].InletPump.Status.CommunicationOK} \\
 PLC application & Running, with the tasks \var{Task}, \var{OPC_Processing} and
   \var{DatasourcesTask}. & -- \\
 Operator (HMI) & Connected to the PLC's OPC UA server to write the commands. & -- \\
@@ -502,7 +503,9 @@ S3 & \var{FramoDataProcessing} & \var{Inlet[i].InletPump.InternalCommand.*} &
   controller acts on the rising edge. \\
 F & \var{FramoDataProcessing} & \var{Framo_n.PumpStateUnavailable.Active} \ldots
   \var{PumpStateLockdown.Active} &
-  First TRUE flag sets \var{Inlet[i].InletPump.State}. No flag TRUE: state unchanged.\dev{9} \\
+  While \var{Inlet[i].InletPump.Status.CommunicationOK} (set by \var{InletControl} from the
+  heartbeat): the first TRUE flag sets \var{Inlet[i].InletPump.State}. Otherwise
+  \var{State := Unavailable}.\dev{9} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -633,7 +636,8 @@ SM & Code unit (task) & Reads & Operation & Writes \\
 4 & \var{InletSensors.OverHeightFilter} (\var{Butterworth2}) (Task) &
   \var{PenOverHeight.ScaledRaw}, \var{PenOverHeight.Config.FilterFc} &
   Second-order Butterworth low-pass on the pair's $\Delta H_i$, LREAL, bilinear with
-  pre-warping. Sample time measured from the system clock. Restarts at the current value when
+  pre-warping. Sample time: the calling task's cycle time (\var{GetTaskIntervalUs},
+  \var{CmpIecTask}). Restarts at the current value when
   the pair becomes valid (and at start), so a returning pair causes no dip. &
   \var{Inlet[i].Input.PenOverHeight.Filtered} [m] (0 while not valid) \\
 5 & \var{PenControl.Sensors} (Task) &
@@ -651,16 +655,18 @@ SM & Code unit (task) & Reads & Operation & Writes \\
   \var{.Input.MotorVelocity} &
   Start-up tracking [FD \S3.2.1]: if a pump in level control is in START and none is in REMOTE,
   \code{LevelTracking := TRUE} and \var{LevelTrackSpeed} = mean actual speed of the starting
-  pumps. &
-  \var{LevelTracking}, \var{LevelTrackSpeed} [rpm] (local) \\
+  pumps. Heartbeat loss [FD Tabell~5]: \code{LevelHold} while a pump that was in level control
+  has no link or is in HOLD (output frozen at \var{LevelHoldOutput}); then \code{LevelResume} for
+  one LIC01 cycle on the mean actual speed of the pumps in level control. &
+  \var{LevelTracking}, \var{LevelTrackSpeed}, \var{LevelHold}, \var{LevelResume} [rpm] (local) \\
 8 & \var{InletSupervisor.LevelControl} (\var{PIDController}) $\to$ \var{Util.PID} (Task) &
   SP \var{Pen.Command.LevelSetpoint}, PV \var{Pen.Status.OverHeight},
   \var{Pen.Status.LevelControlOK}, \var{PenConfig.LevelController.*},
   \var{LevelController.Command.*}, SM~7 &
   Enabled when \var{PenStart} and at least one pump in level control. Manual when the operator
-  says so, when the level is lost (\code{NOT LevelControlOK}) or while tracking; the manual output
-  is, in that order, the operator's, \var{SafeOutput} (limited to Min/MaxOutput) or
-  \var{LevelTrackSpeed}.
+  says so, when the level is lost (\code{NOT LevelControlOK}), on heartbeat loss (hold, resume) or
+  while tracking; the manual output is, in that order, the operator's, \var{SafeOutput} (limited
+  to Min/MaxOutput), the frozen output, the resume speed or \var{LevelTrackSpeed}.
   PI: $Y = K_p\,(e + \tfrac{1}{T_i}\int e\,dt + T_d\,\dot e) + Y_\text{offset}$, limited to
   \var{MinOutput..MaxOutput}. Manual$\to$auto: \var{RESET} with
   $Y_\text{offset} = Y_\text{prev} - K_p e$ (bumpless). &
@@ -717,11 +723,16 @@ D1 & \textbf{Heartbeat not wired.} \var{InletControl.Heartbeat} watches the loca
   \var{InletConfig.HeartbeatInterval}), Framo clears it while TRUE; alarm when Framo has not cleared
   it for \var{InletConfig.HeartbeatTimeout}. CasFramoSim implements Framo's half; the simulator UI
   injects \emph{Heartbeat lost}. \\
-D2 & \var{DriveError} alarm writes \var{InletPump.Alarm.DriveNotInRemote}. &
-  Drive error shows as ``not in remote''; \var{Alarm.DriveError} is never set. \\
+D2 & \var{DriveError} alarm wrote \var{InletPump.Alarm.DriveNotInRemote}. &
+  \textbf{Fixed} 2026-10-15 (in review): it writes \var{Alarm.DriveError}. \\
 D3 & \textbf{HOLD.} [FD Tabell~5]: on heartbeat loss the LIC01 output shall freeze and, when the
   link is back, start from the actual pump speed. Oxygenation in that line shall stop. &
-  Not implemented. A pump in HOLD leaves level control (D1 must be fixed first). \\
+  \textbf{Fixed} 2026-10-15 (in review). \var{InletSupervisor}: when the link to a pump that was in
+  level control is lost, LIC01 is frozen at its output; it stays frozen while the link is down and,
+  once back, while the pump is in HOLD (the operator resets it). When the pump is in REMOTE again (or
+  no longer running), LIC01 runs one cycle on the mean actual speed of the pumps in level control and
+  returns to auto bumplessly. \var{InletControl} sets \var{Status.EnableOxyControl} only with a live
+  link and the pump in REMOTE: the permissive for the oxygen system on that line. \\
 D4 & \textbf{Process value.} [FD \S3.2.2]: mean of the per-inlet $\Delta H_i$ of the active
   pairs. Code was: mean of all good inside minus mean of all good outside transmitters. &
   \textbf{Fixed} 2026-10-15 (in review): $\Delta H_i$ per pair, filtered per pair
@@ -738,13 +749,15 @@ D8 & [FD Tabell~7]: start alarm if the pump does not report START within a prese
   that never leaves AVAILABLE gives no alarm. \\
 D9 & \var{ENUM.InletPumpState} has \code{Available := 0}, and \var{FramoDataProcessing} only
   writes the state when one of the flags is TRUE. &
-  With no OPC UA data the PLC sees AVAILABLE and allows \var{Start}. Check the data source
-  connection and set UNAVAILABLE when it is down. \\
-D10 & \var{AnalogSensor.TaskIntervalUs} is a constant 10\,000~µs. The earlier version read the task
-  interval at run time (\var{CmpIecTask}). &
-  If \var{Task} does not run at 10~ms, the cut-off frequency is wrong by the ratio. Since D4 this
-  filter only smooths the display; the control path uses \var{Butterworth2}, which measures its
-  sample time. Check the task interval, or let \var{AnalogSensor} use \var{Butterworth2} too. \\
+  With no OPC UA data the PLC saw AVAILABLE and allowed \var{Start}. \textbf{Fixed} 2026-10-15
+  (in review): \var{InletControl} sets \var{Status.CommunicationOK} once Framo has answered the
+  heartbeat (cleared until the timeout); without it \var{FramoDataProcessing} reports UNAVAILABLE. \\
+D10 & \var{AnalogSensor.TaskIntervalUs} was a constant 10\,000~µs. &
+  \textbf{Fixed} 2026-10-15 (in review): \var{GetTaskIntervalUs} reads the cycle time of the calling
+  task from the runtime (\var{CmpIecTask}: \var{IecTaskGetCurrent}, \var{IecTaskGetInfo3}).
+  \var{AnalogSensor} and \var{Butterworth2} read it once; fallback 10~ms (\var{AnalogSensor}) or the
+  measured call interval (\var{Butterworth2}) if the runtime gives none (event task). All filter
+  instances are called from \var{Main} in \var{Task}. \\
 D11 & \var{ConfigValues}: \code{PenConfig.LevelController.Ti := 600}, the [FD] start value. The
   site test used 60~s [DES \S7]. & Applies on a fresh download only; check the retained value. \\
 D12 & \var{AnalogSensor.Input} is \var{VAR_IN_OUT}; \var{ScaleInput} writes the masked word back. &

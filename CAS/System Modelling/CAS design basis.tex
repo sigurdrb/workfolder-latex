@@ -449,6 +449,13 @@ schedule would lower $K_c$ with more pumps; [FD] raises it.
         raised and LIC01 runs in manual at \texttt{PenConfig.LevelController.SafeOutput}
         (60\,rpm on the test rig), limited to 40--130\,rpm. When a pair is valid again, LIC01
         returns to auto bumplessly. An operator in manual keeps the operator's output.
+  \item \textbf{Heartbeat loss (HOLD, [FD] Tabell~5).} When the link to a pump in level control
+        is lost (no heartbeat answer within \texttt{InletConfig.HeartbeatTimeout}; the PLC then
+        reports the pump UNAVAILABLE and sends no start), LIC01 freezes its output. It stays frozen
+        while the link is down and, once back, while the pump is in HOLD. When the pump is in
+        REMOTE again, LIC01 runs one cycle on the mean actual speed of the pumps in level control
+        and returns to auto bumplessly. The pump's \texttt{Status.EnableOxyControl} is TRUE only
+        with a live link in REMOTE: the permissive for oxygenation on that line.
 \end{itemize}
 \textbf{Test on 13 October 2026} (PFC200 against CasRioSim and CasFramoSim, three pumps, O-35
 outlet, setpoint 6\,cm, $K_c = 450$\,rpm/m, $T_i = 60$\,s, filter 0.05\,Hz): the pumps reached
@@ -495,9 +502,11 @@ b_0=b_2=K^2n,\quad b_1=2b_0,\quad a_1=2(K^2-1)n,\quad a_2=(1-\sqrt2K+K^2)n \nonu
         II transposed ([PRO] §9.3). With $f_c \ll F_s$ the poles lie close to $z=1$, where
         finite-precision coefficients allow only a sparse grid of pole positions and the DC gain
         drifts ([PRO] §9.5, eq.~9.5.13), so coefficients and states are LREAL.
-  \item The sample time $T$ is measured from the system clock, as the running mean of the call
-        interval, and the coefficients are recomputed when it drifts by more than 2\,\%. The cut-off
-        therefore holds whatever the cycle time of the calling task.
+  \item The sample time $T$ is the cycle time of the calling task, read once from the runtime
+        (\texttt{GetTaskIntervalUs}, CmpIecTask), so the cut-off holds whatever the Task
+        Configuration says. If the runtime gives none (an event task), the running mean of the
+        measured call interval is used instead, with the coefficients recomputed when it drifts by
+        more than 2\,\%. The per-transmitter display filter reads $T$ the same way.
   \item When a pair becomes valid, and at the first call, the filter state is set to the steady
         state at the input ($s_2 = (b_2-a_2)u$, $s_1 = (b_1-a_1)u + s_2$, using DC gain 1), so a
         returning pair enters the PV at its value instead of ramping up from 0.
@@ -763,10 +772,13 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
         UI injects transmitter faults (wire break, over-range) to test it.
   \item \textbf{Framo commands} (fixed). \texttt{InletControl} writes
         \texttt{InternalCommand} (Start, Stop, Reset, VelocitySetpoint).
-  \item \textbf{Framo heartbeat} (2.3.7, PLC code in review). Shared toggle bit, PLC sets and
-        Framo clears (Section~\ref{sec:sim}); the simulator's supervision is on. To confirm with
-        Framo: that their controller clears the bit, and that the Data Source variable
-        \texttt{Framo\_n.HeartbeatToggle} is written by the PLC as well as read.
+  \item \textbf{Framo heartbeat} (PLC code in review). Shared toggle bit, PLC sets and Framo clears
+        (Section~\ref{sec:sim}); the simulator's supervision is on and its UI injects a heartbeat
+        loss. The PLC shows a pump UNAVAILABLE without a heartbeat answer and freezes LIC01 on
+        heartbeat loss (Section~\ref{sec:control}). To confirm with Framo: that their controller
+        clears the bit, and that the Data Source variable \texttt{Framo\_n.HeartbeatToggle} is
+        written by the PLC as well as read. The simulator returns from HOLD to REMOTE by itself
+        when the heartbeat is back; [FD] Tabell~5 asks for an operator Reset.
   \item \textbf{Copy-paste errors in the Framo data processing} (fixed).
   \item \textbf{Framo interface vs.\ [SPEC].} The Data Source names differ from [SPEC]
         (SpeedSetpoint vs.\ VelocitySetpoint, DCUnderVoltageError vs.\ DCUndervoltageError,
