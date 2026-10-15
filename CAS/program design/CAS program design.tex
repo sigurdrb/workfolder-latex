@@ -336,9 +336,10 @@ Operator (HMI) & Connected to the PLC's OPC UA server to write the commands. & -
 \midrule
 InletRIO $i$ & Connected (\var{GVLIO.InletRIO[i].Status.CommOK}); otherwise the level words are not
   updated. Not an interlock for the start. & \var{InletRIO[i].Status.CommOK} \\
-Level transmitters LT inside/outside & 4--20~mA healthy (status bits 00) and \var{Enable}d, at
-  least one inside and one outside over the three inlets. Not an interlock for the
-  start.\dev{5} & \var{Pen.Input.AverageOverHeight.Status.BadQuality} \\
+Level transmitters LT inside/outside & At least one valid pair: both transmitters of an inlet
+  4--20~mA healthy (status bits 1..0 $=$ 00) and enabled, and the pair enabled. Without one, LIC01
+  runs the pumps at \var{SafeOutput} and raises \emph{LevelMeasurementLost}. Not an interlock for
+  the start. & \var{Pen.Status.LevelControlOK} \\
 \midrule
 Oxygen system, outlet valve, CommonRIO & Not needed. In [FD] the oxygen system depends on the
   inlet pump, not the other way round: the oxy pump runs only when the inlet pump on the same
@@ -370,17 +371,28 @@ Data sources \var{Framo_1..3} (DatasourcesManager) & per project & S &
 \var{InletRIOConfig[i].IP}, \var{.Port} & 10.1.2.101, 5121--5123 (simulator) & L &
   Address of InletRIO $i$. IP 0 or port 0 raises \emph{MissingIPaddress}. \\
 \var{Inlet[i].Input.LevelInsidePen.Config.Enable} & TRUE & L &
-  Transmitter is used in the average. \\
+  Transmitter in use; disabled, its pair drops out. \\
 \var{Inlet[i].Input.LevelInsidePen.Config.MinValue}, \var{.MaxValue} & 0.0, 2.0~m & L &
   Range for 4 and 20~mA. \\
-\var{Inlet[i].Input.LevelInsidePen.Config.FilterFc} & 0.05~Hz & L &
-  Butterworth cut-off frequency; 0 turns the filter off. \\
+\var{Inlet[i].Input.LevelInsidePen.Config.QualityEnabled} & TRUE & L &
+  Quality alarm on a bad transmitter (after \var{QualityDelay}, 1~s). \\
+\var{Inlet[i].Input.LevelInsidePen.Config.FilterFc} & 0.05~Hz & -- &
+  Display smoothing only; not in the control path. \\
 \var{Inlet[i].Input.LevelOutsidePen.Config.*} & as inside & L & Same for the outside transmitter. \\
+\var{Inlet[i].Input.PenOverHeight.Config.Enable} & TRUE & L &
+  The inlet's level pair is used in LIC01's process value. \\
+\var{Inlet[i].Input.PenOverHeight.Config.FilterFc} & 0.05~Hz & L &
+  Cut-off of the pair's Butterworth2 low-pass; 0 turns it off. \\
 \var{PenConfig.LevelController.Kp} & 450~rpm/m & L & Gain of LIC01. \\
 \var{PenConfig.LevelController.Ti} & 600~s\dev{11} & L & Integral time. \\
 \var{PenConfig.LevelController.Td} & 0~s & L & Derivative time (0 = PI). \\
 \var{PenConfig.LevelController.MinOutput}, \var{.MaxOutput} & 40, 130~rpm & L &
   Speed range of the pumps [FD Tabell~8]; also the PID's output limits. \\
+\var{PenConfig.LevelController.SafeOutput} & 60~rpm & L &
+  Pump speed while no valid level pair is left. \\
+\var{InletConfig[i].HeartbeatInterval}, \var{.HeartbeatTimeout} & 1~s, 5~s & S &
+  Framo heartbeat: the PLC sets the shared bit 1~s after Framo cleared it; alarm when Framo has
+  not cleared it for 5~s. \\
 \var{InletConfig[i].StartupTime}, \var{.ShutdownTime} & 30~s, 30~s & S &
   Time in START or STOP before the start-up or stop timeout alarm.\dev{8} \\
 \bottomrule
@@ -501,8 +513,9 @@ F & \var{FramoDataProcessing} & \var{Framo_n.PumpStateUnavailable.Active} \ldots
 \label{sec:dataflow}
 
 Figure~\ref{fig:ffd} is the functional flow diagram of the level loop, the main dataflow of the
-inlet pump: the level word read from InletRIO $i$ is scaled, filtered, averaged over the inlets,
-compared with the setpoint in LIC01, and the controller output is sent as the speed setpoint to
+inlet pump: the two level words read from InletRIO $i$ are scaled, their difference (the inlet's
+level pair) is filtered, the valid pairs are averaged over the inlets, the result is compared with
+the setpoint in LIC01, and the controller output is sent as the speed setpoint to
 every pump in level control. Table~\ref{tab:dataflow} names, for every SM, the variables it reads,
 what it does with them and the variables it writes.
 
@@ -512,13 +525,17 @@ what it does with them and the variables it writes.
   % Row A: measurement, left to right
   \node[ext, text width=20mm] (lt) at (0,0) {InletRIO $i$\\\footnotesize 750-455\\\footnotesize LT in/out};
   \node[sm] (s1) at (4.6,0)  {\textbf{1}\\InletRIO[i]\\\footnotesize Modbus read};
-  \node[sm] (s2) at (9.6,0)  {\textbf{2}\\AnalogSensor\\\footnotesize .ScaleInput};
-  \node[sm] (s3) at (14.6,0) {\textbf{3}\\AnalogSensor\\\footnotesize .LPFilter};
-  \node[sm] (s5) at (19.6,0) {\textbf{5}\\PenControl\\\footnotesize .Sensors};
-  \node[sm] (s6) at (24.6,0) {\textbf{6}\\PenControl\\\footnotesize body};
-  \node[sm] (s4) at (14.6,-2.7) {\textbf{4}\\InletSensors\\\footnotesize $\Delta H_i$ (display)};
-  \node[store, font=\scriptsize, text width=62mm] (cfgL) at (12.1,2.2)
-       {Level*Pen.Config: Enable, MinValue, MaxValue, FilterFc};
+  \node[sm] (s2) at (9.6,0)  {\textbf{2}\\AnalogSensor\\\footnotesize .ScaleInput\\\footnotesize per transmitter};
+  \node[sm] (s3) at (14.6,0) {\textbf{3}\\InletSensors\\\footnotesize pair $\Delta H_i$, valid};
+  \node[sm] (s4) at (19.6,0) {\textbf{4}\\Butterworth2\\\footnotesize per pair};
+  \node[sm] (s5) at (24.6,0) {\textbf{5}\\PenControl\\\footnotesize .Sensors\\\footnotesize mean of valid pairs};
+  \node[sm] (s6) at (24.6,-3.4) {\textbf{6}\\PenControl\\\footnotesize body};
+  \node[extoff, text width=25mm, font=\footnotesize] (disp) at (9.6,-2.7)
+       {display only: LPFilter, inside/outside averages};
+  \node[store, font=\scriptsize, text width=40mm] (cfgL) at (9.6,2.4)
+       {Level*Pen.Config: Enable, MinValue, MaxValue};
+  \node[store, font=\scriptsize, text width=48mm] (cfgO) at (17.1,2.4)
+       {PenOverHeight.Config: Enable, FilterFc};
 
   % Row B: control, right to left
   \node[sm] (s7) at (19.6,-3.7) {\textbf{7}\\InletSupervisor\\\footnotesize start-up tracking};
@@ -530,18 +547,20 @@ what it does with them and the variables it writes.
   \node[ext, text width=20mm] (fr) at (0,-6.4) {Framo local\\controller $n$};
 
   \node[ext, text width=20mm] (hmi) at (19.6,-10.2) {Operator\\(HMI)};
-  \node[store, font=\scriptsize, align=center] (cfgP) at (28.0,-9.0) {PenConfig.\\LevelController\\Kp, Ti, Td,\\Min/MaxOutput};
+  \node[store, font=\scriptsize, align=center] (cfgP) at (28.0,-9.0) {PenConfig.\\LevelController\\Kp, Ti, Td,\\Min/MaxOutput,\\SafeOutput};
 
   % Forward flow
   \draw[flow] (lt) -- node[lab, above] {words\\0, 1} (s1);
   \draw[flow] (s1) -- node[lab, above] {Level*Pen.\\Input.Raw} (s2);
-  \draw[flow] (s2) -- node[lab, above] {raw (masked)\\BadQuality} (s3);
-  \draw[flow] (s3) -- node[lab, above] {Level*Pen.\\Filtered} (s5);
-  \draw[flow] (s5) -- node[lab, above] {Average-\\OverHeight} (s6);
-  \draw[flow] (s3) -- node[lab, right] {Filtered} (s4);
-  \draw[flow] (cfgL.south -| s2.north) -- (s2.north);
-  \draw[flow] (cfgL.south -| s3.north) -- (s3.north);
-  \draw[flow] ([xshift=5mm]s6.south) -- node[lab, right, pos=0.45] {Pen.Status.\\OverHeight\\(PV)} ([xshift=5mm]s8.north);
+  \draw[flow] (s2) -- node[lab, above] {Level*Pen.\\ScaledRaw,\\BadQuality} (s3);
+  \draw[flow] (s3) -- node[lab, above] {PenOver-\\Height.\\ScaledRaw} (s4);
+  \draw[flow] (s4) -- node[lab, above] {PenOver-\\Height.\\Filtered} (s5);
+  \draw[flow] (s5) -- node[lab, right] {Average-\\OverHeight} (s6);
+  \draw[flow, gray] (s2) -- (disp);
+  \draw[flow] (cfgL) -- (s2);
+  \draw[flow] (cfgO.south -| s3.north) -- (s3.north);
+  \draw[flow] (cfgO.south -| s4.north) -- (s4.north);
+  \draw[flow] ([xshift=5mm]s6.south) -- node[lab, right, pos=0.45] {Pen.Status.\\OverHeight (PV),\\LevelControlOK} ([xshift=5mm]s8.north);
   \draw[flow] (s7.east) -| node[lab, above, pos=0.3] {LevelTracking\\LevelTrackSpeed} ([xshift=-5mm]s8.north);
   \draw[flow] (s8) -- node[lab, above] {LevelController.\\Output.OUT} (s9);
   \draw[flow] (s9) -- node[lab, above] {InletPump-\\SpeedSetpoint} (s10);
@@ -563,8 +582,9 @@ what it does with them and the variables it writes.
 \end{tikzpicture}}
 \captionof{figure}{Functional flow diagram of the level loop, one inlet shown [COO Fig.~7.8].
 SMs 1--4, 9 and 10 run once per inlet; SMs 5--8 once for the pen. Solid: data flow; dashed:
-feedback from the pump. Level*Pen stands for LevelInsidePen and LevelOutsidePen. Execution order
-in Figure~\ref{fig:exec}.}
+feedback from the pump. Level*Pen stands for LevelInsidePen and LevelOutsidePen. A pair with a
+lost transmitter drops out at SM~3; with no valid pair, SM~8 runs LIC01 at SafeOutput. Execution
+order in Figure~\ref{fig:exec}.}
 \label{fig:ffd}
 \end{center}
 \end{landscape}
@@ -595,36 +615,37 @@ SM & Code unit (task) & Reads & Operation & Writes \\
 2 & \var{InletControl[i].InletSensors.LevelInsidePen.ScaleInput} (Task); same for
   \var{LevelOutsidePen} &
   \var{Input.Raw}, \var{Config.MinValue}, \var{Config.MaxValue} &
-  750-455 word: value in bits 14..4, status in bits 1..0. \code{Quality := Raw AND 7};
-  \code{Raw := Raw AND 16\#FFF8} (written back to the GVL).\dev{12}
+  750-455 word: value in bits 14..4, reserved bits 3..2, diagnostics in bits 1..0.
+  \code{Quality := Raw AND 2\#11}; \code{Raw := Raw AND 16\#FFF8} (written back to the GVL).\dev{12}
   If \code{Quality = 0}: $\text{ScaledRaw} = \text{Raw}\cdot(\text{Max}-\text{Min})/32760 +
   \text{Min}$, \code{BadQuality := FALSE}; else \code{ScaledRaw := Min},
-  \code{BadQuality := TRUE}. &
+  \code{BadQuality := TRUE}, and the transmitter's Quality alarm (\var{Config.QualityEnabled},
+  1~s). The per-transmitter \var{LPFilter} (\var{SCL.Butterworth}) gives \var{.Filtered} for
+  display only. &
   \var{Inlet[i].Input.LevelInsidePen.ScaledRaw} [m], \var{.Status.BadQuality} \\
-3 & \var{...LevelInsidePen.ScaleInput}, \code{LPFilter : SCL.Butterworth} (Task) &
-  masked \var{Raw}, \var{Config.FilterFc}, \var{TaskIntervalUs} &
-  Second-order Butterworth low-pass on the raw counts every cycle, sample time
-  \var{TaskIntervalUs} = 10\,000~µs.\dev{10} If \code{FilterFc > 0} and good quality: output
-  scaled like SM~2; else \code{Filtered := ScaledRaw}. &
-  \var{Inlet[i].Input.LevelInsidePen.Filtered},
-  \var{Inlet[i].Input.LevelOutsidePen.Filtered} [m] \\
-4 & \var{InletControl[i].InletSensors} (Task) &
-  \var{LevelInsidePen.Filtered}, \var{LevelOutsidePen.Filtered}, \var{.Status.BadQuality} &
-  Overheight per inlet $\Delta H_i$ = inside $-$ outside when both are good. For display; not used by
-  LIC01.\dev{4} &
-  \var{Inlet[i].Input.PenOverHeight.Filtered} [m] \\
+3 & \var{InletControl[i].InletSensors} (Task) &
+  \var{LevelInsidePen.ScaledRaw}, \var{LevelOutsidePen.ScaledRaw}, their \var{.Config.Enable} and
+  \var{.Status.BadQuality}, \var{PenOverHeight.Config.Enable} &
+  Level pair of the inlet [FD \S3.2.2]: $\Delta H_i$ = inside $-$ outside from the unfiltered
+  scaled values. The pair is valid when both transmitters are enabled and healthy and the pair is
+  enabled; if either transmitter is lost, the whole pair drops out. &
+  \var{Inlet[i].Input.PenOverHeight.ScaledRaw} [m], \var{.Status.BadQuality} (= not valid) \\
+4 & \var{InletSensors.OverHeightFilter} (\var{Butterworth2}) (Task) &
+  \var{PenOverHeight.ScaledRaw}, \var{PenOverHeight.Config.FilterFc} &
+  Second-order Butterworth low-pass on the pair's $\Delta H_i$, LREAL, bilinear with
+  pre-warping. Sample time measured from the system clock. Restarts at the current value when
+  the pair becomes valid (and at start), so a returning pair causes no dip. &
+  \var{Inlet[i].Input.PenOverHeight.Filtered} [m] (0 while not valid) \\
 5 & \var{PenControl.Sensors} (Task) &
-  \var{Inlet[0..2].Input.LevelInsidePen.Filtered}, \var{LevelOutsidePen.Filtered},
-  \var{.Config.Enable}, \var{.Status.BadQuality} &
-  Mean of the enabled, good inside transmitters and of the enabled, good outside transmitters;
-  \code{AverageOverHeight = AverageLevelInside - AverageLevelOutside}. Bad when either mean has no
-  transmitter. &
-  \var{Pen.Input.AverageLevelInside.Filtered},
+  \var{Inlet[0..2].Input.PenOverHeight.Filtered}, \var{.Status.BadQuality} &
+  Mean of the filtered $\Delta H_i$ of the valid pairs. Bad when no pair is valid. (The mean
+  inside and outside levels are computed alongside, for display.) &
   \var{Pen.Input.AverageOverHeight.Filtered} [m], \var{.Status.BadQuality} \\
-6 & \var{PenControl} body (Task) &
-  \var{Pen.Input.AverageOverHeight.Filtered} &
-  Copy to the process value of LIC01. Quality is not passed on.\dev{5} &
-  \var{Pen.Status.OverHeight} [m] \\
+6 & \var{PenControl} body and \var{.AlarmHandling} (Task) &
+  \var{Pen.Input.AverageOverHeight} &
+  Process value of LIC01, and \code{LevelControlOK := NOT BadQuality}. Alarm
+  \var{Pen.Alarm.LevelMeasurementLost} while no pair is valid. &
+  \var{Pen.Status.OverHeight} [m], \var{Pen.Status.LevelControlOK} \\
 7 & \var{InletSupervisor} body (Task) &
   \var{Inlet[i].InletPump.State}, \var{.Status.EnableLevelControl},
   \var{.Input.MotorVelocity} &
@@ -634,10 +655,12 @@ SM & Code unit (task) & Reads & Operation & Writes \\
   \var{LevelTracking}, \var{LevelTrackSpeed} [rpm] (local) \\
 8 & \var{InletSupervisor.LevelControl} (\var{PIDController}) $\to$ \var{Util.PID} (Task) &
   SP \var{Pen.Command.LevelSetpoint}, PV \var{Pen.Status.OverHeight},
-  \var{PenConfig.LevelController.*}, \var{LevelController.Command.*}, SM~7 &
-  Enabled when \var{PenStart} and at least one pump in level control.
-  Manual when \code{LevelController.Command.Manual OR LevelTracking}, with
-  \code{ManualOutput = SEL(LevelTracking, Command.ManualOutput, LevelTrackSpeed)}.
+  \var{Pen.Status.LevelControlOK}, \var{PenConfig.LevelController.*},
+  \var{LevelController.Command.*}, SM~7 &
+  Enabled when \var{PenStart} and at least one pump in level control. Manual when the operator
+  says so, when the level is lost (\code{NOT LevelControlOK}) or while tracking; the manual output
+  is, in that order, the operator's, \var{SafeOutput} (limited to Min/MaxOutput) or
+  \var{LevelTrackSpeed}.
   PI: $Y = K_p\,(e + \tfrac{1}{T_i}\int e\,dt + T_d\,\dot e) + Y_\text{offset}$, limited to
   \var{MinOutput..MaxOutput}. Manual$\to$auto: \var{RESET} with
   $Y_\text{offset} = Y_\text{prev} - K_p e$ (bumpless). &
@@ -689,22 +712,25 @@ D1 & \textbf{Heartbeat not wired.} \var{InletControl.Heartbeat} watches the loca
   \var{HeartbeatToggle}, which is never written; \var{FramoDataProcessing} writes
   \var{InletPump.Input.HeartbeatToggle}. [FD \S3.2.1] &
   \var{HeartbeatTimeout} is TRUE after 1~s and stays TRUE: the communication alarm is
-  permanent and a real link loss is not detected. Fix proposed 2026-10-15: one shared bit
-  \var{Framo_n.HeartbeatToggle}, the PLC sets it while FALSE (after
+  permanent and a real link loss is not detected. \textbf{Fixed} 2026-10-15 (in review): one
+  shared bit \var{Framo_n.HeartbeatToggle}, the PLC sets it while FALSE (after
   \var{InletConfig.HeartbeatInterval}), Framo clears it while TRUE; alarm when Framo has not cleared
-  it for \var{InletConfig.HeartbeatTimeout}. CasFramoSim 2.3.7 implements Framo's half. \\
+  it for \var{InletConfig.HeartbeatTimeout}. CasFramoSim implements Framo's half; the simulator UI
+  injects \emph{Heartbeat lost}. \\
 D2 & \var{DriveError} alarm writes \var{InletPump.Alarm.DriveNotInRemote}. &
   Drive error shows as ``not in remote''; \var{Alarm.DriveError} is never set. \\
 D3 & \textbf{HOLD.} [FD Tabell~5]: on heartbeat loss the LIC01 output shall freeze and, when the
   link is back, start from the actual pump speed. Oxygenation in that line shall stop. &
   Not implemented. A pump in HOLD leaves level control (D1 must be fixed first). \\
 D4 & \textbf{Process value.} [FD \S3.2.2]: mean of the per-inlet $\Delta H_i$ of the active
-  pairs. Code: mean of all good inside minus mean of all good outside transmitters. &
-  The same when the same inlets are active on both sides; different when one transmitter of a pair
-  is bad. Decide which is wanted. \\
-D5 & LIC01 does not check \var{Pen.Input.AverageOverHeight.Status.BadQuality}. &
-  With all transmitters bad the PV is $0 - 0 = 0$~m and LIC01 drives the pumps to
-  \var{MaxOutput}. Freeze the output (manual) when the PV is bad. \\
+  pairs. Code was: mean of all good inside minus mean of all good outside transmitters. &
+  \textbf{Fixed} 2026-10-15 (in review): $\Delta H_i$ per pair, filtered per pair
+  (\var{Butterworth2}), mean of the valid pairs; a lost transmitter drops its whole pair (SM~3--5). \\
+D5 & LIC01 did not check \var{Pen.Input.AverageOverHeight.Status.BadQuality}. &
+  With all transmitters bad the PV was $0$~m and LIC01 drove the pumps to \var{MaxOutput}.
+  \textbf{Fixed} 2026-10-15 (in review): the health check uses status bits 1..0 only; with no valid
+  pair, alarm \emph{LevelMeasurementLost} and LIC01 in manual at \var{SafeOutput} (60~rpm),
+  bumpless back to auto. \\
 D6 & [FD Tabell~8]: one parameter set per number of running pumps. & One set only (known, deferred). \\
 D7 & [FD Tabell~7]: alarm on speed deviation in REMOTE. & Not implemented. \\
 D8 & [FD Tabell~7]: start alarm if the pump does not report START within a preset time after the
@@ -716,8 +742,9 @@ D9 & \var{ENUM.InletPumpState} has \code{Available := 0}, and \var{FramoDataProc
   connection and set UNAVAILABLE when it is down. \\
 D10 & \var{AnalogSensor.TaskIntervalUs} is a constant 10\,000~µs. The earlier version read the task
   interval at run time (\var{CmpIecTask}). &
-  If \var{Task} does not run at 10~ms, the cut-off frequency is wrong by the ratio. Check the
-  task interval, or restore the run-time read. \\
+  If \var{Task} does not run at 10~ms, the cut-off frequency is wrong by the ratio. Since D4 this
+  filter only smooths the display; the control path uses \var{Butterworth2}, which measures its
+  sample time. Check the task interval, or let \var{AnalogSensor} use \var{Butterworth2} too. \\
 D11 & \var{ConfigValues}: \code{PenConfig.LevelController.Ti := 600}, the [FD] start value. The
   site test used 60~s [DES \S7]. & Applies on a fresh download only; check the retained value. \\
 D12 & \var{AnalogSensor.Input} is \var{VAR_IN_OUT}; \var{ScaleInput} writes the masked word back. &
