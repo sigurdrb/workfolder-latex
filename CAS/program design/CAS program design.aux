@@ -1,0 +1,62 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Purpose}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Notation}{2}{section.2}\protected@file@percent }
+\newlabel{sec:notation}{{2}{2}{Notation}{section.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Context diagram}{2}{section.3}\protected@file@percent }
+\newlabel{sec:context}{{3}{2}{Context diagram}{section.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Tasks and execution sequence}{2}{section.4}\protected@file@percent }
+\newlabel{sec:tasks}{{4}{2}{Tasks and execution sequence}{section.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Context diagram of the inlet pump function [COO Fig.~7.1]. The CommonRIO carries the oxygen sensors and valves; the inlet pump does not need it.}}{3}{figure.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:context}{{1}{3}{Context diagram of the inlet pump function [COO Fig.~7.1]. The CommonRIO carries the oxygen sensors and valves; the inlet pump does not need it}{figure.caption.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces External items of the inlet pump function.}}{3}{table.caption.3}\protected@file@percent }
+\newlabel{tab:context}{{1}{3}{External items of the inlet pump function}{table.caption.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Execution sequence [COO Fig.~7.10]. SM numbers refer to Figure~\ref {fig:ffd} and Table~\ref {tab:dataflow}; S1--S3 and F to Figure~\ref {fig:start}.}}{4}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:exec}{{2}{4}{Execution sequence [COO Fig.~7.10]. SM numbers refer to Figure~\ref {fig:ffd} and Table~\ref {tab:dataflow}; S1--S3 and F to Figure~\ref {fig:start}}{figure.caption.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Starting an inlet pump}{4}{section.5}\protected@file@percent }
+\newlabel{sec:start}{{5}{4}{Starting an inlet pump}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Pump state}{4}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:state}{{5.1}{4}{Pump state}{subsection.5.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces State transition diagram of the Framo inlet pump [FD Tabell~5], [COO \S  7.2.3]. Numbers are the values of \texttt  {ENUM.InletPumpState}. Transitions not described in [FD] (e.g.\ from LOCKDOWN after \texttt  {Reset} when the pump has stopped) are set by the Framo controller.}}{4}{figure.caption.5}\protected@file@percent }
+\newlabel{fig:std}{{3}{4}{State transition diagram of the Framo inlet pump [FD Tabell~5], [COO \S 7.2.3]. Numbers are the values of \texttt {ENUM.InletPumpState}. Transitions not described in [FD] (e.g.\ from LOCKDOWN after \texttt {Reset} when the pump has stopped) are set by the Framo controller}{figure.caption.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces PLC action per pump state (\texttt  {InletControl.InletPumpControl}).}}{5}{table.caption.6}\protected@file@percent }
+\newlabel{tab:states}{{2}{5}{PLC action per pump state (\texttt {InletControl.InletPumpControl})}{table.caption.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Other systems that must be available or running}{5}{subsection.5.2}\protected@file@percent }
+\newlabel{sec:prereq}{{5.2}{5}{Other systems that must be available or running}{subsection.5.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Configuration}{5}{subsection.5.3}\protected@file@percent }
+\newlabel{sec:config}{{5.3}{5}{Configuration}{subsection.5.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Commands}{5}{subsection.5.4}\protected@file@percent }
+\newlabel{sec:commands}{{5.4}{5}{Commands}{subsection.5.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Prerequisites for starting an inlet pump.}}{6}{table.caption.7}\protected@file@percent }
+\newlabel{tab:prereq}{{3}{6}{Prerequisites for starting an inlet pump}{table.caption.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Start command path}{6}{subsection.5.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Configuration for the inlet pump function. \emph  {Needed for}: S = pump start, L = level control.}}{7}{table.caption.8}\protected@file@percent }
+\newlabel{tab:config}{{4}{7}{Configuration for the inlet pump function. \emph {Needed for}: S = pump start, L = level control}{table.caption.8}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces FFD of the start command [COO Fig.~7.8]. The manual commands enter at S2.}}{7}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:start}{{4}{7}{FFD of the start command [COO Fig.~7.8]. The manual commands enter at S2}{figure.caption.10}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Commands for the inlet pumps.}}{8}{table.caption.9}\protected@file@percent }
+\newlabel{tab:commands}{{5}{8}{Commands for the inlet pumps}{table.caption.9}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Start command dataflow.}}{8}{table.caption.11}\protected@file@percent }
+\newlabel{tab:startflow}{{6}{8}{Start command dataflow}{table.caption.11}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Dataflow: from level transmitter to pump speed}{9}{section.6}\protected@file@percent }
+\newlabel{sec:dataflow}{{6}{9}{Dataflow: from level transmitter to pump speed}{section.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Functional flow diagram of the level loop, one inlet shown [COO Fig.~7.8]. SMs 1--4, 9 and 10 run once per inlet; SMs 5--8 once for the pen. Solid: data flow; dashed: feedback from the pump. Level*Pen stands for LevelInsidePen and LevelOutsidePen. Execution order in Figure~\ref {fig:exec}.}}{9}{figure.5}\protected@file@percent }
+\newlabel{fig:ffd}{{5}{9}{Functional flow diagram of the level loop, one inlet shown [COO Fig.~7.8]. SMs 1--4, 9 and 10 run once per inlet; SMs 5--8 once for the pen. Solid: data flow; dashed: feedback from the pump. Level*Pen stands for LevelInsidePen and LevelOutsidePen. Execution order in Figure~\ref {fig:exec}}{figure.5}{}}
+\gdef \LT@i {\LT@entry 
+    {1}{20.7225pt}\LT@entry 
+    {1}{105.89409pt}\LT@entry 
+    {1}{148.57323pt}\LT@entry 
+    {1}{239.62204pt}\LT@entry 
+    {1}{148.26378pt}}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Dataflow of the level loop. Unit after each SM in square brackets. ``Main.'' and ``GVLMain.'' prefixes are left out where the context is clear.}}{10}{table.7}\protected@file@percent }
+\newlabel{tab:dataflow}{{7}{10}{Dataflow of the level loop. Unit after each SM in square brackets. ``Main.'' and ``GVLMain.'' prefixes are left out where the context is clear}{table.7}{}}
+\gdef \LT@ii {\LT@entry 
+    {3}{25.3147pt}\LT@entry 
+    {1}{199.78818pt}\LT@entry 
+    {1}{233.62204pt}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Deviations and open issues}{12}{section.7}\protected@file@percent }
+\newlabel{sec:dev}{{7}{12}{Deviations and open issues}{section.7}{}}
+\gdef \@abspage@last{13}
