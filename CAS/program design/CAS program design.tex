@@ -395,7 +395,8 @@ Data sources \var{Framo_1..3} (DatasourcesManager) & per project & S &
   Framo heartbeat: the PLC sets the shared bit 1~s after Framo cleared it; alarm when Framo has
   not cleared it for 5~s. \\
 \var{InletConfig[i].StartupTime}, \var{.ShutdownTime} & 30~s, 30~s & S &
-  Time in START or STOP before the start-up or stop timeout alarm.\dev{8} \\
+  Longest time from Start (Stop) until Framo reports START (STOP); then the start-up (stop) timeout
+  alarm.\dev{8} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -745,8 +746,11 @@ D5 & LIC01 did not check \var{Pen.Input.AverageOverHeight.Status.BadQuality}. &
 D6 & [FD Tabell~8]: one parameter set per number of running pumps. & One set only (known, deferred). \\
 D7 & [FD Tabell~7]: alarm on speed deviation in REMOTE. & Not implemented. \\
 D8 & [FD Tabell~7]: start alarm if the pump does not report START within a preset time after the
-  start command. & Code measures the time \emph{in} START (\var{StartupTransitionTimer}), so a pump
-  that never leaves AVAILABLE gives no alarm. \\
+  start command. & Code measured the time \emph{in} START, so a pump that never left AVAILABLE gave
+  no alarm, and a normal START sequence longer than 30~s did. \textbf{Fixed} 2026-10-15 (in review):
+  \var{StartupTransitionTimer} runs while Start is commanded and the pump is still AVAILABLE;
+  \var{ShutdownTransitionTimer} while Stop is commanded and the pump is still starting, in REMOTE or
+  in HOLD. Framo's own START and STOP sequences are not timed. \\
 D9 & \var{ENUM.InletPumpState} has \code{Available := 0}, and \var{FramoDataProcessing} only
   writes the state when one of the flags is TRUE. &
   With no OPC UA data the PLC saw AVAILABLE and allowed \var{Start}. \textbf{Fixed} 2026-10-15
