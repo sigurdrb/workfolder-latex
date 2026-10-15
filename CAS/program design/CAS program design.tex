@@ -689,7 +689,10 @@ D1 & \textbf{Heartbeat not wired.} \var{InletControl.Heartbeat} watches the loca
   \var{HeartbeatToggle}, which is never written; \var{FramoDataProcessing} writes
   \var{InletPump.Input.HeartbeatToggle}. [FD \S3.2.1] &
   \var{HeartbeatTimeout} is TRUE after 1~s and stays TRUE: the communication alarm is
-  permanent and a real link loss is not detected. Pass \var{InletPump.Input.HeartbeatToggle}. \\
+  permanent and a real link loss is not detected. Fix proposed 2026-10-15: one shared bit
+  \var{Framo_n.HeartbeatToggle}, the PLC sets it while FALSE (after
+  \var{InletConfig.HeartbeatInterval}), Framo clears it while TRUE; alarm when Framo has not cleared
+  it for \var{InletConfig.HeartbeatTimeout}. CasFramoSim 2.3.7 implements Framo's half. \\
 D2 & \var{DriveError} alarm writes \var{InletPump.Alarm.DriveNotInRemote}. &
   Drive error shows as ``not in remote''; \var{Alarm.DriveError} is never set. \\
 D3 & \textbf{HOLD.} [FD Tabell~5]: on heartbeat loss the LIC01 output shall freeze and, when the

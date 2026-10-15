@@ -584,7 +584,7 @@ Signal & Node (value) & Type & PLC \\
 \midrule
 SpeedSetpoint & i=33 (\texttt{.Value} i=261) & AnalogValue [rpm] & writes \\
 Start, Stop, Reset & i=30--32 (\texttt{.Active} 257--259) & Event & writes \\
-HeartbeatToggle & i=34 (\texttt{.Active} i=277) & BOOL & writes \\
+HeartbeatToggle & i=34 (\texttt{.Active} i=277) & BOOL & sets (Framo clears) \\
 MotorVelocity & i=2 (\texttt{.Value} i=59) & AnalogValue [rpm] & reads \\
 MotorFrequency, Current, Power, Voltage, Torque & i=1, 3--6 & AnalogValue & reads \\
 PumpState\ldots{} (7 states) & i=23--29 (\texttt{.Active} 250--256) & Event & reads \\
@@ -599,8 +599,15 @@ $n_\text{start}$; at $n_\text{start}\pm\Delta n_\text{start}$ (``Sequence END'')
 the pump follows SpeedSetpoint clamped to $n_\text{min}$--$n_\text{max}$. Stop $\to$ STOP, which
 ramps to zero and returns to AVAILABLE. A fault (DriveError, MotorTemperature, EmergencyStop,
 UPSSupplyError, DCUnderVoltageError) in START, REMOTE, HOLD or STOP $\to$ LOCKDOWN, which ramps to
-zero and ends in UNAVAILABLE. With heartbeat supervision on, REMOTE $\to$ HOLD (start speed) when
-HeartbeatToggle stops changing, and back to REMOTE when it toggles again. The ramp is the plant's
+zero and ends in UNAVAILABLE.
+
+\textbf{Heartbeat.} HeartbeatToggle is one Boolean that both sides toggle in turn: the PLC sets it
+while it is FALSE, the Framo controller clears it while it is TRUE, each an interval
+(\SI{1}{s}) after the other. The value always says whose turn it is, so after a (re)connect
+neither side waits for the other. Each side supervises only the other's half: the controller goes
+REMOTE $\to$ HOLD (start speed) when the PLC has not set the bit for $T_\text{HB}$, and back to
+REMOTE when it does; the PLC (\texttt{InletControl.Heartbeat}) raises its communication alarm when
+the controller has not cleared the bit for \texttt{InletConfig.HeartbeatTimeout}. The ramp is the plant's
 pump lag $T_p$, run in CasFramoSim; CasRioSim reads the resulting speed over OPC UA, so the
 simulated level follows the PLC's speed setpoint.
 
@@ -732,10 +739,10 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
         (\texttt{PenInsideSensors}); the old raw-word \texttt{deltaHeightCalc} is not used.
   \item \textbf{Framo commands} (fixed). \texttt{InletControl} writes
         \texttt{InternalCommand} (Start, Stop, Reset, VelocitySetpoint).
-  \item \textbf{Framo heartbeat not wired.} \texttt{InletControl} supervises a local
-        \texttt{HeartbeatToggle} that nothing changes, and \texttt{FramoDataProcessing} only reads
-        \texttt{Framo\_n.HeartbeatToggle}. A Framo controller that follows [SPEC] will go REMOTE
-        $\to$ HOLD. The simulator's supervision is off until this is wired.
+  \item \textbf{Framo heartbeat} (2.3.7, PLC code to be merged). Shared toggle bit, PLC sets and
+        Framo clears (Section~\ref{sec:sim}); the simulator's supervision is on. To confirm with
+        Framo: that their controller clears the bit, and that the Data Source variable
+        \texttt{Framo\_n.HeartbeatToggle} is written by the PLC as well as read.
   \item \textbf{Copy-paste errors in the Framo data processing} (fixed).
   \item \textbf{Framo interface vs.\ [SPEC].} The Data Source names differ from [SPEC]
         (SpeedSetpoint vs.\ VelocitySetpoint, DCUnderVoltageError vs.\ DCUndervoltageError,
