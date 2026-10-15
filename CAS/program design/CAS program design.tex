@@ -702,6 +702,169 @@ SM & Code unit (task) & Reads & Operation & Writes \\
 \end{landscape}
 
 % ---------------------------------------------------------------------------------------------
+\begin{landscape}
+\section{Oxygen system}
+\label{sec:oxygen}
+
+The oxygen system follows the cascade of [FD \S3.2.4]: OIC01 on the pen O$_2$ over one flow loop
+(FIC) per line, with the oxy pump of each line on a pressure loop (PIC). OIC01's output is the
+\emph{total} O$_2$ flow to the pen, shared between the lines in auto (SM~O3). Figure~\ref{fig:oxyffd}
+is the functional flow diagram, Table~\ref{tab:oxyflow} the dataflow. All SMs run in \var{Task}:
+O1 in \var{PenControl}, O2--O3 in \var{InletSupervisor}, O4--O9 in \var{OxyControl[i]}, O10 in
+\var{IO_Processing}.
+
+\begin{center}
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[x=10mm, y=10mm, sm/.append style={text width=27mm, minimum height=13mm}]
+  % Row A: O2 measurement and OIC01
+  \node[ext, text width=22mm] (ot) at (0,0) {Orbit 864\\\footnotesize 750-652, RTU};
+  \node[sm] (o1) at (4.6,0) {\textbf{O1}\\PenControl\\\footnotesize mean O$_2$ [mg/L]};
+  \node[sm] (o2) at (9.6,0) {\textbf{O2}\\InletSupervisor\\\footnotesize OIC01 (PI)};
+  \node[sm] (o3) at (14.6,0) {\textbf{O3}\\InletSupervisor\\\footnotesize share};
+  \node[sm] (o4) at (19.6,0) {\textbf{O4}\\OxyControl[i]\\\footnotesize FIC};
+  \node[sm] (o5) at (24.6,0) {\textbf{O5}\\AnalogValve\\\footnotesize interlock};
+  \node[ext, text width=22mm] (crio) at (29.2,0) {CommonRIO\\\footnotesize 750-563 words 20--22\\\footnotesize OV41--43};
+  \node[ext, text width=22mm] (ft) at (19.6,3.0) {CommonRIO\\\footnotesize FT41--43, words 24--26};
+  \node[store, font=\scriptsize, align=center] (cfgO) at (9.6,2.8) {PenConfig.OxySetpoint,\\OxyController};
+
+  % Row B: pump and permissive
+  \node[ext, text width=22mm] (irio) at (0,-4.0) {InletRIO $i$\\\footnotesize word 2: pressure\\\footnotesize after the pump};
+  \node[sm] (o6) at (4.6,-4.0) {\textbf{O6}\\OxySensors\\\footnotesize scale, quality};
+  \node[sm] (o7) at (9.6,-4.0) {\textbf{O7}\\OxyControl[i]\\\footnotesize PIC};
+  \node[sm] (o8) at (14.6,-4.0) {\textbf{O8}\\OxyPumpATV320\\\footnotesize DRIVECOM};
+  \node[ext, text width=22mm] (atv) at (19.6,-4.0) {ATV320\\\footnotesize Modbus TCP\\\footnotesize PU041--43};
+  \node[sm] (o9) at (14.6,-7.6) {\textbf{O9}\\OxyControl[i]\\\footnotesize line start,\\\footnotesize RunDelay};
+  \node[ext, text width=26mm] (inl) at (9.6,-7.6) {InletControl[i]\\\footnotesize Status.EnableOxyControl};
+  \node[ext, text width=20mm] (hmi) at (4.6,-9.6) {Operator\\(HMI)};
+
+  % flows row A
+  \draw[flow] (ot) -- node[lab, above] {Orbit864Sensor\\.OxygenConc.} (o1);
+  \draw[flow] (o1) -- node[lab, above] {Pen.Status.\\PenOxygenLevel} (o2);
+  \draw[flow] (cfgO) -- (o2);
+  \draw[flow] (o2) -- node[lab, above] {OxyController.\\Output.OUT\\(total kg/h)} (o3);
+  \draw[flow] (o3) -- node[lab, above] {OxySystem[i].\\Status.\\FlowSetpoint} (o4);
+  \draw[flow] (o4) -- node[lab, above] {OxyValve.\\Command.\\AutoSetpoint} (o5);
+  \draw[flow] (o5) -- node[lab, above] {OxyValve.\\Output.\\RawPosition} (crio);
+  \draw[flow] (ft) -- node[lab, right] {OxygenFlow\\(O6)} (o4);
+  \draw[fb] (o4.south) |- node[lab, pos=0.75, below] {Status.OxyFlow, InAuto} ([yshift=-2mm]o3.south east) ;
+
+  % flows row B
+  \draw[flow] (irio) -- node[lab, above] {OxyPump-\\Pressure.Raw} (o6);
+  \draw[flow] (o6) -- node[lab, above] {.Filtered\\{[bar]}} (o7);
+  \draw[flow] (o7) -- node[lab, above] {speed\\{[Hz]}} (o8);
+  \draw[flow] ([yshift=2mm]o8.east) -- node[lab, above] {CMD, LFR} ([yshift=2mm]atv.west);
+  \draw[fb] ([yshift=-2mm]atv.west) -- node[lab, below] {ETA, RFR} ([yshift=-2mm]o8.east);
+  \draw[flow] (hmi.east) -| node[lab, pos=0.25, below] {OxySystem[i].Command.EnableOxyControl (group start)} ([xshift=-6mm]o9.south);
+  \draw[flow] (inl) -- node[lab, above] {InletPermit} (o9);
+  \draw[fb] ([xshift=-7mm]o8.south) -- node[lab, left] {OxyPump.State} ([xshift=-7mm]o9.north);
+  \draw[flow] ([xshift=7mm]o9.north) -- node[lab, right] {Run} ([xshift=7mm]o8.south);
+  \draw[flow] (o9.east) -| node[lab, pos=0.25, below] {Status.OxygenationActive} (o5.south);
+\end{tikzpicture}}
+\captionof{figure}{Functional flow diagram of the oxygen system [COO Fig.~7.8]; one line shown for
+O4--O9. Solid: data flow; dashed: feedback.}
+\label{fig:oxyffd}
+\end{center}
+\end{landscape}
+
+\begin{landscape}
+\small
+\begin{longtable}{@{}cP{33mm}P{50mm}P{82mm}P{48mm}@{}}
+\caption{Dataflow of the oxygen system.}\label{tab:oxyflow}\\
+\toprule
+SM & Code unit & Reads & Operation & Writes \\
+\midrule
+\endfirsthead
+\toprule
+SM & Code unit & Reads & Operation & Writes \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+O1 & \var{PenControl.Sensors}, body &
+  \var{Pen.Input.Orbit864Sensor[0..5].OxygenConcentration} &
+  Mean of the sensors marked for control and in good quality; bad when none is good. &
+  \var{Pen.Status.PenOxygenLevel} [mg/L], \var{Pen.Status.OxyControlOK} \\
+O2 & \var{InletSupervisor.OxyControl} (\var{PIDController}) &
+  SP \var{PenConfig.OxySetpoint}, PV O1, \var{PenConfig.OxyController}, the lines' status &
+  PI to the total O$_2$ flow [kg/h]. Enabled with \var{PenStart} and at least one line in auto.
+  Limited to what the lines in auto can deliver plus the manual lines' flow. Manual: operator;
+  frozen while \code{NOT OxyControlOK}; first enabled cycle from the measured total flow
+  (bumpless). &
+  \var{OxyController.Output.OUT} [kg/h] \\
+O3 & \var{InletSupervisor} &
+  O2, \var{OxySystem[i].Status.InAuto}, \var{.OxyFlow}, \var{OxyConfig[i].FlowMax} &
+  Share: (total $-$ measured flow of the active lines not in auto) / number of lines in auto,
+  each limited to its \var{FlowMax}. A lost line or a moved manual line is made up at once. &
+  \var{OxySystem[i].Status.FlowSetpoint} [kg/h] \\
+O4 & \var{OxyControl[i].FlowControl} (FIC) &
+  SP O3, PV \var{Status.OxyFlow} (FT, 0--150 kg/h) &
+  PI to the valve position 0--100 \%. In auto when oxygenation is active, the valve in auto and
+  the flow good; manual output 0 (not active), the operator's valve position, or held. &
+  \var{OxyValve.Command.AutoSetpoint} [\%], \var{Status.InAuto} \\
+O5 & \var{OxyControl[i].OxyValveControl} (\var{AnalogValve}) &
+  \var{OxyValve.Command}, \var{Status.OxygenationActive} &
+  Setpoint (auto or manual) to 0--65535 for the 750-563 (4--20 mA). Forced to 0 (closed) unless
+  oxygenation is active. &
+  \var{OxySystem[i].OxyValve.Output.RawPosition} $\to$ CommonRIO word 20+i \\
+O6 & \var{OxyControl[i].OxySensors} &
+  InletRIO word 2/3, CommonRIO word 24+i &
+  Scale and health check (\var{AnalogSensor}) of the pressure after the pump, after the
+  oxygenator, and the O$_2$ flow. &
+  \var{OxySystem[i].Input.*.Filtered} \\
+O7 & \var{OxyControl[i].PressureControl} (PIC) &
+  SP \var{Config.PressureSetpoint} (4.0 bar), PV pressure after the pump &
+  PI to the pump speed, \var{MinSpeed_Hz..MaxSpeed_Hz}. Preset speed while starting, in pump
+  manual (operator speed), with \var{PressureController.Enabled} off or a bad pressure. &
+  speed setpoint [Hz] \\
+O8 & \var{OxyControl[i].Drive} (\var{OxyPumpATV320}) &
+  Run (O9), speed, \var{OxyPump.Command.Reset}, \var{Config.OxyPump} (IP, port, unit id) &
+  Modbus TCP every 100 ms, FC23: write CMD 8501, LFR 8502 (0.1 Hz); read 3201--3211 (ETA, RFR,
+  LCR, THD, OPR), every 10th request LFT 7121. DRIVECOM: 0x0006, 0x0007, 0x000F to run, 0x0007 to
+  stop, 0x0080 to reset a fault. Pump state from ETA and speed. &
+  \var{OxyPump.Input.*}, \var{OxyPump.State}, \var{OxyPump.Status.CommunicationOK} \\
+O9 & \var{OxyControl[i]} body, \var{.OxyPumpControl} &
+  \var{Command.EnableOxyControl}, \var{InletPermit}, \var{OxyPump.State}, \var{.Status.Manual} &
+  Line started = operator's group start AND the inlet pump in REMOTE with a live link (D3). Auto:
+  the oxy pump runs while the line is started; manual: \var{OxyPump.Command.Start/Stop}.
+  Oxygenation active after the pump has run \var{Config.OxyPump.RunDelay}. &
+  Run, \var{Status.OxygenationActive} \\
+O10 & \var{IO_Processing.CommonRIO} &
+  \var{GVLMain.OxySystem[i].OxyValve} &
+  Output mapping to CommonRIO words 20--22. &
+  Modbus TCP to the CommonRIO \\
+\end{longtable}
+\end{landscape}
+
+\subsection*{Oxygen configuration and commands}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Configuration of the oxygen system, retained (\texttt{GVLRetain}), defaults from
+\texttt{PFC200\_Sim} \texttt{ConfigValues}. Tuning values are start values for commissioning.}
+\label{tab:oxyconfig}
+\begin{tabularx}{\textwidth}{@{}P{62mm}P{36mm}L@{}}
+\toprule
+Variable & Default & Meaning \\
+\midrule
+\var{PenConfig.OxySetpoint} & 8.0 mg/L & OIC01 setpoint (placeholder until [FD] gives it). \\
+\var{PenConfig.OxyController} & $K_p$ 50, $T_i$ 1800 s & OIC01, (kg/h)/(mg/L); \var{MaxOutput} 0 = what the lines can deliver. \\
+\var{OxyConfig[i].OxyPump.IP}, \var{.Port}, \var{.UnitId}, \var{.Enable} & 10.1.2.101, 5131--5133, 0, TRUE & ATV320 of line $i$ (simulator on the test rig). \\
+\var{OxyConfig[i].OxyPump.Min/MaxSpeed_Hz}, \var{.PresetSpeed_Hz} & 20, 50, 40 Hz & PIC output range; speed while starting or in manual. \\
+\var{OxyConfig[i].OxyPump.RunDelay} & 30 s & Pump at speed this long before oxygen is added. \\
+\var{OxyConfig[i].PressureController}, \var{.PressureSetpoint} & $K_p$ 2 Hz/bar, $T_i$ 5 s; 4.0 bar & PIC; \var{Enabled} FALSE runs the preset speed. \\
+\var{OxyConfig[i].FlowController}, \var{.FlowMax} & $K_p$ 0.3 \%/(kg/h), $T_i$ 5 s; 104.2 kg/h & FIC; most flow of the line. \\
+\var{OxyConfig[i].OxyStartupTime}, \var{.OxyShutdownTime} & 10 s, 10 s & Drive start (not turning) and stop (still turning) alarms. \\
+\var{GVLRetain.OxyPumpPressureConfig[i]}, \var{OxynatorOutletPressureConfig[i]}, \var{OxygenFlowConfig[i]} & 0--10 bar, 0--10 bar, 0--150 kg/h & Sensor ranges, filters, quality alarms. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Commands: \var{OxySystem[i].Command.EnableOxyControl} starts and stops line $i$ (group start);
+\var{OxySystem[i].OxyPump.Command.Manual/Auto/Start/Stop/Reset/Setpoint} run the oxy pump by hand;
+\var{OxySystem[i].OxyValve.Command.Manual/ManualSetpoint} hold the valve by hand (the line then
+counts as manual in O3); \var{OxyController.Command.Manual/ManualOutput} hold OIC01's total flow.
+
+% ---------------------------------------------------------------------------------------------
 \section{Deviations and open issues}
 \label{sec:dev}
 

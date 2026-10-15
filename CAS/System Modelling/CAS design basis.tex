@@ -106,9 +106,13 @@ The control structure follows [FD] §3.2.2--3.2.4 (Figure~\ref{fig:structure}):
         to all running inlet pumps. The dampers are held at a fixed opening per operating mode.
   \item \textbf{OIC01}, oxygen (master): PI on the pen O$_2$ concentration in mg/L. [FD] names
         OT03 at the outlet, with fallback to the lowest remaining sensor; Heimdall uses the mean of
-        the inside sensors (open item). Its output is the setpoint for the three O$_2$ flow loops.
+        the inside sensors (open item). Its output is the total O$_2$ flow to the pen, shared
+        between the lines in auto (Section~\ref{sec:oxyctl}); each share is the setpoint of that
+        line's flow loop.
   \item \textbf{FIC41--43}, O$_2$ flow (slave): PI on the gas flow (FT41--43). It drives the
         PWM proportional valve OV41--43.
+  \item \textbf{PIC41--43}, oxy pump: PI on the pressure after the oxy pump. It sets the pump's
+        VSD (ATV320) speed to hold 4.0\,bar absolute into the oxygenator.
 \end{itemize}
 
 \begin{figure}[h]
@@ -470,6 +474,41 @@ absorbs $K_ce$. The I-PD form, with the P part on the measurement and the setpoi
 integral, avoids both and keeps the same disturbance response ([OGA] §8-5, Examples A-8-8 and
 A-8-9). \texttt{Util.PID} has no such form (open item).
 
+\subsection{Oxygen control in Heimdall}\label{sec:oxyctl}
+\textbf{OIC01 works in total flow.} OIC01 (\texttt{InletSupervisor}) is a PI from the pen O$_2$
+in mg/L (mean of the sensors for control, \texttt{Pen.Status.PenOxygenLevel}) to the total O$_2$
+flow to the pen, $\dot m_\text{tot}$ in kg/h. Since the dissolved O$_2$ depends on the total flow
+(Section~\ref{sec:linear}), the loop gain does not change with the number of lines running, so the
+three parameter sets of [FD] Tabell~13 are not needed. Setpoint and tuning are retained in
+\texttt{PenConfig} (\texttt{OxySetpoint}, \texttt{OxyController}).
+
+\textbf{Sharing.} Let $A$ be the lines in auto (oxygenation active, FIC and valve in auto, good flow
+measurement) and $M$ the active lines that are not (valve in manual, bad flow). Each line in auto
+gets
+\begin{equation}
+\dot m_{\text{sp},i} = \min\!\Big(\dot m_{\text{max},i},\ \frac{\dot m_\text{tot} - \sum_{j\in M}
+\dot m_{\text{meas},j}}{|A|}\Big), \qquad i \in A,
+\end{equation}
+so a manual line counts with its \emph{measured} flow. When a line drops out, or an operator moves a
+manual line, the lines in auto take over the difference in the same cycle; the change does not go
+through the integral of OIC01, and gives no over- or undershoot of its own. The output of OIC01 is
+limited to what the lines can deliver, $\sum_{A}\dot m_{\text{max},i} + \sum_{M}\dot
+m_{\text{meas},j}$, so the integral does not wind up beyond reach. It starts bumplessly from the
+measured total flow, and freezes while no O$_2$ sensor for control is good ([FD] §3.2.4).
+
+\textbf{Per line} (\texttt{OxyControl}): the line starts on the operator's group start only while
+its inlet pump runs in REMOTE with a live link (\texttt{InletPump.Status.EnableOxyControl}); the oxy
+pump then starts in auto. PIC41--43 sets the pump speed (20--50\,Hz) for 4.0\,bar absolute after the
+pump; while starting, in pump manual or with a bad pressure, the pump runs at its preset speed
+(40\,Hz). After the pump has run \texttt{RunDelay} (30\,s), oxygen may be added: FIC41--43 sets the
+valve for the line's share. The valve output is held at 4\,mA (closed) otherwise, so it never opens
+without the pump running. The ATV320 is driven over Modbus TCP (CMD/LFR written, ETA/RFR/LCR/THD/OPR
+read, DRIVECOM state machine).
+
+\textbf{Start values} (\texttt{ConfigValues}, to be tuned at commissioning): OIC01 $K_c = 50$
+(kg/h)/(mg/L), $T_i = 1800$\,s (pen time constant about 44\,min, about 0.024\,mg/L per kg/h);
+FIC $K_c = 0.3$\,\%/(kg/h), $T_i = 5$\,s; PIC $K_c = 2$\,Hz/bar, $T_i = 5$\,s.
+
 \subsection{Measurement chain}\label{sec:filter}
 \textbf{Sampling.} The PLC reads the level transmitters every Modbus TCP cycle, about 0.1\,s, so
 $F_s/2 \approx 5$\,Hz. Waves of 4--10\,s period (0.1--0.25\,Hz) are far below that, and the
@@ -649,6 +688,18 @@ but static.
 
 \input{generated/params_framo.tex}
 
+\textbf{Oxy pump drives (CasRioSim 2.3.11).} Each inlet station also serves its line's oxy pump
+drive, a Schneider ATV320, over Modbus TCP (port 503; 5131--5133 on the test rig), as Heimdall's
+\texttt{OxyPumpATV320} talks to it: DRIVECOM state machine on CMD (8501) and ETA (3201), frequency
+reference LFR (8502) and output frequency RFR (3202) in 0.1\,Hz, ramp $t_\text{ramp}$, and a
+communication fault (CnF) when the PLC stops writing. The station computes the absolute pressure
+after the pump, $p_0 + \Delta p_\text{pump}(f/f_\text{max})^2$, and after the oxygenator,
+$p_0 + (\Delta p_\text{pump}-\Delta p_\text{ox})(f/f_\text{max})^2$, and writes them to the PLC's
+pressure inputs. Below $f_\text{ox,min}$ no O$_2$ is dissolved on that line. The simulator UI injects
+a drive fault per pump. These curves are not part of the design model:
+
+\input{generated/params_oxypump.tex}
+
 \section{Design checks}\label{sec:checks}
 
 \subsection{Oxygen capacity}
@@ -739,8 +790,8 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
         to speed. Ask Framo [SPEC].
   \item \textbf{O$_2$ setpoint.} OIC01 regulates concentration in mg/L (decided 13 October
         2026); saturation is averaged for display only. [FD] does not yet give the value;
-        $c_\text{ref}$ at 90\,\% saturation is taken from [O2S]. Heimdall does not yet pass a
-        setpoint to OIC01.
+        $c_\text{ref}$ at 90\,\% saturation is taken from [O2S]. Heimdall's OIC01 takes the retained
+        \texttt{PenConfig.OxySetpoint} (default 8.0\,mg/L, a placeholder until [FD] gives it).
   \item \textbf{O$_2$ process value.} [FD]: OT03 at the outlet, falling back to the lowest
         remaining sensor. Heimdall: mean of the inside sensors in good quality.
   \item \textbf{Mixing.} A fully mixed pen is assumed. The delay from injection to OT03 is not
@@ -802,9 +853,18 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
         57\,kg/h of O$_2$. The nominal need is 92\,kg/h per line (25.5\,g/s), so check the
         valve against $\dot m_\text{max}$. The Linde default setting of the 8605 driver
         (maximum 860\,mA) is also above the 750\,mA coil limit [B2865].
-  \item \textbf{Structure in the PLC function flow diagram.} The diagram drives the valves
-        directly from OIC01, with no FIC. [FD] rev.~B has the cascade, which this model
-        follows. Align the diagram with [FD].
+  \item \textbf{Structure in the PLC function flow diagram} (fixed in Heimdall). Heimdall now has
+        the [FD] rev.~B cascade, OIC01 over FIC41--43, with OIC01 in total flow
+        (Section~\ref{sec:oxyctl}). Align the old function flow diagram with it.
+  \item \textbf{Oxy pump pressure.} Heimdall takes InletRIO word 2 (\texttt{OxyPumpPressure}) as the
+        pressure after the pump, into the oxygenator ([FD] PT41/43/45), and the PIC setpoint of
+        4.0\,bar as absolute. Confirm the transmitters against the drawings; if they read gauge,
+        set 3.0\,bar.
+  \item \textbf{ATV320 over Modbus TCP.} To confirm at commissioning: FC23 on the drive's Ethernet
+        port, unit id 0, command and reference channel on Ethernet (Fr1, Cd1), and the
+        communication-loss fault (CnF) active, so the pump stops when the PLC is lost.
+  \item \textbf{Oxygen tuning.} OIC01, FIC41--43 and PIC41--43 run on start values
+        (Section~\ref{sec:oxyctl}); tune at commissioning, OIC01 with a step test.
   \item \textbf{O$_2$ sensor update rate.} The Orbit 864 delivers a value every 2--4\,s, but
         polled on one RS-485 line the same sensor is read about every $T_{s,\text{O}_2}$
         (Section~\ref{sec:filter}). OIC01 should not run faster than that.
