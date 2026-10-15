@@ -1,0 +1,731 @@
+\documentclass[11pt]{article}
+\usepackage[left=2.2cm,right=2.2cm,top=2.3cm,bottom=2.3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{pdflscape}
+\usepackage{caption}
+\usepackage{tikz}
+\usepackage[hidelinks]{hyperref}
+\usetikzlibrary{arrows.meta, positioning, calc, fit, backgrounds}
+
+\setlength{\parindent}{0mm}
+\setlength{\parskip}{2mm}
+\renewcommand{\arraystretch}{1.25}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% Variable and POU names, typewriter, breakable at dots
+\DeclareUrlCommand\var{\urlstyle{tt}}
+% Code expressions with spaces
+\newcommand{\code}[1]{\texttt{#1}}
+% Deviation from the functional description / open issue, numbered in Section 7
+\newcommand{\dev}[1]{\textsuperscript{\textcolor{red}{\textbf{D#1}}}}
+
+% Diagram styles after Cooling [COO] Fig. 7.1 and 7.8: software machines (SM) as numbered
+% boxes on a light background, external items as plain boxes, data items written on the arrows.
+\tikzset{
+  sm/.style={draw, rectangle, fill=yellow!12, align=center, inner sep=4pt,
+             minimum height=12mm, font=\small},
+  ext/.style={draw, rectangle, fill=gray!12, align=center, inner sep=4pt,
+              minimum height=10mm, font=\small},
+  extoff/.style={ext, dashed, text=gray, draw=gray},
+  store/.style={draw=none, align=center, inner sep=3pt, font=\small,
+                append after command={
+                  [draw] (\tikzlastnode.north west) -- (\tikzlastnode.north east)
+                  (\tikzlastnode.south west) -- (\tikzlastnode.south east)}},
+  flow/.style={-{Stealth[length=2.2mm]}, thick},
+  fb/.style={flow, densely dashed},
+  lab/.style={font=\scriptsize\ttfamily, align=center, fill=white, inner sep=1pt},
+  num/.style={font=\scriptsize\bfseries},
+  state/.style={draw, rectangle, rounded corners=2pt, fill=yellow!12, minimum width=24mm,
+                minimum height=9mm, align=center, font=\small},
+}
+
+\title{CAS (Heimdall) -- program design\\[1mm]
+\large Inlet pump: configuration, commands, prerequisites and dataflow}
+\author{Sigurd R. Brekk}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Purpose}
+
+This document shows how the Heimdall PLC program starts and runs an inlet pump.
+It answers four questions:
+\begin{enumerate}
+  \item which configuration values must be set before an inlet pump can start (Section~\ref{sec:config});
+  \item which commands start, stop and reset it (Section~\ref{sec:commands});
+  \item which other systems must be available or running (Section~\ref{sec:prereq});
+  \item how a value travels through the program, from the Modbus word read from the remote I/O to
+        the speed setpoint written to the Framo controller (Section~\ref{sec:dataflow}).
+\end{enumerate}
+Section~\ref{sec:dev} lists where the program differs from the functional description [FD] and
+other issues found while tracing the dataflow.
+
+The program was read on 2026-10-15 from the CODESYS project \var{heimdall-plc}, branch
+\var{inletControl}, application \var{PFC200_Sim}, after the merge with the outlet valve work.
+
+\subsection*{Sources}
+\begin{tabularx}{\textwidth}{@{}lL@{}}
+\toprule
+ID & Document \\
+\midrule
+{[COO]} & J.~Cooling, \emph{Software Engineering for Real-Time Systems} (The Complete Edition),
+          Packt, 2020. \S4.6.2 materials flow model, \S7.2.1 context diagrams, \S7.2.3 state
+          transition diagrams, \S7.2.4 functional and data flow diagrams, \S14.3.3 functional
+          diagram description. \\
+{[FD]}  & P-15169-CAS-FD-01 Funksjonsbeskrivelse CAS, rev.~B, 13.05.26. \S3.2.1 Vanninntak,
+          \S3.2.2 Regulering av vann-nivå i merden, \S3.2.4 Oksygentilførsel. \\
+{[DES]} & CAS (Heimdall) -- design basis for control (\emph{System Modelling/CAS design basis.tex}). \\
+{[PLC]} & CODESYS project heimdall-plc, branch inletControl, application PFC200\_Sim (read
+          2026-10-15). \\
+\bottomrule
+\end{tabularx}
+
+\section{Notation}
+\label{sec:notation}
+
+The diagrams follow Cooling's functionally structured diagrams [COO \S7.2].
+\begin{itemize}
+  \item A \textbf{context diagram} [COO \S7.2.1, Fig.~7.1] shows the PLC software as one black
+        box and the external items it exchanges data with. It defines every device the software
+        talks to and every signal it must handle.
+  \item A \textbf{functional flow diagram} (FFD) [COO \S7.2.4, Fig.~7.8] shows the processing as a
+        flow of material, here data, through \emph{software machines} (SM). Each SM is a
+        self-contained unit with one clear function; its outputs are the result of processing its
+        inputs. The underlying model is the materials flow model [COO \S4.6.2]: a value enters on
+        the left and is worked on by one SM after the other, like a work piece on a production
+        line.
+  \item Since the PLC runs the SMs in sequential code, only one SM is active at a time and the
+        order matters. The FFD is therefore accompanied by an \textbf{execution sequence}
+        [COO Fig.~7.10] that names the code unit (task, program, function block) running each SM.
+  \item The behaviour over time of the Framo pump state is shown in a \textbf{state transition
+        diagram} [COO \S7.2.3, Fig.~7.6].
+\end{itemize}
+
+In CODESYS terms an SM is a program (PRG), a function block (FB) instance or a method. Its
+\emph{in parameters} are the variables it reads (VAR\_INPUT or VAR\_IN\_OUT), its \emph{out
+parameters} the variables it writes. Variable names are given in full from the global variable
+list, e.g.\ \var{GVLMain.Inlet[i].InletPump.State}; \var{i} = 0, 1, 2 is the inlet (inlet 1, 2, 3)
+and \var{n} = \var{i}+1 numbers the Framo data sources \var{Framo_1..3}.
+
+Symbols used in the diagrams:
+
+\begin{center}
+\begin{tikzpicture}[node distance=6mm]
+  \node[sm] (a) {\textbf{n}\\Software machine};
+  \node[ext, right=of a] (b) {External item};
+  \node[extoff, right=of b] (c) {Not needed\\for this function};
+  \node[store, right=of c] (d) {Retained data};
+  \draw[flow] ($(d.east)+(4mm,0)$) -- ++(12mm,0) node[right, font=\small] {data flow};
+  \draw[fb] ($(d.east)+(4mm,-6mm)$) -- ++(12mm,0) node[right, font=\small] {feedback};
+\end{tikzpicture}
+\end{center}
+
+% ---------------------------------------------------------------------------------------------
+\section{Context diagram}
+\label{sec:context}
+
+Figure~\ref{fig:context} shows the PLC software and its surroundings as far as the inlet pumps are
+concerned. Table~\ref{tab:context} gives the interface of each external item.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[node distance=10mm and 36mm]
+  \node[sm, minimum width=46mm, minimum height=34mm, font=\normalsize] (plc)
+       {\textbf{Heimdall PLC software}\\[1mm]\small PFC200 750-8212\\\small 10.1.2.41\\[1mm]
+        \small application \var{PFC200_Sim}};
+
+  \node[ext, left=of plc, yshift=10mm, minimum width=30mm] (irio)
+       {\textbf{InletRIO 1--3}\\\footnotesize 750-455, Modbus TCP};
+  \node[extoff, left=of plc, yshift=-10mm, minimum width=30mm] (crio)
+       {\textbf{CommonRIO}\\\footnotesize Orbit 864, O$_2$ valves};
+  \node[ext, right=of plc, minimum width=30mm] (framo)
+       {\textbf{Framo local}\\\textbf{controller 1--3}\\\footnotesize OPC UA server};
+  \node[ext, above=of plc, minimum width=40mm] (hmi)
+       {\textbf{Operator (HMI)}\\\footnotesize OPC UA client to the PLC};
+  \node[store, below=of plc, minimum width=40mm] (ret)
+       {\textbf{GVLRetain}\\\footnotesize persistent memory};
+
+  \draw[flow] (irio) -- node[lab, above] {level inside,\\outside} (plc.west |- irio);
+  \draw[flow, gray] (crio) -- node[lab, below, text=gray] {O$_2$ (not used)} (plc.west |- crio);
+  \draw[flow] ([yshift=4mm]plc.east) -- node[lab, above] {Start, Stop, Reset,\\VelocitySetpoint} ([yshift=4mm]framo.west);
+  \draw[flow] ([yshift=-4mm]framo.west) -- node[lab, below] {PumpState*, MotorVelocity,\\alarms, HeartbeatToggle} ([yshift=-4mm]plc.east);
+  \draw[flow] ([xshift=-8mm]hmi.south) -- node[lab, left] {commands,\\configuration} ([xshift=-8mm]plc.north);
+  \draw[flow] ([xshift=8mm]plc.north) -- node[lab, right] {status,\\alarms} ([xshift=8mm]hmi.south);
+  \draw[flow, <->] (plc) -- node[lab, right] {configuration} (ret);
+\end{tikzpicture}}
+\caption{Context diagram of the inlet pump function [COO Fig.~7.1]. The CommonRIO carries the
+oxygen sensors and valves; the inlet pump does not need it.}
+\label{fig:context}
+\end{figure}
+
+\begin{table}[htbp]
+\centering\small
+\caption{External items of the inlet pump function.}
+\label{tab:context}
+\begin{tabularx}{\textwidth}{@{}P{24mm}P{30mm}P{37mm}L@{}}
+\toprule
+External item & Link & PLC code unit & Data \\
+\midrule
+InletRIO 1--3 & Modbus TCP, FC23, read words 0--25, write words 0--20, every 60~ms &
+  \var{InletRIO[i]} in \var{PRG.IO_Processing} &
+  In: level inside (word 0), level outside (word 1), oxy pump and oxynator pressure (words 2, 3),
+  digital inputs (words 4, 5). Out: reset of field power (word 0 bit 0). \\
+Framo local controller 1--3 & OPC UA, data sources \var{Framo_1..3} in the \var{DatasourcesManager} &
+  \var{PRG.FramoDataProcessing}, \var{Datasources_PRG} &
+  In: pump state, motor values, alarms, heartbeat [FD Tabell~6]. Out: \var{Start},
+  \var{Stop}, \var{Reset}, \var{SpeedSetpoint}. \\
+Operator (HMI) & OPC UA server of the PLC (Symbol Configuration: \var{GVLMain}, \var{GVLIO}) &
+  -- & Writes commands and configuration in \var{GVLMain}; reads status and alarms. \\
+GVLRetain & persistent variables & \var{Main.UpdateRetain} &
+  Configuration copied to \var{GVLMain} in the first cycle, and back on every change. \\
+CommonRIO & Modbus TCP and Modbus RTU (750-652) & \var{CommonRIO}, \var{IO_Processing_RTU} &
+  Oxygen sensors and valves. Not needed to start or run an inlet pump. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ---------------------------------------------------------------------------------------------
+\section{Tasks and execution sequence}
+\label{sec:tasks}
+
+The SMs run in three tasks (Task Configuration of \var{PFC200_Sim}). Within a task the programs run
+in the order listed, and within \var{PRG.Main} the function blocks run in the order they are
+called. Figure~\ref{fig:exec} is the execution sequence in the outline form of [COO Fig.~7.10].
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+  \node[draw, fill=yellow!8, align=left, font=\small\ttfamily, inner sep=6pt, text width=78mm] (t1) {%
+  \textbf{\normalfont Task \texttt{Task}} (cyclic)\\[1mm]
+  Main\\
+  \quad InletSupervisor \hfill SM 7, 8, S1\\
+  \quad FOR i := 0 TO 2:\\
+  \quad\quad InletControl[i] \hfill SM 9, 10, S2\\
+  \quad\quad\quad InletSensors \hfill SM 2, 3, 4\\
+  \quad\quad OxyControl[i]\\
+  \quad OutletControl\\
+  \quad PenControl \hfill SM 5, 6\\
+  \quad UpdateRetain\\
+  IO\_Processing\\
+  \quad InletRIO[i], CommonRIO \hfill SM 1\\
+  IO\_Processing\_RTU \hfill (Orbit 864)};
+  \node[draw, fill=yellow!8, align=left, font=\small\ttfamily, inner sep=6pt, text width=60mm,
+        right=6mm of t1.north east, anchor=north west] (t2) {%
+  \textbf{\normalfont Task \texttt{OPC\_Processing}}\\[1mm]
+  FramoDataProcessing \hfill SM 11, F, S3};
+  \node[draw, fill=yellow!8, align=left, font=\small\ttfamily, inner sep=6pt, text width=60mm,
+        below=4mm of t2] (t3) {%
+  \textbf{\normalfont Task \texttt{DatasourcesTask}}\\[1mm]
+  Datasources\_PRG \hfill SM 12};
+  \node[align=left, font=\small, text width=60mm, below=4mm of t3] {%
+  \var{PRG.Controllers} is in the project but is not called by any task.\dev{14}};
+\end{tikzpicture}
+\caption{Execution sequence [COO Fig.~7.10]. SM numbers refer to Figure~\ref{fig:ffd} and
+Table~\ref{tab:dataflow}; S1--S3 and F to Figure~\ref{fig:start}.}
+\label{fig:exec}
+\end{figure}
+
+\textbf{Consequence for the timing.} \var{IO_Processing} runs after \var{Main}, and
+\var{InletSupervisor} runs before \var{PenControl}. A level word read in cycle $k$ is therefore
+scaled and averaged in cycle $k+1$ and reaches the level controller in cycle $k+2$. The speed
+setpoint is then handed to \var{FramoDataProcessing} in the next run of
+\var{OPC_Processing}, and the OPC UA client sends it with its own publishing interval. Together
+with the 60~ms Modbus poll this is some tenths of a second, small next to the 2~s dead time of the
+level loop [DES \S7].
+
+% ---------------------------------------------------------------------------------------------
+\section{Starting an inlet pump}
+\label{sec:start}
+
+\subsection{Pump state}
+\label{sec:state}
+
+The Framo local controller owns the pump state. It publishes one Boolean per state
+(\var{PumpStateAvailable}, \var{PumpStateStart}, \ldots); \var{FramoDataProcessing} turns these into
+the enumeration \var{GVLMain.Inlet[i].InletPump.State} (\var{ENUM.InletPumpState}). The PLC only
+asks for transitions with \var{Start}, \var{Stop} and \var{Reset}. Figure~\ref{fig:std} is the state
+transition diagram as described in [FD Tabell~5]; Table~\ref{tab:states} shows what the PLC does in
+each state (\var{InletControl.InletPumpControl}).
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[node distance=12mm and 28mm, every edge quotes/.style={font=\scriptsize}]
+  \node[state] (una) {UNAVAILABLE\\\scriptsize 9};
+  \node[state, right=of una] (ava) {AVAILABLE\\\scriptsize 0};
+  \node[state, right=of ava] (sta) {START\\\scriptsize 1};
+  \node[state, below=18mm of sta] (rem) {REMOTE\\\scriptsize 2};
+  \node[state, below=18mm of ava] (stp) {STOP\\\scriptsize 3};
+  \node[state, right=of rem] (hol) {HOLD\\\scriptsize 4};
+  \node[state, below=20mm of rem] (loc) {LOCKDOWN\\\scriptsize 5};
+
+  \draw[flow] (una) -- node[above, font=\scriptsize, align=center] {VSD on,\\safety switch on} (ava);
+  \draw[flow] (ava) -- node[above, font=\scriptsize, align=center] {\var{Start}\\(PLC)} (sta);
+  \draw[flow] (sta) -- node[right, font=\scriptsize, align=left] {air evacuated,\\preset speed reached} (rem);
+  \draw[flow] (rem) -- node[below, font=\scriptsize, align=center] {\var{Stop}\\(PLC)} (stp);
+  \draw[flow] (stp) -- node[left, font=\scriptsize, align=right] {pump stopped,\\vacuum broken} (ava);
+  \draw[flow] ([yshift=2mm]rem.east) -- node[above, font=\scriptsize] {heartbeat lost} ([yshift=2mm]hol.west);
+  \draw[flow] ([yshift=-2mm]hol.west) -- node[below, font=\scriptsize, align=center] {link back +\\\var{Reset} (PLC)} ([yshift=-2mm]rem.east);
+  \draw[flow] ([xshift=-4mm]rem.south) -- node[left, font=\scriptsize] {fault} ([xshift=-4mm]loc.north);
+  \draw[flow] ([xshift=4mm]loc.north) -- node[right, font=\scriptsize, align=left] {fault cleared +\\\var{Reset} (PLC)} ([xshift=4mm]rem.south);
+\end{tikzpicture}}
+\caption{State transition diagram of the Framo inlet pump [FD Tabell~5], [COO \S7.2.3]. Numbers
+are the values of \texttt{ENUM.InletPumpState}. Transitions not described in [FD] (e.g.\ from
+LOCKDOWN after \texttt{Reset} when the pump has stopped) are set by the Framo controller.}
+\label{fig:std}
+\end{figure}
+
+\begin{table}[htbp]
+\centering\small
+\caption{PLC action per pump state (\texttt{InletControl.InletPumpControl}).}
+\label{tab:states}
+\begin{tabularx}{\textwidth}{@{}lP{40mm}cccL@{}}
+\toprule
+State & \var{Output.VelocitySetpoint} & Start allowed & Running & In LIC01 & Comment \\
+\midrule
+UNAVAILABLE & 0 & no & no & no & \\
+AVAILABLE & \var{Input.MotorVelocity} & yes & no & no & Setpoint follows the actual speed, as [FD] asks. \\
+START & \var{Input.MotorVelocity} & yes & yes & yes & LIC01 tracks the mean speed of the starting pumps (SM~7). \\
+REMOTE & \var{InletPumpSpeedSetpoint} (LIC01 output in auto, \var{Command.Setpoint} in manual) & yes & yes & yes & The only state in which the PLC sets the speed. \\
+HOLD & \var{Input.MotorVelocity} & yes & yes\textsuperscript{*} & no\textsuperscript{*} & Framo runs a preset speed. LIC01 is not frozen.\dev{3} \\
+STOP & 0 & no & yes & yes & \\
+LOCKDOWN & 0 & no & no & no & Needs \var{Reset}. \\
+\bottomrule
+\multicolumn{6}{@{}p{\textwidth}@{}}{\footnotesize\textsuperscript{*} The local variable
+\var{Running} is set TRUE in the HOLD branch, but \var{Status.EnableLevelControl} is computed
+before the CASE from the states START, REMOTE and STOP only. \code{Start allowed} =
+\var{StartAvailable}; \code{In LIC01} = \var{Status.EnableLevelControl} with the pump in auto.}
+\end{tabularx}
+\end{table}
+
+\subsection{Other systems that must be available or running}
+\label{sec:prereq}
+
+Table~\ref{tab:prereq} lists what must be in place before \var{Start} reaches the pump and the
+level controller can take over. Only the first four rows are needed for the pump to start. The
+rest are needed for level control.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Prerequisites for starting an inlet pump.}
+\label{tab:prereq}
+\begin{tabularx}{\textwidth}{@{}P{38mm}LP{40mm}@{}}
+\toprule
+System & What must hold & Where the PLC sees it \\
+\midrule
+Framo local controller $n$ & Powered, VSD on, safety switch on, no emergency stop, no fault;
+  vacuum system ready (handled by the local controller). Pump state AVAILABLE. &
+  \code{Inlet[i].InletPump.State = Available} \\
+OPC UA link to Framo $n$ & Data source \var{Framo_n} connected, so that commands are written and
+  the state is read. &
+  No explicit check; see \dev{9} \\
+PLC application & Running, with the tasks \var{Task}, \var{OPC_Processing} and
+  \var{DatasourcesTask}. & -- \\
+Operator (HMI) & Connected to the PLC's OPC UA server to write the commands. & -- \\
+\midrule
+InletRIO $i$ & Connected (\var{GVLIO.InletRIO[i].Status.CommOK}); otherwise the level words are not
+  updated. Not an interlock for the start. & \var{InletRIO[i].Status.CommOK} \\
+Level transmitters LT inside/outside & 4--20~mA healthy (status bits 00) and \var{Enable}d, at
+  least one inside and one outside over the three inlets. Not an interlock for the
+  start.\dev{5} & \var{Pen.Input.AverageOverHeight.Status.BadQuality} \\
+\midrule
+Oxygen system, outlet valve, CommonRIO & Not needed. In [FD] the oxygen system depends on the
+  inlet pump, not the other way round: the oxy pump runs only when the inlet pump on the same
+  line runs [FD \S3.2.4]. & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Configuration}
+\label{sec:config}
+
+Table~\ref{tab:config} lists the configuration values the inlet pump function uses. All but the
+data source endpoints live in \var{GVLMain}, are written from the HMI and are kept in
+\var{GVLRetain} by \var{Main.UpdateRetain}. Defaults are those in \var{GVL.ConfigValues} of
+\var{PFC200_Sim}, applied on a fresh download.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Configuration for the inlet pump function. \emph{Needed for}: S = pump start,
+L = level control.}
+\label{tab:config}
+\begin{tabularx}{\textwidth}{@{}P{58mm}P{30mm}cL@{}}
+\toprule
+Variable & Default & For & Meaning, and what happens if it is wrong \\
+\midrule
+Data sources \var{Framo_1..3} (DatasourcesManager) & per project & S &
+  OPC UA endpoint of each Framo controller. Wrong: no commands reach the pump. \\
+\var{InletRIOConfig[i].Enabled} & TRUE & L & Connects the Modbus TCP master. \\
+\var{InletRIOConfig[i].IP}, \var{.Port} & 10.1.2.101, 5121--5123 (simulator) & L &
+  Address of InletRIO $i$. IP 0 or port 0 raises \emph{MissingIPaddress}. \\
+\var{Inlet[i].Input.LevelInsidePen.Config.Enable} & TRUE & L &
+  Transmitter is used in the average. \\
+\var{Inlet[i].Input.LevelInsidePen.Config.MinValue}, \var{.MaxValue} & 0.0, 2.0~m & L &
+  Range for 4 and 20~mA. \\
+\var{Inlet[i].Input.LevelInsidePen.Config.FilterFc} & 0.05~Hz & L &
+  Butterworth cut-off frequency; 0 turns the filter off. \\
+\var{Inlet[i].Input.LevelOutsidePen.Config.*} & as inside & L & Same for the outside transmitter. \\
+\var{PenConfig.LevelController.Kp} & 450~rpm/m & L & Gain of LIC01. \\
+\var{PenConfig.LevelController.Ti} & 600~s\dev{11} & L & Integral time. \\
+\var{PenConfig.LevelController.Td} & 0~s & L & Derivative time (0 = PI). \\
+\var{PenConfig.LevelController.MinOutput}, \var{.MaxOutput} & 40, 130~rpm & L &
+  Speed range of the pumps [FD Tabell~8]; also the PID's output limits. \\
+\var{InletConfig[i].StartupTime}, \var{.ShutdownTime} & 30~s, 30~s & S &
+  Time in START or STOP before the start-up or stop timeout alarm.\dev{8} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Commands}
+\label{sec:commands}
+
+The commands are variables in \var{GVLMain} that the HMI sets. Commands marked \emph{pulse} are
+reset by the PLC once acted on. Table~\ref{tab:commands} gives the commands; the steps below give
+the order.
+
+\textbf{Automatic start of the pen (normal operation).}
+\begin{enumerate}
+  \item Put each pump that shall run in auto: \var{Inlet[i].InletPump.Command.Auto} (default: auto).
+  \item Set the level setpoint \var{Pen.Command.LevelSetpoint} [m].\dev{13}
+  \item Leave LIC01 in auto (\var{LevelController.Command.Manual} = FALSE, default).
+  \item Give \var{Pen.Command.Start}. Every pump in auto gets \var{Start}; while a pump is in START,
+        LIC01 follows its speed, and when the first pump reaches REMOTE LIC01 takes over
+        bumplessly.
+  \item \var{Pen.Command.Stop} stops every pump in auto.
+\end{enumerate}
+
+\textbf{Manual start of one pump.}
+\begin{enumerate}
+  \item \var{Inlet[i].InletPump.Command.Manual}; the pump leaves level control.
+  \item Set the speed \var{Inlet[i].InletPump.Command.Setpoint} [rpm]; used in REMOTE.
+  \item \var{Inlet[i].InletPump.Command.Start}; stop with \var{Inlet[i].InletPump.Command.Stop}.
+\end{enumerate}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Commands for the inlet pumps.}
+\label{tab:commands}
+\begin{tabularx}{\textwidth}{@{}P{58mm}P{18mm}L@{}}
+\toprule
+Command & Type & Effect \\
+\midrule
+\var{Pen.Command.Start} & pulse & Latches \var{PenStart} in \var{InletSupervisor}; every pump in auto
+  gets \var{Inlet[i].Command.AutoStartInletPump}. Reset by the PLC when a pump runs. \\
+\var{Pen.Command.Stop} & pulse & Clears \var{PenStart}; every pump in auto gets
+  \var{AutoStopInletPump}. \\
+\var{Pen.Command.LevelSetpoint} & value [m] & Setpoint of LIC01 (overheight inside the pen).
+  [FD] gives it in cm. \\
+\var{Inlet[i].InletPump.Command.Manual} / \var{.Auto} & pulse & Sets / clears
+  \var{InletPump.Status.Manual}. \\
+\var{Inlet[i].InletPump.Command.Start} / \var{.Stop} & pulse & Start or stop in manual. \\
+\var{Inlet[i].InletPump.Command.Setpoint} & value [rpm] & Speed in manual, sent in REMOTE. \\
+\var{Inlet[i].InletPump.Command.Reset} & level & Sent to Framo as \var{Reset} (HOLD, LOCKDOWN). \\
+\var{LevelController.Command.Manual} / \var{.Auto} & level / pulse & LIC01 manual or auto. \\
+\var{LevelController.Command.ManualOutput} & value [rpm] & LIC01 output in manual. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Start command path}
+
+Figure~\ref{fig:start} follows the start command from the HMI to the Framo controller and the
+pump state back. Table~\ref{tab:startflow} names the variables.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[node distance=9mm and 22mm]
+  \node[ext] (hmi) {Operator\\(HMI)};
+  \node[sm, right=of hmi, text width=27mm] (s1) {\textbf{S1}\\InletSupervisor\\\footnotesize start/stop latch};
+  \node[sm, right=of s1, text width=29mm] (s2) {\textbf{S2}\\InletControl[i]\\\footnotesize .InletPumpControl};
+  \node[sm, right=of s2, text width=27mm] (s3) {\textbf{S3}\\FramoData-\\Processing};
+  \node[ext, below=16mm of s3] (fr) {Framo local\\controller $n$};
+  \node[sm, below=16mm of s2, text width=29mm] (f) {\textbf{F}\\FramoData-\\Processing\\\footnotesize state decoding};
+
+  \draw[flow] (hmi) -- node[lab, above] {Pen.Command.\\Start / Stop} (s1);
+  \draw[flow] (s1) -- node[lab, above] {Inlet[i].Command.\\AutoStartInletPump\\AutoStopInletPump} (s2);
+  \draw[flow] (s2) -- node[lab, above] {InletPump.\\InternalCommand.\\Start / Stop / Reset} (s3);
+  \draw[flow] (s3) -- node[lab, right] {Framo\_n.Start.Active\\Framo\_n.Stop.Active\\Framo\_n.Reset.Active} (fr);
+  \draw[fb] (fr) -- node[lab, below] {Framo\_n.PumpState*.Active} (f);
+  \draw[fb] (f) -- node[lab, left] {InletPump.State} (s2);
+  \draw[flow] (hmi.north) -- ++(0,14mm) -| node[lab, pos=0.25, above] {Inlet[i].InletPump.Command.Manual / Auto / Start / Stop / Reset / Setpoint}
+        (s2.north);
+\end{tikzpicture}}
+\caption{FFD of the start command [COO Fig.~7.8]. The manual commands enter at S2.}
+\label{fig:start}
+\end{figure}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Start command dataflow.}
+\label{tab:startflow}
+\begin{tabularx}{\textwidth}{@{}cP{36mm}P{44mm}L@{}}
+\toprule
+SM & Code unit & Reads & Operation and writes \\
+\midrule
+S1 & \var{InletSupervisor} (body) & \var{Pen.Command.Start}, \var{Pen.Command.Stop},
+  \var{Inlet[i].InletPump.Status.Manual} &
+  \code{PenStart := (PenStart OR Start) AND NOT Stop}. For each pump not in manual:
+  \code{Inlet[i].Command.AutoStartInletPump := PenStart},
+  \code{AutoStopInletPump := NOT PenStart}. \\
+S2 & \var{InletControl[i].InletPumpControl} & \var{AutoStartInletPump}, \var{AutoStopInletPump}
+  (auto) or \var{InletPump.Command.Start/Stop} (manual); \var{InletPump.State} &
+  \var{StartPump} latches the start until a stop; \var{StopRequest} = stop command.
+  \code{InletPump.Output.Start := StartPump AND StartAvailable}. The body copies to
+  \var{InletPump.InternalCommand.Start}, \code{.Stop := StopRequest},
+  \code{.Reset := Command.Reset}. \\
+S3 & \var{FramoDataProcessing} & \var{Inlet[i].InletPump.InternalCommand.*} &
+  \var{Framo_n.Start.Active}, \var{Framo_n.Stop.Active}, \var{Framo_n.Reset.Active}; the Framo
+  controller acts on the rising edge. \\
+F & \var{FramoDataProcessing} & \var{Framo_n.PumpStateUnavailable.Active} \ldots
+  \var{PumpStateLockdown.Active} &
+  First TRUE flag sets \var{Inlet[i].InletPump.State}. No flag TRUE: state unchanged.\dev{9} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ---------------------------------------------------------------------------------------------
+\begin{landscape}
+\section{Dataflow: from level transmitter to pump speed}
+\label{sec:dataflow}
+
+Figure~\ref{fig:ffd} is the functional flow diagram of the level loop, the main dataflow of the
+inlet pump: the level word read from InletRIO $i$ is scaled, filtered, averaged over the inlets,
+compared with the setpoint in LIC01, and the controller output is sent as the speed setpoint to
+every pump in level control. Table~\ref{tab:dataflow} names, for every SM, the variables it reads,
+what it does with them and the variables it writes.
+
+\begin{center}
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[x=10mm, y=10mm, sm/.append style={text width=25mm, minimum height=13mm}]
+  % Row A: measurement, left to right
+  \node[ext, text width=20mm] (lt) at (0,0) {InletRIO $i$\\\footnotesize 750-455\\\footnotesize LT in/out};
+  \node[sm] (s1) at (4.6,0)  {\textbf{1}\\InletRIO[i]\\\footnotesize Modbus read};
+  \node[sm] (s2) at (9.6,0)  {\textbf{2}\\AnalogSensor\\\footnotesize .ScaleInput};
+  \node[sm] (s3) at (14.6,0) {\textbf{3}\\AnalogSensor\\\footnotesize .LPFilter};
+  \node[sm] (s5) at (19.6,0) {\textbf{5}\\PenControl\\\footnotesize .Sensors};
+  \node[sm] (s6) at (24.6,0) {\textbf{6}\\PenControl\\\footnotesize body};
+  \node[sm] (s4) at (14.6,-2.7) {\textbf{4}\\InletSensors\\\footnotesize $\Delta H_i$ (display)};
+  \node[store, font=\scriptsize, text width=62mm] (cfgL) at (12.1,2.2)
+       {Level*Pen.Config: Enable, MinValue, MaxValue, FilterFc};
+
+  % Row B: control, right to left
+  \node[sm] (s7) at (19.6,-3.7) {\textbf{7}\\InletSupervisor\\\footnotesize start-up tracking};
+  \node[sm] (s8) at (24.6,-6.4) {\textbf{8}\\InletSupervisor\\\footnotesize .LevelControl\\\footnotesize LIC01};
+  \node[sm] (s9) at (19.6,-6.4) {\textbf{9}\\InletControl[i]\\\footnotesize manual/auto};
+  \node[sm] (s10) at (14.6,-6.4) {\textbf{10}\\InletControl[i]\\\footnotesize .InletPumpControl};
+  \node[sm] (s11) at (9.6,-6.4) {\textbf{11}\\FramoData-\\Processing};
+  \node[sm] (s12) at (4.6,-6.4) {\textbf{12}\\Datasources\\\footnotesize OPC UA client};
+  \node[ext, text width=20mm] (fr) at (0,-6.4) {Framo local\\controller $n$};
+
+  \node[ext, text width=20mm] (hmi) at (19.6,-10.2) {Operator\\(HMI)};
+  \node[store, font=\scriptsize, align=center] (cfgP) at (28.0,-9.0) {PenConfig.\\LevelController\\Kp, Ti, Td,\\Min/MaxOutput};
+
+  % Forward flow
+  \draw[flow] (lt) -- node[lab, above] {words\\0, 1} (s1);
+  \draw[flow] (s1) -- node[lab, above] {Level*Pen.\\Input.Raw} (s2);
+  \draw[flow] (s2) -- node[lab, above] {raw (masked)\\BadQuality} (s3);
+  \draw[flow] (s3) -- node[lab, above] {Level*Pen.\\Filtered} (s5);
+  \draw[flow] (s5) -- node[lab, above] {Average-\\OverHeight} (s6);
+  \draw[flow] (s3) -- node[lab, right] {Filtered} (s4);
+  \draw[flow] (cfgL.south -| s2.north) -- (s2.north);
+  \draw[flow] (cfgL.south -| s3.north) -- (s3.north);
+  \draw[flow] ([xshift=5mm]s6.south) -- node[lab, right, pos=0.45] {Pen.Status.\\OverHeight\\(PV)} ([xshift=5mm]s8.north);
+  \draw[flow] (s7.east) -| node[lab, above, pos=0.3] {LevelTracking\\LevelTrackSpeed} ([xshift=-5mm]s8.north);
+  \draw[flow] (s8) -- node[lab, above] {LevelController.\\Output.OUT} (s9);
+  \draw[flow] (s9) -- node[lab, above] {InletPump-\\SpeedSetpoint} (s10);
+  \draw[flow] (s10) -- node[lab, above] {InternalCommand.\\VelocitySetpoint} (s11);
+  \draw[flow] (s11) -- node[lab, above] {Framo\_n.\\SpeedSetpoint} (s12);
+  \draw[flow] ([yshift=2mm]s12.west) -- node[lab, above] {OPC UA\\write} ([yshift=2mm]fr.east);
+
+  % Feedback from the pump
+  \draw[fb] ([yshift=-3mm]fr.east) -- node[lab, below] {read} ([yshift=-3mm]s12.west);
+  \draw[fb] ([yshift=-3mm]s12.east) -- node[lab, below] {Framo\_n.*} ([yshift=-3mm]s11.west);
+  \draw[fb] (s11.south) -- (9.6,-8.4) -- node[lab, below] {InletPump.State, InletPump.Input.MotorVelocity} (17.1,-8.4)
+        |- (s7.west);
+  \draw[fb] (14.6,-8.4) -- (s10.south);
+
+  % Commands and configuration
+  \draw[flow] (hmi) -- node[lab, right] {InletPump.Command.\\Manual, Setpoint} (s9);
+  \draw[flow] (hmi.east) -| node[lab, below, pos=0.3] {Pen.Command.LevelSetpoint} (s8.south);
+  \draw[flow] (cfgP.north) |- (s8.east);
+\end{tikzpicture}}
+\captionof{figure}{Functional flow diagram of the level loop, one inlet shown [COO Fig.~7.8].
+SMs 1--4, 9 and 10 run once per inlet; SMs 5--8 once for the pen. Solid: data flow; dashed:
+feedback from the pump. Level*Pen stands for LevelInsidePen and LevelOutsidePen. Execution order
+in Figure~\ref{fig:exec}.}
+\label{fig:ffd}
+\end{center}
+\end{landscape}
+
+\begin{landscape}
+\small
+\begin{longtable}{@{}cP{33mm}P{48mm}P{80mm}P{50mm}@{}}
+\caption{Dataflow of the level loop. Unit after each SM in square brackets. ``Main.'' and
+``GVLMain.'' prefixes are left out where the context is clear.}
+\label{tab:dataflow}\\
+\toprule
+SM & Code unit (task) & Reads & Operation & Writes \\
+\midrule
+\endfirsthead
+\toprule
+SM & Code unit (task) & Reads & Operation & Writes \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+1 & \var{IO_Processing.InletRIO[i]} (Task) &
+  Modbus TCP response \var{TCPResponse.awData[0..25]} &
+  \var{WagoAppPlcModbus.FbMbMasterTcp}, function code 23, reads 26 words from address 0 every
+  60~ms (\var{TCPDelay}). \var{InputMapping} copies the words only while
+  \var{Status.CommOK}; otherwise the last value stays. &
+  \var{GVLMain.Inlet[i].Input.LevelInsidePen.Input.Raw} := word 0;
+  \var{GVLMain.Inlet[i].Input.LevelOutsidePen.Input.Raw} := word 1 [counts] \\
+2 & \var{InletControl[i].InletSensors.LevelInsidePen.ScaleInput} (Task); same for
+  \var{LevelOutsidePen} &
+  \var{Input.Raw}, \var{Config.MinValue}, \var{Config.MaxValue} &
+  750-455 word: value in bits 14..4, status in bits 1..0. \code{Quality := Raw AND 7};
+  \code{Raw := Raw AND 16\#FFF8} (written back to the GVL).\dev{12}
+  If \code{Quality = 0}: $\text{ScaledRaw} = \text{Raw}\cdot(\text{Max}-\text{Min})/32760 +
+  \text{Min}$, \code{BadQuality := FALSE}; else \code{ScaledRaw := Min},
+  \code{BadQuality := TRUE}. &
+  \var{Inlet[i].Input.LevelInsidePen.ScaledRaw} [m], \var{.Status.BadQuality} \\
+3 & \var{...LevelInsidePen.ScaleInput}, \code{LPFilter : SCL.Butterworth} (Task) &
+  masked \var{Raw}, \var{Config.FilterFc}, \var{TaskIntervalUs} &
+  Second-order Butterworth low-pass on the raw counts every cycle, sample time
+  \var{TaskIntervalUs} = 10\,000~µs.\dev{10} If \code{FilterFc > 0} and good quality: output
+  scaled like SM~2; else \code{Filtered := ScaledRaw}. &
+  \var{Inlet[i].Input.LevelInsidePen.Filtered},
+  \var{Inlet[i].Input.LevelOutsidePen.Filtered} [m] \\
+4 & \var{InletControl[i].InletSensors} (Task) &
+  \var{LevelInsidePen.Filtered}, \var{LevelOutsidePen.Filtered}, \var{.Status.BadQuality} &
+  Overheight per inlet $\Delta H_i$ = inside $-$ outside when both are good. For display; not used by
+  LIC01.\dev{4} &
+  \var{Inlet[i].Input.PenOverHeight.Filtered} [m] \\
+5 & \var{PenControl.Sensors} (Task) &
+  \var{Inlet[0..2].Input.LevelInsidePen.Filtered}, \var{LevelOutsidePen.Filtered},
+  \var{.Config.Enable}, \var{.Status.BadQuality} &
+  Mean of the enabled, good inside transmitters and of the enabled, good outside transmitters;
+  \code{AverageOverHeight = AverageLevelInside - AverageLevelOutside}. Bad when either mean has no
+  transmitter. &
+  \var{Pen.Input.AverageLevelInside.Filtered},
+  \var{Pen.Input.AverageOverHeight.Filtered} [m], \var{.Status.BadQuality} \\
+6 & \var{PenControl} body (Task) &
+  \var{Pen.Input.AverageOverHeight.Filtered} &
+  Copy to the process value of LIC01. Quality is not passed on.\dev{5} &
+  \var{Pen.Status.OverHeight} [m] \\
+7 & \var{InletSupervisor} body (Task) &
+  \var{Inlet[i].InletPump.State}, \var{.Status.EnableLevelControl},
+  \var{.Input.MotorVelocity} &
+  Start-up tracking [FD \S3.2.1]: if a pump in level control is in START and none is in REMOTE,
+  \code{LevelTracking := TRUE} and \var{LevelTrackSpeed} = mean actual speed of the starting
+  pumps. &
+  \var{LevelTracking}, \var{LevelTrackSpeed} [rpm] (local) \\
+8 & \var{InletSupervisor.LevelControl} (\var{PIDController}) $\to$ \var{Util.PID} (Task) &
+  SP \var{Pen.Command.LevelSetpoint}, PV \var{Pen.Status.OverHeight},
+  \var{PenConfig.LevelController.*}, \var{LevelController.Command.*}, SM~7 &
+  Enabled when \var{PenStart} and at least one pump in level control.
+  Manual when \code{LevelController.Command.Manual OR LevelTracking}, with
+  \code{ManualOutput = SEL(LevelTracking, Command.ManualOutput, LevelTrackSpeed)}.
+  PI: $Y = K_p\,(e + \tfrac{1}{T_i}\int e\,dt + T_d\,\dot e) + Y_\text{offset}$, limited to
+  \var{MinOutput..MaxOutput}. Manual$\to$auto: \var{RESET} with
+  $Y_\text{offset} = Y_\text{prev} - K_p e$ (bumpless). &
+  \var{GVLMain.LevelController.Output.OUT} [rpm],
+  \var{LevelController.Input.LimitsActive}, \var{.Overflow} \\
+9 & \var{Main} $\to$ \var{InletControl[i]} body (Task) &
+  \var{LevelControllerOut} := \var{GVLMain.LevelController.Output.OUT},
+  \var{InletPump.Status.Manual}, \var{InletPump.Command.Setpoint} &
+  \code{InletPumpSpeedSetpoint := Command.Setpoint} in manual, \var{LevelControllerOut} in auto.
+  One setpoint for all pumps in auto [FD \S3.2.2]. &
+  \var{InletPumpSpeedSetpoint} [rpm] (local) \\
+10 & \var{InletControl[i].InletPumpControl} (Task) &
+  \var{AutoSpeedSetpoint} (= SM~9), \var{InletPump.State}, \var{InletPump.Input.MotorVelocity} &
+  Per state (Table~\ref{tab:states}): REMOTE sends the setpoint; AVAILABLE, START and HOLD send the
+  actual speed; the other states 0. Body: \code{InternalCommand.VelocitySetpoint :=
+  Output.VelocitySetpoint}. Also sets \var{Status.EnableLevelControl}, \var{Status.ActualSpeed}. &
+  \var{Inlet[i].InletPump.Output.VelocitySetpoint},
+  \var{Inlet[i].InletPump.InternalCommand.VelocitySetpoint} [rpm] \\
+11 & \var{FramoDataProcessing} (OPC\_Processing) &
+  \var{Inlet[i].InletPump.InternalCommand.VelocitySetpoint}; \var{Framo_n.*} &
+  Out: \code{Framo\_n.SpeedSetpoint.Value := VelocitySetpoint} (REAL$\to$LREAL). In:
+  \code{InletPump.Input.MotorVelocity := LREAL\_TO\_REAL(Framo\_n.MotorVelocity.Value)}, alarms,
+  heartbeat, state (Table~\ref{tab:startflow}, F). &
+  \var{Framo_n.SpeedSetpoint.Value} [rpm]; \var{Inlet[i].InletPump.Input.*},
+  \var{Inlet[i].InletPump.State} \\
+12 & \var{Datasources_PRG} (DatasourcesTask) &
+  data source variables \var{Framo_n} &
+  OPC UA client: writes \var{SpeedSetpoint}, \var{Start}, \var{Stop}, \var{Reset} to the Framo
+  controller's nodes (\var{VelocitySetpoint} etc.\ in [FD Tabell~6]) and reads its variables. &
+  Framo controller $n$ \\
+\end{longtable}
+\end{landscape}
+
+% ---------------------------------------------------------------------------------------------
+\section{Deviations and open issues}
+\label{sec:dev}
+
+Found while tracing the dataflow and comparing it with [FD]. The marks \dev{n} in the tables refer
+to this list.
+
+\begin{longtable}{@{}lP{66mm}P{80mm}@{}}
+\toprule
+& Finding & Consequence / suggestion \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+D1 & \textbf{Heartbeat not wired.} \var{InletControl.Heartbeat} watches the local
+  \var{HeartbeatToggle}, which is never written; \var{FramoDataProcessing} writes
+  \var{InletPump.Input.HeartbeatToggle}. [FD \S3.2.1] &
+  \var{HeartbeatTimeout} is TRUE after 1~s and stays TRUE: the communication alarm is
+  permanent and a real link loss is not detected. Pass \var{InletPump.Input.HeartbeatToggle}. \\
+D2 & \var{DriveError} alarm writes \var{InletPump.Alarm.DriveNotInRemote}. &
+  Drive error shows as ``not in remote''; \var{Alarm.DriveError} is never set. \\
+D3 & \textbf{HOLD.} [FD Tabell~5]: on heartbeat loss the LIC01 output shall freeze and, when the
+  link is back, start from the actual pump speed. Oxygenation in that line shall stop. &
+  Not implemented. A pump in HOLD leaves level control (D1 must be fixed first). \\
+D4 & \textbf{Process value.} [FD \S3.2.2]: mean of the per-inlet $\Delta H_i$ of the active
+  pairs. Code: mean of all good inside minus mean of all good outside transmitters. &
+  The same when the same inlets are active on both sides; different when one transmitter of a pair
+  is bad. Decide which is wanted. \\
+D5 & LIC01 does not check \var{Pen.Input.AverageOverHeight.Status.BadQuality}. &
+  With all transmitters bad the PV is $0 - 0 = 0$~m and LIC01 drives the pumps to
+  \var{MaxOutput}. Freeze the output (manual) when the PV is bad. \\
+D6 & [FD Tabell~8]: one parameter set per number of running pumps. & One set only (known, deferred). \\
+D7 & [FD Tabell~7]: alarm on speed deviation in REMOTE. & Not implemented. \\
+D8 & [FD Tabell~7]: start alarm if the pump does not report START within a preset time after the
+  start command. & Code measures the time \emph{in} START (\var{StartupTransitionTimer}), so a pump
+  that never leaves AVAILABLE gives no alarm. \\
+D9 & \var{ENUM.InletPumpState} has \code{Available := 0}, and \var{FramoDataProcessing} only
+  writes the state when one of the flags is TRUE. &
+  With no OPC UA data the PLC sees AVAILABLE and allows \var{Start}. Check the data source
+  connection and set UNAVAILABLE when it is down. \\
+D10 & \var{AnalogSensor.TaskIntervalUs} is a constant 10\,000~µs. The earlier version read the task
+  interval at run time (\var{CmpIecTask}). &
+  If \var{Task} does not run at 10~ms, the cut-off frequency is wrong by the ratio. Check the
+  task interval, or restore the run-time read. \\
+D11 & \var{ConfigValues}: \code{PenConfig.LevelController.Ti := 600}, the [FD] start value. The
+  site test used 60~s [DES \S7]. & Applies on a fresh download only; check the retained value. \\
+D12 & \var{AnalogSensor.Input} is \var{VAR_IN_OUT}; \var{ScaleInput} writes the masked word back. &
+  \var{Input.Raw} on the HMI never shows the status bits. Mask a local copy. \\
+D13 & \var{Pen.Command.LevelSetpoint} is not retained. [FD]: setpoint from the operating mode of
+  the outlet valve (HOLD). & After a restart the setpoint is 0~m. \\
+D14 & \var{PRG.Controllers} (LIC01, oxygen and oxy pump PIDs) is not called by any task. &
+  Dead code with the same output variables as \var{InletSupervisor}; remove it. \\
+D15 & \var{InletRIO.InputMapping}: \code{MainCircuitBreakerTripped := InputData[2].2},
+  \code{BackupPowerOn := InputData[3].3}. Words 2 and 3 are analog (pressures). &
+  Probably \var{InputData[4].2} and \var{InputData[4].3}. \\
+\end{longtable}
+
+\end{document}
