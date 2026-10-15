@@ -504,9 +504,10 @@ pump; while starting, in pump manual or with a bad pressure, the pump runs at it
 valve for the line's share; its output reaches the valve at most 0--100\,\% in 2\,s
 (\texttt{ValveRampTime}), a rate limit in the PLC rather than in the valve. The valve output is held
 at 4\,mA (closed) otherwise, so it never opens without the pump running. The ATV320 is driven over
-Modbus TCP on the second channel of its line's InletRIO master (\texttt{InletRIO.DriveChannel}, its
-own connection since the drive has its own IP): CMD/LFR written, ETA/RFR/LCR/THD/OPR read, DRIVECOM
-state machine in \texttt{OxyPumpATV320}.
+Modbus TCP from its line's \texttt{InletRIO}, which runs two ScaleAQ Common Library masters
+(\texttt{SCL.sModbusMasterTCP}): one for the RIO and one for the drive, which has its own IP. The drive
+master has two channels: FC23 every 100\,ms (CMD/LFR written, ETA/RFR/LCR/THD/OPR read) and the last
+fault every second. The DRIVECOM state machine is in \texttt{OxyPumpATV320}.
 
 \textbf{Start values} (\texttt{ConfigValues}, to be tuned at commissioning): OIC01 $K_c = 50$
 (kg/h)/(mg/L), $T_i = 1800$\,s (pen time constant about 44\,min, about 0.024\,mg/L per kg/h);

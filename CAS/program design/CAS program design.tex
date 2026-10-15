@@ -610,10 +610,10 @@ SM & Code unit (task) & Reads & Operation & Writes \\
 \bottomrule
 \endfoot
 1 & \var{IO_Processing.InletRIO[i]} (Task) &
-  Modbus TCP response \var{TCPResponse.awData[0..25]} &
-  \var{WagoAppPlcModbus.FbMbMasterTcp}, function code 23, reads 26 words from address 0 every
-  60~ms (\var{TCPDelay}). \var{InputMapping} copies the words only while
-  \var{Status.CommOK}; otherwise the last value stays. &
+  RIO read buffer \var{RioIn[0..25]} &
+  \var{SCL.sModbusMasterTCP} (ScaleAQ Common Library), channel 0: function code 23 every 100~ms,
+  unit 1, reads 26 words from address 0 (writes 21 from \var{OutputMapping}). \var{InputMapping}
+  copies the words only while \var{Status.CommOK} (\var{comOk}); otherwise the last value stays. &
   \var{GVLMain.Inlet[i].Input.LevelInsidePen.Input.Raw} := word 0;
   \var{GVLMain.Inlet[i].Input.LevelOutsidePen.Input.Raw} := word 1 [counts] \\
 2 & \var{InletControl[i].InletSensors.LevelInsidePen.ScaleInput} (Task); same for
@@ -818,13 +818,14 @@ O7 & \var{OxyControl[i].PressureControl} (PIC) &
   PI to the pump speed, \var{MinSpeed_Hz..MaxSpeed_Hz}. Preset speed while starting, in pump
   manual (operator speed), with \var{PressureController.Enabled} off or a bad pressure. &
   speed setpoint [Hz] \\
-O8 & \var{OxyControl[i].Drive} (\var{OxyPumpATV320}); transport \var{IO_Processing.InletRIO[i].DriveChannel} &
+O8 & \var{OxyControl[i].Drive} (\var{OxyPumpATV320}); transport \var{IO_Processing.InletRIO[i].DriveMaster} &
   Run (O9), speed, \var{OxyPump.Command.Reset}; \var{InletRIOConfig[i].DriveIP}, \var{DrivePort},
   \var{DriveUnitId} &
   DRIVECOM in \var{OxyPumpATV320}: 0x0006, 0x0007, 0x000F to run, 0x0007 to stop, 0x0080 to reset a
-  fault; pump state from ETA and speed. Transport on the InletRIO's second Modbus TCP channel (its own
-  connection, the drive has its own IP), every 100 ms one FC23: write CMD 8501, LFR 8502 (0.1 Hz);
-  read 3201--3211 (ETA, RFR, LCR, THD, OPR), every 10th request LFT 7121. &
+  fault; pump state from ETA and speed. Transport: \var{InletRIO[i]}'s second
+  \var{SCL.sModbusMasterTCP} (its own connection, the drive has its own IP), channel 0 FC23 every
+  100 ms: write CMD 8501, LFR 8502 (0.1 Hz), read 3201--3211 (ETA, RFR, LCR, THD, OPR); channel 1
+  FC3 every 1 s: LFT 7121. &
   \var{OxyPump.Input.*}, \var{OxyPump.State}, \var{OxyPump.Status.CommunicationOK} \\
 O9 & \var{OxyControl[i]} body, \var{.OxyPumpControl} &
   \var{Command.EnableOxyControl}, \var{InletPermit}, \var{OxyPump.State}, \var{.Status.Manual} &
