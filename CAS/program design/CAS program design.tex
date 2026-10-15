@@ -385,7 +385,7 @@ Data sources \var{Framo_1..3} (DatasourcesManager) & per project & S &
 \var{Inlet[i].Input.PenOverHeight.Config.FilterFc} & 0.05~Hz & L &
   Cut-off of the pair's Butterworth2 low-pass; 0 turns it off. \\
 \var{PenConfig.LevelController.Kp} & 450~rpm/m & L & Gain of LIC01. \\
-\var{PenConfig.LevelController.Ti} & 600~s\dev{11} & L & Integral time. \\
+\var{PenConfig.LevelController.Ti} & 60~s\dev{11} & L & Integral time. \\
 \var{PenConfig.LevelController.Td} & 0~s & L & Derivative time (0 = PI). \\
 \var{PenConfig.LevelController.MinOutput}, \var{.MaxOutput} & 40, 130~rpm & L &
   Speed range of the pumps [FD Tabell~8]; also the PID's output limits. \\
@@ -411,7 +411,7 @@ the order.
 \textbf{Automatic start of the pen (normal operation).}
 \begin{enumerate}
   \item Put each pump that shall run in auto: \var{Inlet[i].InletPump.Command.Auto} (default: auto).
-  \item Set the level setpoint \var{Pen.Command.LevelSetpoint} [m].\dev{13}
+  \item Set the level setpoint \var{Pen.Command.LevelSetpoint} [m]; it is retained.\dev{13}
   \item Leave LIC01 in auto (\var{LevelController.Command.Manual} = FALSE, default).
   \item Give \var{Pen.Command.Start}. Every pump in auto gets \var{Start}; while a pump is in START,
         LIC01 follows its speed, and when the first pump reaches REMOTE LIC01 takes over
@@ -762,17 +762,22 @@ D10 & \var{AnalogSensor.TaskIntervalUs} was a constant 10\,000~µs. &
   \var{AnalogSensor} and \var{Butterworth2} read it once; fallback 10~ms (\var{AnalogSensor}) or the
   measured call interval (\var{Butterworth2}) if the runtime gives none (event task). All filter
   instances are called from \var{Main} in \var{Task}. \\
-D11 & \var{ConfigValues}: \code{PenConfig.LevelController.Ti := 600}, the [FD] start value. The
-  site test used 60~s [DES \S7]. & Applies on a fresh download only; check the retained value. \\
-D12 & \var{AnalogSensor.Input} is \var{VAR_IN_OUT}; \var{ScaleInput} writes the masked word back. &
-  \var{Input.Raw} on the HMI never shows the status bits. Mask a local copy. \\
-D13 & \var{Pen.Command.LevelSetpoint} is not retained. [FD]: setpoint from the operating mode of
-  the outlet valve (HOLD). & After a restart the setpoint is 0~m. \\
-D14 & \var{PRG.Controllers} (LIC01, oxygen and oxy pump PIDs) is not called by any task. &
-  Dead code with the same output variables as \var{InletSupervisor}; remove it. \\
-D15 & \var{InletRIO.InputMapping}: \code{MainCircuitBreakerTripped := InputData[2].2},
+D11 & \var{ConfigValues} had \code{PenConfig.LevelController.Ti := 600}, the [FD] start value. The
+  site test used 60~s [DES \S7]. & \textbf{Fixed} 2026-10-15 (in review): \code{Ti := 60} in
+  \var{PFC200_Sim} \var{ConfigValues}. Applies on a fresh download; check the retained value. \\
+D12 & \var{AnalogSensor.Input} was \var{VAR_IN_OUT}; \var{ScaleInput} wrote the masked word back. &
+  \textbf{Fixed} 2026-10-15 (in review): \var{ScaleInput} takes \var{Input} as a \var{VAR_INPUT}
+  copy; \var{Input.Raw} keeps the status bits for the HMI. \\
+D13 & \var{Pen.Command.LevelSetpoint} was not retained. [FD]: setpoint from the operating mode of
+  the outlet valve (HOLD). & \textbf{Fixed} 2026-10-15 (in review): \var{GVLRetain.LevelSetpoint},
+  kept in step by \var{Main.UpdateRetain}; default 0.06~m. \\
+D14 & \var{PRG.Controllers} (LIC01, oxygen and oxy pump PIDs) was not called by \var{PFC200_Sim}. &
+  \textbf{Removed} 2026-10-15 (in review). The legacy application \var{ControlWinSim} still has a
+  \var{Controllers} task for it, to be updated. \\
+D15 & \var{InletRIO.InputMapping} had \code{MainCircuitBreakerTripped := InputData[2].2},
   \code{BackupPowerOn := InputData[3].3}. Words 2 and 3 are analog (pressures). &
-  Probably \var{InputData[4].2} and \var{InputData[4].3}. \\
+  \textbf{Fixed} 2026-10-15 (in review): \var{InputData[4].2} and \var{InputData[4].3}, next to the
+  other word-4 power bits (as the simulator). To confirm against the cabinet drawings. \\
 \end{longtable}
 
 \end{document}
