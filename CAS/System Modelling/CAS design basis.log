@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.1.30)  13 OCT 2026 12:27
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.1.30)  15 OCT 2026 14:49
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -64,8 +64,7 @@ y
 Package: inputenc 2024/02/08 v1.3d Input encoding file
 \inpenc@prehook=\toks19
 \inpenc@posthook=\toks20
-)
-(C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\lmodern.sty
+) (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\lmodern.sty
 Package: lmodern 2015/05/01 v1.6.1 Latin Modern Fonts
 LaTeX Font Info:    Overwriting symbol font `operators' in version `normal'
 (Font)                  OT1/cmr/m/n --> OT1/lmr/m/n on input line 22.
@@ -104,7 +103,6 @@ LaTeX Font Info:    Overwriting math alphabet `\mathtt' in version `bold'
 sty
 Package: amsmath 2025/07/09 v2.17z AMS math features
 \@mathmargin=\skip51
-
 For additional information on amsmath, use the `?' option.
 
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amstext.
@@ -701,7 +699,7 @@ Package hyperref Info: Backreferencing OFF on input line 4215.
 Package hyperref Info: Implicit mode ON; LaTeX internals redefined.
 Package hyperref Info: Bookmarks ON on input line 4462.
 \c@Hy@tempcnt=\count344
- (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/url\url.sty
+(C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/url\url.sty
 \Urlmuskip=\muskip18
 Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
 )
@@ -772,7 +770,6 @@ Package translations Info: No language package found. I am going to use `englis
 h' as default language. on input line 33.
 LaTeX Font Info:    Trying to load font information for T1+lmr on input line 33
 .
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\t1lmr.fd
 File: t1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -801,7 +798,6 @@ LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 33.
 LaTeX Font Info:    ... okay on input line 33.
 LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 33.
 LaTeX Font Info:    ... okay on input line 33.
-
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
 *geometry* verbose mode - [ preamble ] result:
@@ -871,31 +867,27 @@ f-sys.cfg
 File: epstopdf-sys.cfg 2021/03/18 v2.0 Configuration of epstopdf for MiKTeX
 ))
 Package hyperref Info: Link coloring OFF on input line 33.
- (CAS design basis.out) (CAS design basis.out)
+(CAS design basis.out) (CAS design basis.out)
 \@outlinefile=\write4
 \openout4 = `"CAS design basis.out"'.
 
 LaTeX Font Info:    Trying to load font information for OT1+lmr on input line 3
 5.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\ot1lmr.fd
 File: ot1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    Trying to load font information for OML+lmm on input line 3
 5.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\omllmm.fd
 File: omllmm.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    Trying to load font information for OMS+lmsy on input line 
 35.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\omslmsy.fd
 File: omslmsy.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    Trying to load font information for OMX+lmex on input line 
 35.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\omxlmex.fd
 File: omxlmex.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -907,107 +899,119 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <6> on input line 35.
 LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 4
 3.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <10.95> on input line 59.
-
 [1
 
 {C:/Users/sigurd.brekk/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}{C:/Use
-rs/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-ec.enc}]
-[2{C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-rm
-.enc}{C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm
--mathit.enc}]
+rs/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-ec.enc}] [2
+{C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-rm.e
+nc}{C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-m
+athit.enc}]
 LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 1
 05.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <10> on input line 123.
+(Font)              <10> on input line 127.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <7> on input line 123.
+(Font)              <7> on input line 127.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <5> on input line 123.
-
+(Font)              <5> on input line 127.
 (generated/params_pen.tex)
-Underfull \hbox (badness 10000) in paragraph at lines 16--159
+Underfull \hbox (badness 10000) in paragraph at lines 16--163
 
  []
 
 [3{C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-ts
 1.enc}] (generated/params_pumps.tex)
-Underfull \hbox (badness 10000) in paragraph at lines 17--162
+Underfull \hbox (badness 10000) in paragraph at lines 17--166
 
  []
 
 [4{C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-ma
 thex.enc}] (generated/modes.tex) [5{C:/Users/sigurd.brekk/AppData/Local/Program
 s/MiKTeX/fonts/enc/dvips/lm/lm-mathsy.enc}] (generated/params_water.tex)
-Underfull \hbox (badness 10000) in paragraph at lines 11--179
+Underfull \hbox (badness 10000) in paragraph at lines 11--183
 
  []
 
 (generated/params_oxygen.tex)
-Underfull \hbox (badness 10000) in paragraph at lines 18--181
+Underfull \hbox (badness 10000) in paragraph at lines 18--185
 
  []
 
 [6] (generated/params_fish.tex)
-Underfull \hbox (badness 10000) in paragraph at lines 13--188
+Underfull \hbox (badness 10000) in paragraph at lines 13--192
 
  []
 
 (generated/params_instruments.tex)
-Underfull \hbox (badness 10000) in paragraph at lines 16--191
+Underfull \hbox (badness 10000) in paragraph at lines 16--195
 
  []
 
 [7] [8]
 Overfull \vbox (473.54086pt too high) has occurred while \output is active []
 
+[9] [10] (generated/operating_points.tex) [11] (generated/coefficients.tex) [12
+] (generated/poles.tex) (generated/discrete_state.tex [13]) (generated/discrete
+_io.tex) [14] (generated/params_control.tex) [15] (generated/lic_margins.tex) (
+generated/lic_options.tex) [16]
+Overfull \hbox (10.99352pt too wide) in paragraph at lines 451--456
+[]\T1/lmr/bx/n/10.95 Level mea-sure-ment lost. \T1/lmr/m/n/10.95 With no valid 
+level pair (Sec-tion []7.3[]), \T1/lmtt/m/n/10.95 Pen.Status.LevelControlOK
+ []
 
-[9] [10] (generated/operating_points.tex) [11] (generated/coefficients.tex)
-[12] (generated/poles.tex) (generated/discrete_state.tex [13])
-(generated/discrete_io.tex) [14] (generated/params_control.tex) [15]
-(generated/lic_margins.tex) (generated/lic_options.tex) [16] [17] [18] [19]
-(generated/params_framo.tex)
-Underfull \hbox (badness 10000) in paragraph at lines 12--613
+
+Overfull \hbox (153.87074pt too wide) in paragraph at lines 451--456
+\T1/lmr/m/n/10.95 is FALSE, the alarm \T1/lmtt/m/n/10.95 LevelMeasurementLost \
+T1/lmr/m/n/10.95 is raised and LIC01 runs in man-ual at \T1/lmtt/m/n/10.95 PenC
+onfig.LevelController.SafeOutput
+ []
+
+[17] [18]
+Overfull \hbox (45.06233pt too wide) in paragraph at lines 551--556
+[]\T1/lmr/m/n/10.95 The sam-ple time $\OML/lmm/m/it/10.95 T$ \T1/lmr/m/n/10.95 
+is the cy-cle time of the call-ing task, read once from the run-time (\T1/lmtt/
+m/n/10.95 GetTaskIntervalUs\T1/lmr/m/n/10.95 ,
+ []
+
+[19] [20] (generated/params_framo.tex [21])
+Underfull \hbox (badness 10000) in paragraph at lines 13--697
 
  []
 
-[20] (generated/capacity.tex)
-Overfull \hbox (1.42465pt too wide) in paragraph at lines 2--621
+(generated/params_oxypump.tex)
+Underfull \hbox (badness 10000) in paragraph at lines 14--709
+
+ []
+
+[22] (generated/capacity.tex)
+Overfull \hbox (1.42465pt too wide) in paragraph at lines 2--717
  [] 
  []
 
-[21] [22] [23]
-Overfull \hbox (17.25667pt too wide) in paragraph at lines 731--733
-[]\T1/lmr/bx/n/10.95 Over-height \T1/lmr/m/n/10.95 (set-tled). Heim-dall com-pu
-tes it from the scaled, fil-tered lev-els (\T1/lmtt/m/n/10.95 PenInsideSensors\
-T1/lmr/m/n/10.95 );
- []
-
-[24] [25] (CAS design basis.aux)
+[23] [24] [25] [26] [27] (CAS design basis.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2025-12-29>
  ***********
 Package rerunfilecheck Info: File `"CAS design basis".out' has not changed.
-(rerunfilecheck)             Checksum: 027FDA9995196AB5BE9EC570F10C70F2;4263.
+(rerunfilecheck)             Checksum: 475C84246A5EF8A92DF1FDC6501BCF6A;4460.
  ) 
 Here is how much of TeX's memory you used:
- 25545 strings out of 467871
- 535555 string characters out of 5414988
- 906685 words of memory out of 5000000
- 53860 multiletter control sequences out of 15000+600000
+ 25561 strings out of 467871
+ 535880 string characters out of 5414988
+ 906790 words of memory out of 5000000
+ 53866 multiletter control sequences out of 15000+600000
  713058 words of font info for 86 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 102i,14n,107p,1058b,1154s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 102i,14n,107p,1058b,1152s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lm
 bx10.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/publi
 c/lm/lmbx12.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type
@@ -1031,9 +1035,9 @@ fonts/type1/public/lm/lmsy10.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/
 MiKTeX/fonts/type1/public/lm/lmsy6.pfb><C:/Users/sigurd.brekk/AppData/Local/Pro
 grams/MiKTeX/fonts/type1/public/lm/lmsy8.pfb><C:/Users/sigurd.brekk/AppData/Loc
 al/Programs/MiKTeX/fonts/type1/public/lm/lmtt10.pfb>
-Output written on "CAS design basis.pdf" (25 pages, 506779 bytes).
+Output written on "CAS design basis.pdf" (27 pages, 524684 bytes).
 PDF statistics:
- 465 PDF objects out of 1000 (max. 8388607)
- 114 named destinations out of 1000 (max. 500000)
- 245 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 493 PDF objects out of 1000 (max. 8388607)
+ 121 named destinations out of 1000 (max. 500000)
+ 253 words of extra memory for PDF output out of 10000 (max. 10000000)
 

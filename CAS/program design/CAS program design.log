@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.1.30)  15 OCT 2026 09:25
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.1.30)  15 OCT 2026 14:48
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -64,8 +64,7 @@ y
 Package: inputenc 2024/02/08 v1.3d Input encoding file
 \inpenc@prehook=\toks19
 \inpenc@posthook=\toks20
-)
-(C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\lmodern.sty
+) (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\lmodern.sty
 Package: lmodern 2015/05/01 v1.6.1 Latin Modern Fonts
 LaTeX Font Info:    Overwriting symbol font `operators' in version `normal'
 (Font)                  OT1/cmr/m/n --> OT1/lmr/m/n on input line 22.
@@ -104,7 +103,6 @@ LaTeX Font Info:    Overwriting math alphabet `\mathtt' in version `bold'
 sty
 Package: amsmath 2025/07/09 v2.17z AMS math features
 \@mathmargin=\skip51
-
 For additional information on amsmath, use the `?' option.
 
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amstext.
@@ -198,7 +196,6 @@ Package: booktabs 2020/01/12 v1.61803398 Publication quality tables
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/tools\tabularx.s
 ty
 Package: tabularx 2023/12/11 v2.12a `tabularx' package (DPC)
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/tools\array.sty
 Package: array 2025/09/25 v2.6n Tabular extension package (FMi)
 \col@sep=\dimen179
@@ -723,7 +720,7 @@ Package hyperref Info: Backreferencing OFF on input line 4215.
 Package hyperref Info: Implicit mode ON; LaTeX internals redefined.
 Package hyperref Info: Bookmarks ON on input line 4462.
 \c@Hy@tempcnt=\count336
- (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/url\url.sty
+(C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/url\url.sty
 \Urlmuskip=\muskip18
 Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
 )
@@ -802,7 +799,6 @@ File: tikzlibrarybackgrounds.code.tex 2025-08-29 v3.1.11a (3.1.11a)
 )
 LaTeX Font Info:    Trying to load font information for T1+lmr on input line 56
 .
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\t1lmr.fd
 File: t1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -831,7 +827,6 @@ LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 56.
 LaTeX Font Info:    ... okay on input line 56.
 LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 56.
 LaTeX Font Info:    ... okay on input line 56.
-
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
 *geometry* verbose mode - [ preamble ] result:
@@ -896,31 +891,27 @@ Package caption Info: Begin \AtBeginDocument code.
 Package caption Info: hyperref package is loaded.
 Package caption Info: End \AtBeginDocument code.
 Package hyperref Info: Link coloring OFF on input line 56.
- (CAS program design.out) (CAS program design.out)
+(CAS program design.out) (CAS program design.out)
 \@outlinefile=\write4
 \openout4 = `"CAS program design.out"'.
 
 LaTeX Font Info:    Trying to load font information for OT1+lmr on input line 5
 8.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\ot1lmr.fd
 File: ot1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    Trying to load font information for OML+lmm on input line 5
 8.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\omllmm.fd
 File: omllmm.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    Trying to load font information for OMS+lmsy on input line 
 58.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\omslmsy.fd
 File: omslmsy.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    Trying to load font information for OMX+lmex on input line 
 58.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\omxlmex.fd
 File: omxlmex.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -932,7 +923,6 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <6> on input line 58.
 LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 7
 3.
-
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -949,8 +939,7 @@ LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 9
 8.
 (C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex/latex/lm\ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
-)
-[1
+) [1
 
 {C:/Users/sigurd.brekk/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}{C:/Use
 rs/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-ec.enc}]
@@ -985,52 +974,120 @@ Overfull \hbox (1.68864pt too wide) in paragraph at lines 309--309
  []
 
 
-Overfull \hbox (12.18861pt too wide) in paragraph at lines 347--347
+Overfull \hbox (12.18861pt too wide) in paragraph at lines 349--349
 []|\T1/lmtt/m/n/10 Inlet[i].InletPump.State 
  []
 
-[4] [5] [6] [7] [8]
-Overfull \hbox (5.07413pt too wide) in paragraph at lines 563--563
+[4] [5] [6] [7] [8] [9]
+Overfull \hbox (5.07413pt too wide) in paragraph at lines 586--586
  []\T1/lmr/m/n/9 .InletPumpControl 
  []
 
 
 Package caption Warning: The option `hypcap=true' will be ignored for this
-(caption)                particular \caption on input line 567.
+(caption)                particular \caption on input line 591.
 See the caption package documentation for explanation.
-
-[9
-
-]
-Overfull \hbox (5.85562pt too wide) in paragraph at lines 659--659
-[]|$\T1/lmtt/m/n/10 FramoDataProcessing$ 
- []
 
 [10
 
+]
+Overfull \hbox (5.85562pt too wide) in paragraph at lines 689--689
+[]|$\T1/lmtt/m/n/10 FramoDataProcessing$ 
+ []
+
+[11
+
 
 {C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-math
-sy.enc}] [11{C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvip
-s/lm/lm-mathex.enc}]
-ignored error: Infinite glue shrinkage found in box being split [12
+sy.enc}] [12{C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/enc/dvip
+s/lm/lm-mathex.enc}] [13]
+Overfull \hbox (4.14966pt too wide) in paragraph at lines 762--762
+ []\T1/lmr/m/n/10 OxyPumpATV320 
+ []
 
-] [13]
-(CAS program design.aux)
+
+Overfull \hbox (29.77504pt too wide) in paragraph at lines 762--762
+ []\T1/lmr/m/n/9 Status.EnableOxyControl 
+ []
+
+
+Package caption Warning: The option `hypcap=true' will be ignored for this
+(caption)                particular \caption on input line 764.
+See the caption package documentation for explanation.
+
+[14
+
+
+]
+Overfull \hbox (7.73454pt too wide) in alignment at lines 771--776
+ [] [] [] [] [] 
+ []
+
+
+Overfull \hbox (7.73454pt too wide) in alignment at lines 776--780
+ [] [] [] [] [] 
+ []
+
+
+Overfull \hbox (7.73454pt too wide) in alignment at lines 780--782
+ [] [] [] [] [] 
+ []
+
+
+Overfull \hbox (7.73454pt too wide) in alignment at lines 782--844
+ [] [] [] [] [] 
+ []
+
+[15
+
+
+] [16]
+Overfull \hbox (24.73509pt too wide) in paragraph at lines 874--878
+[]\T1/lmr/m/n/10.95 Commands: $\T1/lmtt/m/n/10.95 OxySystem[i ] .Command . Enab
+leOxyControl$ \T1/lmr/m/n/10.95 starts and stops line $\OML/lmm/m/it/10.95 i$ \
+T1/lmr/m/n/10.95 (group start); $\T1/lmtt/m/n/10.95 OxySystem[i ]
+ []
+
+
+Overfull \hbox (21.84477pt too wide) in paragraph at lines 874--878
+\T1/lmtt/m/n/10.95 .OxyPump . Command . Manual / Auto / Start / Stop / Reset / 
+Setpoint$ \T1/lmr/m/n/10.95 run the oxy pump by hand; $\T1/lmtt/m/n/10.95 OxySy
+stem[i ]
+ []
+
+
+Overfull \hbox (17.00722pt too wide) in paragraph at lines 881--888
+\T1/lmr/m/n/10.95 (THD 3209) into $\T1/lmtt/m/n/10.95 OxyPump . Input$\T1/lmr/m
+/n/10.95 ; $\T1/lmtt/m/n/10.95 OxyControl . OxyAlarmHandling$ \T1/lmr/m/n/10.95
+ maps them to $\T1/lmtt/m/n/10.95 OxySystem[i ] .OxyPump .
+ []
+
+
+Overfull \hbox (1.24808pt too wide) in paragraph at lines 909--909
+[]|$\T1/lmtt/m/n/10 DriveCommunicationError$|  
+ []
+
+[17
+
+]
+ignored error: Infinite glue shrinkage found in box being split [18]
+ignored error: Infinite glue shrinkage found in box being split [19] [20] (CAS 
+program design.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2025-12-29>
  ***********
 Package rerunfilecheck Info: File `"CAS program design".out' has not changed.
-(rerunfilecheck)             Checksum: 276D6E3853B5EC31665DCA6DFDB08E54;1907.
+(rerunfilecheck)             Checksum: A26256652C2A5C407EC44271FB0674CB;2019.
  ) 
 Here is how much of TeX's memory you used:
- 23220 strings out of 467871
- 440537 string characters out of 5414988
- 844090 words of memory out of 5000000
- 51635 multiletter control sequences out of 15000+600000
- 716582 words of font info for 92 fonts, out of 8000000 for 9000
+ 23349 strings out of 467871
+ 442180 string characters out of 5414988
+ 841782 words of memory out of 5000000
+ 51750 multiletter control sequences out of 15000+600000
+ 716217 words of font info for 91 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 89i,14n,95p,451b,948s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 89i,14n,95p,553b,948s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lm
 bx10.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type1/publi
 c/lm/lmbx12.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/MiKTeX/fonts/type
@@ -1056,9 +1113,9 @@ rams/MiKTeX/fonts/type1/public/lm/lmsy10.pfb><C:/Users/sigurd.brekk/AppData/Loc
 al/Programs/MiKTeX/fonts/type1/public/lm/lmtt10.pfb><C:/Users/sigurd.brekk/AppD
 ata/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt8.pfb><C:/Users/sigurd.brek
 k/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt9.pfb>
-Output written on "CAS program design.pdf" (13 pages, 508388 bytes).
+Output written on "CAS program design.pdf" (20 pages, 535350 bytes).
 PDF statistics:
- 314 PDF objects out of 1000 (max. 8388607)
- 52 named destinations out of 1000 (max. 500000)
- 109 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 361 PDF objects out of 1000 (max. 8388607)
+ 66 named destinations out of 1000 (max. 500000)
+ 117 words of extra memory for PDF output out of 10000 (max. 10000000)
 

@@ -805,8 +805,11 @@ O4 & \var{OxyControl[i].FlowControl} (FIC) &
   \var{OxyValve.Command.AutoSetpoint} [\%], \var{Status.InAuto} \\
 O5 & \var{OxyControl[i].OxyValveControl} (\var{AnalogValve}) &
   \var{OxyValve.Command}, \var{Status.OxygenationActive} &
-  Setpoint (auto or manual) to 0--65535 for the 750-563 (4--20 mA). Forced to 0 (closed) unless
-  oxygenation is active. &
+  Setpoint (auto or manual) to 0--65535 for the 750-563 (4--20 mA). Forced to 0 (closed), also in
+  valve manual, unless oxygenation is active and \var{Status.ValvePermit}: the oxy pump running and
+  the pressure after it (good) above \var{Config.ValveOpenPressure} (3.0 bar). Active without the
+  permit: alarm \var{OxySystem[i].Alarm.ValvePressureLow}; the FIC then tracks 0 and the line is not
+  in auto (O3 makes up for it). &
   \var{OxySystem[i].OxyValve.Output.RawPosition} $\to$ CommonRIO word 20+i \\
 O6 & \var{OxyControl[i].OxySensors} &
   InletRIO word 2/3, CommonRIO word 24+i &
@@ -825,7 +828,8 @@ O8 & \var{OxyControl[i].Drive} (\var{OxyPumpATV320}); transport \var{IO_Processi
   fault; pump state from ETA and speed. Transport: \var{InletRIO[i]}'s second
   \var{SCL.sModbusMasterTCP} (its own connection, the drive has its own IP), channel 0 FC23 every
   100 ms: write CMD 8501, LFR 8502 (0.1 Hz), read 3201--3211 (ETA, RFR, LCR, THD, OPR); channel 1
-  FC3 every 1 s: LFT 7121. &
+  FC3 every 1 s: LFT 7121. Alarm conditions decoded into \var{OxyPump.Input} (see
+  table~\ref{tab:oxyalarms}). &
   \var{OxyPump.Input.*}, \var{OxyPump.State}, \var{OxyPump.Status.CommunicationOK} \\
 O9 & \var{OxyControl[i]} body, \var{.OxyPumpControl} &
   \var{Command.EnableOxyControl}, \var{InletPermit}, \var{OxyPump.State}, \var{.Status.Manual} &
@@ -859,6 +863,8 @@ Variable & Default & Meaning \\
 \var{OxyConfig[i].PressureController}, \var{.PressureSetpoint} & $K_p$ 2 Hz/bar, $T_i$ 5 s; 4.0 bar & PIC; \var{Enabled} FALSE runs the preset speed. \\
 \var{OxyConfig[i].FlowController}, \var{.FlowMax} & $K_p$ 0.3 \%/(kg/h), $T_i$ 5 s; 104.2 kg/h & FIC; most flow of the line. \\
 \var{OxyConfig[i].ValveRampTime} & 2 s & FIC output to the valve at most 0--100 \% in this time (0 = no limit). \\
+\var{OxyConfig[i].ValveOpenPressure} & 3.0 bar & The valve may open only with the pump running and the pressure after it above this (same scale as \var{PressureSetpoint}). \\
+\var{OxyConfig[i].OxyPump.DriveThermalWarning_pct} & 100 \% & THD at or above: \var{DriveTemperatureHigh} (the drive trips OHF near 118 \%). \\
 \var{OxyConfig[i].OxyStartupTime}, \var{.OxyShutdownTime} & 10 s, 10 s & Drive start (not turning) and stop (still turning) alarms. \\
 \var{GVLRetain.OxyPumpPressureConfig[i]}, \var{OxynatorOutletPressureConfig[i]}, \var{OxygenFlowConfig[i]} & 0--10 bar, 0--10 bar, 0--150 kg/h & Sensor ranges, filters, quality alarms. \\
 \bottomrule
@@ -869,6 +875,42 @@ Commands: \var{OxySystem[i].Command.EnableOxyControl} starts and stops line $i$ 
 \var{OxySystem[i].OxyPump.Command.Manual/Auto/Start/Stop/Reset/Setpoint} run the oxy pump by hand;
 \var{OxySystem[i].OxyValve.Command.Manual/ManualSetpoint} hold the valve by hand (the line then
 counts as manual in O3); \var{OxyController.Command.Manual/ManualOutput} hold OIC01's total flow.
+
+\subsection*{Oxy pump alarms}
+
+\var{OxyPumpATV320} decodes the drive's state word (ETA 3201), last fault (LFT 7121) and thermal
+state (THD 3209) into \var{OxyPump.Input}; \var{OxyControl.OxyAlarmHandling} maps them to
+\var{OxySystem[i].OxyPump.Alarm}, as \var{InletControl.AlarmHandling} does for the inlet pump: the
+single conditions clear themselves, \var{PumpCommonError} collects them and must be acknowledged, as
+must the start and stop timeouts. All are FALSE without communication, except the communication
+alarm. Fault codes from the ATV320 list (NVE41316); LFT keeps the last fault after a reset, so codes
+count only while the drive is in fault.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Oxy pump (ATV320) alarms, \texttt{OxySystem[i].OxyPump.Alarm}.}
+\label{tab:oxyalarms}
+\begin{tabularx}{\textwidth}{@{}P{42mm}L P{18mm}@{}}
+\toprule
+Alarm & Condition & Ack \\
+\midrule
+\var{DriveCommunicationError} & Drive configured and \var{DriveMaster} not \var{comOk}. & auto \\
+\var{DriveError} & ETA state ``fault''; code in \var{OxyPump.Input.LastFault}. & auto \\
+\var{DriveNotInRemote} & ETA bit 9 = 0: forced local, network commands ignored. & auto \\
+\var{EmergencyStop} & DRIVECOM ``quick stop active''. & auto \\
+\var{DCUndervoltageError} & ETA bit 4 = 0 (no mains to the power part), or fault PHF (21) / USF (22). & auto \\
+\var{MotorTemperatureHigh} & Fault OLF (17), PTFL (49) or OTFL (50). & auto \\
+\var{DriveTemperatureHigh} & THD $\geq$ \var{DriveThermalWarning_pct}, or fault OHF (16) / TJF (54). & auto \\
+\var{DriveWarning} & ETA bit 7: a drive alarm (warning) is active. & auto \\
+\var{PumpCommonError} & Any of the above except \var{DriveWarning}. & operator \\
+\var{StartUpTimeout}, \var{StopTimeout} & Not turning \var{OxyStartupTime} after Run; still turning \var{OxyShutdownTime} after stop. & operator \\
+\var{OxySystem[i].Alarm.ValvePressureLow} & Oxygenation active but no valve permit (pump not running, pressure after it at or below \var{ValveOpenPressure}, or bad): valve held closed. & operator \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\var{PumpStopped}, \var{UPSSupplyError}, \var{EmergencyRunMode}, \var{LowPower} and \var{HighPower}
+in \var{OxyPumpAlarmDUT} are Framo signals with no ATV320 counterpart and stay inactive.
 
 % ---------------------------------------------------------------------------------------------
 \section{Deviations and open issues}

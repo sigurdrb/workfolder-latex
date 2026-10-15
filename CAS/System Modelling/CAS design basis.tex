@@ -502,8 +502,11 @@ pump then starts in auto. PIC41--43 sets the pump speed (20--50\,Hz) for 4.0\,ba
 pump; while starting, in pump manual or with a bad pressure, the pump runs at its preset speed
 (40\,Hz). After the pump has run \texttt{RunDelay} (30\,s), oxygen may be added: FIC41--43 sets the
 valve for the line's share; its output reaches the valve at most 0--100\,\% in 2\,s
-(\texttt{ValveRampTime}), a rate limit in the PLC rather than in the valve. The valve output is held
-at 4\,mA (closed) otherwise, so it never opens without the pump running. The ATV320 is driven over
+(\texttt{ValveRampTime}), a rate limit in the PLC rather than in the valve. The valve may open only
+with the pump running and the pressure after it above 3.0\,bar (\texttt{ValveOpenPressure}, retained);
+otherwise its output is held at 4\,mA (closed), also in valve manual, and alarm
+\texttt{ValvePressureLow} is raised if oxygen was due. The drive's alarms (fault, forced local,
+quick stop, mains, motor and drive temperature, warning) are decoded from ETA, LFT and THD. The ATV320 is driven over
 Modbus TCP from its line's \texttt{InletRIO}, which runs two ScaleAQ Common Library masters
 (\texttt{SCL.sModbusMasterTCP}): one for the RIO and one for the drive, which has its own IP. The drive
 master has two channels: FC23 every 100\,ms (CMD/LFR written, ETA/RFR/LCR/THD/OPR read) and the last
@@ -692,7 +695,7 @@ but static.
 
 \input{generated/params_framo.tex}
 
-\textbf{Oxy pump drives (CasRioSim 2.3.11).} Each inlet station also serves its line's oxy pump
+\textbf{Oxy pump drives (CasRioSim 2.3.12).} Each inlet station also serves its line's oxy pump
 drive, a Schneider ATV320, over Modbus TCP (port 503; 5131--5133 on the test rig), as Heimdall's
 \texttt{OxyPumpATV320} talks to it: DRIVECOM state machine on CMD (8501) and ETA (3201), frequency
 reference LFR (8502) and output frequency RFR (3202) in 0.1\,Hz, ramp $t_\text{ramp}$, and a
@@ -700,7 +703,7 @@ communication fault (CnF) when the PLC stops writing. The station computes the a
 after the pump, $p_0 + \Delta p_\text{pump}(f/f_\text{max})^2$, and after the oxygenator,
 $p_0 + (\Delta p_\text{pump}-\Delta p_\text{ox})(f/f_\text{max})^2$, and writes them to the PLC's
 pressure inputs. Below $f_\text{ox,min}$ no O$_2$ is dissolved on that line. The simulator UI injects
-a drive fault per pump. These curves are not part of the design model:
+per pump a drive fault (OCF, OHF, OLF, USF), a high thermal state, a warning or forced local. These curves are not part of the design model:
 
 \input{generated/params_oxypump.tex}
 

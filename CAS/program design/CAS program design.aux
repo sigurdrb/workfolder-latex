@@ -24,39 +24,55 @@
 \newlabel{fig:std}{{3}{4}{State transition diagram of the Framo inlet pump [FD Tabell~5], [COO \S 7.2.3]. Numbers are the values of \texttt {ENUM.InletPumpState}. Transitions not described in [FD] (e.g.\ from LOCKDOWN after \texttt {Reset} when the pump has stopped) are set by the Framo controller}{figure.caption.5}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces PLC action per pump state (\texttt  {InletControl.InletPumpControl}).}}{5}{table.caption.6}\protected@file@percent }
 \newlabel{tab:states}{{2}{5}{PLC action per pump state (\texttt {InletControl.InletPumpControl})}{table.caption.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Other systems that must be available or running}{5}{subsection.5.2}\protected@file@percent }
-\newlabel{sec:prereq}{{5.2}{5}{Other systems that must be available or running}{subsection.5.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Configuration}{5}{subsection.5.3}\protected@file@percent }
-\newlabel{sec:config}{{5.3}{5}{Configuration}{subsection.5.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Commands}{5}{subsection.5.4}\protected@file@percent }
-\newlabel{sec:commands}{{5.4}{5}{Commands}{subsection.5.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Other systems that must be available or running}{6}{subsection.5.2}\protected@file@percent }
+\newlabel{sec:prereq}{{5.2}{6}{Other systems that must be available or running}{subsection.5.2}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Prerequisites for starting an inlet pump.}}{6}{table.caption.7}\protected@file@percent }
 \newlabel{tab:prereq}{{3}{6}{Prerequisites for starting an inlet pump}{table.caption.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Start command path}{6}{subsection.5.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Configuration}{6}{subsection.5.3}\protected@file@percent }
+\newlabel{sec:config}{{5.3}{6}{Configuration}{subsection.5.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Commands}{6}{subsection.5.4}\protected@file@percent }
+\newlabel{sec:commands}{{5.4}{6}{Commands}{subsection.5.4}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Configuration for the inlet pump function. \emph  {Needed for}: S = pump start, L = level control.}}{7}{table.caption.8}\protected@file@percent }
 \newlabel{tab:config}{{4}{7}{Configuration for the inlet pump function. \emph {Needed for}: S = pump start, L = level control}{table.caption.8}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces FFD of the start command [COO Fig.~7.8]. The manual commands enter at S2.}}{7}{figure.caption.10}\protected@file@percent }
-\newlabel{fig:start}{{4}{7}{FFD of the start command [COO Fig.~7.8]. The manual commands enter at S2}{figure.caption.10}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Commands for the inlet pumps.}}{8}{table.caption.9}\protected@file@percent }
 \newlabel{tab:commands}{{5}{8}{Commands for the inlet pumps}{table.caption.9}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Start command dataflow.}}{8}{table.caption.11}\protected@file@percent }
-\newlabel{tab:startflow}{{6}{8}{Start command dataflow}{table.caption.11}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Dataflow: from level transmitter to pump speed}{9}{section.6}\protected@file@percent }
-\newlabel{sec:dataflow}{{6}{9}{Dataflow: from level transmitter to pump speed}{section.6}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Functional flow diagram of the level loop, one inlet shown [COO Fig.~7.8]. SMs 1--4, 9 and 10 run once per inlet; SMs 5--8 once for the pen. Solid: data flow; dashed: feedback from the pump. Level*Pen stands for LevelInsidePen and LevelOutsidePen. Execution order in Figure~\ref {fig:exec}.}}{9}{figure.5}\protected@file@percent }
-\newlabel{fig:ffd}{{5}{9}{Functional flow diagram of the level loop, one inlet shown [COO Fig.~7.8]. SMs 1--4, 9 and 10 run once per inlet; SMs 5--8 once for the pen. Solid: data flow; dashed: feedback from the pump. Level*Pen stands for LevelInsidePen and LevelOutsidePen. Execution order in Figure~\ref {fig:exec}}{figure.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Start command path}{8}{subsection.5.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces FFD of the start command [COO Fig.~7.8]. The manual commands enter at S2.}}{9}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:start}{{4}{9}{FFD of the start command [COO Fig.~7.8]. The manual commands enter at S2}{figure.caption.10}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Start command dataflow.}}{9}{table.caption.11}\protected@file@percent }
+\newlabel{tab:startflow}{{6}{9}{Start command dataflow}{table.caption.11}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Dataflow: from level transmitter to pump speed}{10}{section.6}\protected@file@percent }
+\newlabel{sec:dataflow}{{6}{10}{Dataflow: from level transmitter to pump speed}{section.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Functional flow diagram of the level loop, one inlet shown [COO Fig.~7.8]. SMs 1--4, 9 and 10 run once per inlet; SMs 5--8 once for the pen. Solid: data flow; dashed: feedback from the pump. Level*Pen stands for LevelInsidePen and LevelOutsidePen. A pair with a lost transmitter drops out at SM~3; with no valid pair, SM~8 runs LIC01 at SafeOutput. Execution order in Figure~\ref {fig:exec}.}}{10}{figure.5}\protected@file@percent }
+\newlabel{fig:ffd}{{5}{10}{Functional flow diagram of the level loop, one inlet shown [COO Fig.~7.8]. SMs 1--4, 9 and 10 run once per inlet; SMs 5--8 once for the pen. Solid: data flow; dashed: feedback from the pump. Level*Pen stands for LevelInsidePen and LevelOutsidePen. A pair with a lost transmitter drops out at SM~3; with no valid pair, SM~8 runs LIC01 at SafeOutput. Execution order in Figure~\ref {fig:exec}}{figure.5}{}}
 \gdef \LT@i {\LT@entry 
     {1}{20.7225pt}\LT@entry 
     {1}{105.89409pt}\LT@entry 
     {1}{148.57323pt}\LT@entry 
     {1}{239.62204pt}\LT@entry 
     {1}{148.26378pt}}
-\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Dataflow of the level loop. Unit after each SM in square brackets. ``Main.'' and ``GVLMain.'' prefixes are left out where the context is clear.}}{10}{table.7}\protected@file@percent }
-\newlabel{tab:dataflow}{{7}{10}{Dataflow of the level loop. Unit after each SM in square brackets. ``Main.'' and ``GVLMain.'' prefixes are left out where the context is clear}{table.7}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Dataflow of the level loop. Unit after each SM in square brackets. ``Main.'' and ``GVLMain.'' prefixes are left out where the context is clear.}}{11}{table.7}\protected@file@percent }
+\newlabel{tab:dataflow}{{7}{11}{Dataflow of the level loop. Unit after each SM in square brackets. ``Main.'' and ``GVLMain.'' prefixes are left out where the context is clear}{table.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Oxygen system}{14}{section.7}\protected@file@percent }
+\newlabel{sec:oxygen}{{7}{14}{Oxygen system}{section.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Functional flow diagram of the oxygen system [COO Fig.~7.8]; one line shown for O4--O9. Solid: data flow; dashed: feedback.}}{14}{figure.6}\protected@file@percent }
+\newlabel{fig:oxyffd}{{6}{14}{Functional flow diagram of the oxygen system [COO Fig.~7.8]; one line shown for O4--O9. Solid: data flow; dashed: feedback}{figure.6}{}}
 \gdef \LT@ii {\LT@entry 
+    {4}{23.778pt}\LT@entry 
+    {1}{105.89409pt}\LT@entry 
+    {1}{154.26378pt}\LT@entry 
+    {1}{245.31259pt}\LT@entry 
+    {1}{142.57323pt}}
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Dataflow of the oxygen system.}}{15}{table.8}\protected@file@percent }
+\newlabel{tab:oxyflow}{{8}{15}{Dataflow of the oxygen system}{table.8}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Configuration of the oxygen system, retained (\texttt  {GVLRetain}), defaults from \texttt  {PFC200\_Sim} \texttt  {ConfigValues}. Tuning values are start values for commissioning.}}{17}{table.caption.13}\protected@file@percent }
+\newlabel{tab:oxyconfig}{{9}{17}{Configuration of the oxygen system, retained (\texttt {GVLRetain}), defaults from \texttt {PFC200\_Sim} \texttt {ConfigValues}. Tuning values are start values for commissioning}{table.caption.13}{}}
+\gdef \LT@iii {\LT@entry 
     {3}{25.3147pt}\LT@entry 
     {1}{199.78818pt}\LT@entry 
     {1}{233.62204pt}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Deviations and open issues}{12}{section.7}\protected@file@percent }
-\newlabel{sec:dev}{{7}{12}{Deviations and open issues}{section.7}{}}
-\gdef \@abspage@last{13}
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Oxy pump (ATV320) alarms, \texttt  {OxySystem[i].OxyPump.Alarm}.}}{18}{table.caption.15}\protected@file@percent }
+\newlabel{tab:oxyalarms}{{10}{18}{Oxy pump (ATV320) alarms, \texttt {OxySystem[i].OxyPump.Alarm}}{table.caption.15}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Deviations and open issues}{18}{section.8}\protected@file@percent }
+\newlabel{sec:dev}{{8}{18}{Deviations and open issues}{section.8}{}}
+\gdef \@abspage@last{20}
