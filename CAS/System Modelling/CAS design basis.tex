@@ -501,9 +501,12 @@ its inlet pump runs in REMOTE with a live link (\texttt{InletPump.Status.EnableO
 pump then starts in auto. PIC41--43 sets the pump speed (20--50\,Hz) for 4.0\,bar absolute after the
 pump; while starting, in pump manual or with a bad pressure, the pump runs at its preset speed
 (40\,Hz). After the pump has run \texttt{RunDelay} (30\,s), oxygen may be added: FIC41--43 sets the
-valve for the line's share. The valve output is held at 4\,mA (closed) otherwise, so it never opens
-without the pump running. The ATV320 is driven over Modbus TCP (CMD/LFR written, ETA/RFR/LCR/THD/OPR
-read, DRIVECOM state machine).
+valve for the line's share; its output reaches the valve at most 0--100\,\% in 2\,s
+(\texttt{ValveRampTime}), a rate limit in the PLC rather than in the valve. The valve output is held
+at 4\,mA (closed) otherwise, so it never opens without the pump running. The ATV320 is driven over
+Modbus TCP on the second channel of its line's InletRIO master (\texttt{InletRIO.DriveChannel}, its
+own connection since the drive has its own IP): CMD/LFR written, ETA/RFR/LCR/THD/OPR read, DRIVECOM
+state machine in \texttt{OxyPumpATV320}.
 
 \textbf{Start values} (\texttt{ConfigValues}, to be tuned at commissioning): OIC01 $K_c = 50$
 (kg/h)/(mg/L), $T_i = 1800$\,s (pen time constant about 44\,min, about 0.024\,mg/L per kg/h);
