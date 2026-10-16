@@ -1,0 +1,102 @@
+% Legend: ISA-5.1 symbols, letters and line types as used on the CAS drawings
+\pidsheet{CAS-PID-001}{Legend: symbols, identification letters and lines}{All systems}{\pidrev}{%
+  % ---------------------------------------------------------------- instrument symbols grid
+  \node[anchor=west, font=\sffamily\small\bfseries] at (0,240) {Instrument symbols (ISA-5.1)};
+  \node[anchor=west, note] at (0,234) {Outline = kind of device, mid-line = where it is accessible [Kuphaldt p.545].};
+  \foreach \x/\t in {60/{Field mounted}, 85/{Main control\\(PLC HMI)}, 110/{Behind panel\\(not on HMI)}, 135/{Local panel}} {
+    \node[font=\sffamily\tiny, align=center] at (\x,226) {\t};
+  }
+  \node[font=\sffamily\tiny, anchor=west] at (0,214) {Discrete instrument};
+  \node[font=\sffamily\tiny, anchor=west] at (0,200) {Shared display / control (PLC)};
+  \node[font=\sffamily\tiny, anchor=west] at (0,186) {PLC logic function};
+  \node[font=\sffamily\tiny, anchor=west] at (0,172) {Computer function / package PLC};
+  \instr{s1}{(60,214)}{LT}{01}{field}   \instr{s2}{(85,214)}{LI}{01}{panel}
+  \instr{s3}{(110,214)}{LY}{01}{behind} \instr{s4}{(135,214)}{HS}{31}{aux}
+  \instr{s5}{(60,200)}{OT}{01}{sharedf} \instr{s6}{(85,200)}{LIC}{01}{shared}
+  \node[font=\sffamily\tiny, text=pidnote] at (110,200) {--}; \node[font=\sffamily\tiny, text=pidnote] at (135,200) {--};
+  \instr{s7}{(85,186)}{UY}{41}{plc}     \instr{s8}{(110,186)}{I}{1}{logic}
+  \instr{s9}{(85,172)}{SC}{31}{computer}
+  \node[note, anchor=west, text width=95mm] at (148,200) {%
+    On these sheets: every PLC function with a faceplate on the operator HMI (indicators, controllers,
+    alarms) is a shared-control bubble with a solid mid-line. Calculations the operator does not see
+    are drawn behind the panel (dashed mid-line). Functions inside a supplier's package PLC (Framo
+    Beckhoff controller, ATV650 drive logic) are drawn as computer functions (hexagon). Interlocks are
+    diamonds numbered I1, I2, ... and described in the note list of the sheet.};
+  % ---------------------------------------------------------------- lines
+  \node[anchor=west, font=\sffamily\small\bfseries] at (0,156) {Lines};
+  \foreach \y/\s/\t in {148/water/{Process line, sea water},
+                        141/oxygen/{Process line, oxygen gas},
+                        134/oil/{Process line, hydraulic oil},
+                        127/impulse/{Process connection to an instrument},
+                        120/elec/{Electric signal (4--20 mA, 24 V DC, relay contact)},
+                        113/fieldbus/{Fieldbus network: Modbus TCP, Modbus RTU (RS-485)},
+                        106/datalink/{Software link inside the CAS PLC},
+                        99/extlink/{Data link to an independent system: OPC UA (Framo)},
+                        92/mech/{Mechanical link}} {
+    \draw[\s] (2,\y) -- (42,\y);
+    \node[anchor=west, font=\sffamily\tiny] at (46,\y) {\t};
+  }
+  \draw[boundary] (2,85) -- (42,85); \node[anchor=west, font=\sffamily\tiny] at (46,85) {Scope / package boundary (supplier)};
+  \node[note, anchor=west, text width=90mm] at (0,74) {%
+    ISA-5.1-2009 line types [Kuphaldt p.544]. ISA does not name protocols; the protocol is written next
+    to each network line. Line number format: \texttt{size-area-service-number}, e.g.
+    \texttt{2000-M01-LW-0041} (DN 2000, pen M01, sea water, line 0041); services LW sea water,
+    LO oxygen, LH hydraulic oil.};
+  % ---------------------------------------------------------------- equipment
+  \node[anchor=west, font=\sffamily\small\bfseries] at (150,156) {Equipment};
+  \pump{e1}{(160,140)}{} \node[anchor=west, font=\sffamily\tiny] at (170,140) {Centrifugal pump};
+  \framopump{e2}{(220,140)}{} \node[anchor=west, font=\sffamily\tiny] at (230,140) {Framo inlet pump (rim driven)};
+  \motor{e3}{(160,122)}  \node[anchor=west, font=\sffamily\tiny] at (166,122) {Electric motor};
+  \vsd{e4}{(222,122)}{VSD} \node[anchor=west, font=\sffamily\tiny] at (231,122) {Variable speed drive};
+  \cvalve{e5}{(160,104)}{} \node[anchor=west, font=\sffamily\tiny] at (166,104) {Control valve (globe), diaphragm};
+  \cvalve[solenoid]{e6}{(222,104)}{} \node[anchor=west, font=\sffamily\tiny] at (228,104) {Valve, solenoid actuator};
+  \hvalve{e7}{(160,88)}{} \node[anchor=west, font=\sffamily\tiny] at (166,88) {Manual valve};
+  \checkvalve{e8}{(222,88)} \node[anchor=west, font=\sffamily\tiny] at (228,88) {Check valve (flow left to right)};
+  \flowelement{e9}{(160,74)} \node[anchor=west, font=\sffamily\tiny] at (166,74) {In-line flow element};
+  \hcylinder{e10}{(219,74)}{} \node[anchor=west, font=\sffamily\tiny] at (233,74) {Hydraulic cylinder};
+  \offpage{e11}{(150,58)}{Stream}{continues on}
+  \node[anchor=west, font=\sffamily\tiny, align=left] at (178,58) {Off-page connector,\\outgoing};
+  \offpage[in]{e12}{(205,58)}{Stream}{comes from}
+  \node[anchor=west, font=\sffamily\tiny] at (233,58) {incoming};
+  \node[openpoint, font=\sffamily\tiny, text=pidcheck] at (165,44) {open point};
+  \node[anchor=west, font=\sffamily\tiny] at (178,44) {Sources disagree or value not confirmed: see CAS-PID-950};
+  % ---------------------------------------------------------------- letters
+  \node[anchor=north west, align=left] at (258,240) {%
+    \small\textbf{Identification letters used (ISA-5.1)}\\[1mm]
+    \tiny
+    \begin{tabular}{@{}lll@{}}
+      \toprule
+      Letter & First letter (measured / initiating) & Succeeding letter \\
+      \midrule
+      A & Analysis (CO\textsubscript{2}) & Alarm \\
+      C & -- & Control \\
+      D & Differential (modifier) & -- \\
+      F & Flow & -- \\
+      H & Hand & High \\
+      I & Current & Indicate \\
+      K & -- & Control station \\
+      L & Level & Low, light \\
+      O & \textbf{User-defined: dissolved oxygen} & -- \\
+      P & Pressure & -- \\
+      Q & Quantity & Integrate / totalise \\
+      S & Speed & Switch \\
+      T & Temperature & Transmit \\
+      U & Multivariable & Multifunction \\
+      V & -- & Valve, damper \\
+      X & Unclassified & -- \\
+      Y & Event, state & Relay, compute \\
+      Z & Position & Driver, actuator \\
+      \bottomrule
+    \end{tabular}\\[2mm]
+    \textbf{Project conventions}\\[0.5mm]
+    \begin{tabular}{@{}p{30mm}p{92mm}@{}}
+      Prefix & All instrument tags are \texttt{PEN01-}\emph{tag} (pen 1); the prefix is left out of the bubbles. \\
+      O (user-defined) & Dissolved oxygen, as in the FD: OT = O\textsubscript{2} transmitter, OIC = O\textsubscript{2} controller. \\
+      OV41--43 & Oxygen flow control valves. Project tag (FD, cabinet drawings); in strict ISA terms these are the FV of loops FIC41--43. \\
+      XV & On/off valve (solenoid). \\
+      Loop numbers & 0x pen level; 1x pen analysers; 3x inlet n (Framo); 4x oxygen line n; 6x outlet; 7x bilge inlet n, chamber m (LS7nm). \\
+      Equipment & PM-3n Framo inlet pump, PU4n oxy pump, MX-4n O\textsubscript{2} injector, TV-3n vacuum chamber, EJ-3n ejector, XF-3n intake. \\
+      n & Inlet / line 1--3. Typical sheets show n = 1. \\
+    \end{tabular}
+  };
+}

@@ -1,0 +1,45 @@
+% Open points: places where the sources disagree, or where something is missing. A = wrong behaviour on
+% site if not fixed, B = sources disagree / decision needed, C = documentation only.
+\pidsheet{CAS-PID-950}{Open points}{All systems}{\pidrev}{%
+  \node[anchor=north west, inner sep=0pt] at (0,242) {%
+    \fontsize{7}{8.6}\selectfont
+    \begin{tabular}{@{}p{8mm}p{4mm}p{120mm}p{100mm}p{90mm}@{}}
+      \toprule
+      \textbf{No.} & \textbf{Cl.} & \textbf{Finding} & \textbf{Sources} & \textbf{Proposed action} \\
+      \midrule
+      A1 & A & CommonRIO has six 750-455 on drawing 792.001 rev 1 (-R1-007..012); the PLC reads 41 words with five, so its DI word 40 is
+              really -R1-012 ch1 and the DI module (word 44) is not read. & 792.001 sh.07, 13--18; FB.RIO.CommonRIO & Decide: remove -R1-012, or read 45 words with DI at 44 (CAS-PID-900). \\
+      A2 & A & Hydraulic pump start / reset (DO 24.9 / 24.10) and starter fault (DI 40.0) are on channels the drawing shows as spare. & 792.001 sh.22, 25; FB.RIO.CommonRIO & Wire them, or move them to the channels the drawing assigns. \\
+      A3 & A & Emergency stop is not wired to any input; GVLMain.EmergencyStop and OxySystem[i].Input.EmergencyStop are never written.
+              FD / action list: Framo E-stop shall stop PU4n and close OV4n. & AL 16--17; FD 3.2.4; PLC & Use Framo\_n.EmergencyStop (OPC UA) per line, or a hardwired loop (Framo XSTO / X2). \\
+      A4 & A & Orbit 864 EnableForControl defaults to FALSE and is not retained: after a restart OIC01 has no PV until set online. & PLC Orbit864ItemConfigDUT; ConfigValues & Retain it (Orbit864SensorConfig) with OT01--03 = TRUE. \\
+      A5 & A & No 2oo3 LS7nmHH trip of the inlet pump and no bilge alarms in the PLC (inputs are read). & FD 3.2.6; 792.001 sh.29 & Add AlarmManagement + interlock I2. \\
+      A6 & A & Bilge pump contactors in DC n are switched by "RIO relays -XK1/2/3" that no RIO drawing has, and the PLC has no outputs. & 874.004 sh.05; 792.001/002 & Clarify: self-controlled pumps (FD) or PLC-controlled (action list 6/47/77). \\
+      A7 & A & RIO2 / RIO3: UPS inputs 4.3 / 4.4 wired to +24 V (no UPS) read as BackupPowerOn / BatteryFault = TRUE. & 792.002 sh.07; FB.RIO.InletRIO & Ignore them for RIO2/3 in the PLC, or rewire as spare. \\
+      A8 & A & PLC InletRIO reads 26 / writes 21 words; the coupler image is 6 in / 1 out. & FB.RIO.InletRIO; 792.001/002 & Check on a real 750-362; reduce to 6 / 1 if refused. \\
+      A9 & A & Ranges missing in the PLC (DUT default 0--10): QT11, PT11, PT40, PT61--68. & PLC ConfigValues & Add ranges from the datasheets (PT61--68: 0--250 bar). \\
+      \midrule
+      B1 & B & Oxygen-branch pressure transmitters: FD PT41/43/45 in, PT42/44/46 out; drawings / cable list PT41--43 after the pump, PT44--46 after the injector. & FD 3.2.4; 792.001 sh.31; 792.002 sh.10 & Drawn as the cabinet drawings; update the FD. \\
+      B2 & B & Orbit 864 tags: FD inside OT01--03, outside OT21--23; drawing OT01--OT06 on hub ports 1--6. & FD table 17; 792.001 sh.11 & Choose one set; record which slave is where. \\
+      B3 & B & LIC01: FD has P scheduled on pump count (0.5/1/2), I 600 s, 0--20 cm scaling, L/H and deviation alarms; PLC has one gain set (Kp 450, Ti 60 s) and no level alarms. & FD table 8; ConfigValues & Decide; add alarms. \\
+      B4 & B & OIC01: FD outputs 0--100 \% to OV41--43 (or cascade to FIC), PV OT03 with selector; PLC outputs total kg/h shared between lines, PV = mean of EnableForControl sensors. & FD tables 13--14; FB.Inlet.InletSupervisor & Update the FD to the implemented structure, or change the PLC. \\
+      B5 & B & FD alarm "low differential pressure over the injector" (PT44--PT41) is not in the PLC. & FD table 15 & Add. \\
+      B6 & B & PT40 oxygen supply pressure: named OxygenInjectionPressure in the PLC; no low alarm (FD / action list: oxygen not available). & 792.001 sh.14; AL 14/22/38 & Rename, add PAL40. \\
+      B7 & B & Inlet group start only with the outlet open (PLC function flow diagram) is not in the PLC. & PLC flow diagram p.3 & Decide. \\
+      B8 & B & Oxy pump leakage / temperature DIs exist for line 1 only (RIO1); DC2/DC3 send them, RIO2/3 have no inputs; the PLC does not use them. & 874.004 sh.05; 792.001/002 & Add inputs on RIO2/3 and alarms. \\
+      B9 & B & Framo pump: cabinet drawing 874.001 shows SX1000; FD and the folder have SR2000. & 874.001; FD 3.2.1 & Confirm with Framo. \\
+      B10 & B & Hydraulics: FD has PT61--68 on both sides, XV65 and an accumulator; newest Servi schematic A1 has 4 transmitters, no XV65. Drawing R1 has 8 PTs, XV65 removed; cable list still has XV65 and PT69--PT612. & FD 3.2.3; Servi A1; 792.001; 860-001 & Align FD, Servi and cable list. \\
+      B11 & B & FT41--43 range / unit: PLC 0--150 kg/h, FD FIC scaling "0--20" (unit unclear); flowmeter make Linde mass flow vs Normex VA500 quote. & FD table 14; Linde; ConfigValues & Confirm the transmitter range. \\
+      B12 & B & Framo heartbeat: Framo spec HOLD $\rightarrow$ REMOTE automatically when the heartbeat returns; FD (and simulator) require a Reset. & Framo spec rev B; FD table 5 & Confirm with Framo. \\
+      \midrule
+      C1 & C & FT41 field symbol and cable labelled FT61; cable number PLC-PEN01-FT61-KX01 used twice. & 792.001 sh.14; 860-001 r.66/90 & Correct drawing and cable list. \\
+      C2 & C & QT11 (CO\textsubscript{2}) drawn with an "O2 transmitter" symbol. & 792.001 sh.13 & Correct the symbol. \\
+      C3 & C & No network drawing: switch, IP plan, ATV650 Ethernet ports and the PLC-cabinet internal links are not drawn; one Cat6 to the PLC/RIO1 cabinet. & 792.001; 874.004; 860-001 & Make a network sheet with IP plan. \\
+      C4 & C & RIO3 has no drawing; RIO2/3 drawing is generic with copied RIO1 tags (LS711..QE71). & 792.002 & Issue RIO2 and RIO3 sheets. \\
+      C5 & C & Orbit 864 cables and their 24 V supply, and the Linde cabinet terminals, are not on the CAS drawings or in the cable list. & 792.001 sh.11; 860-001 & Add. \\
+      C6 & C & Cable list copy errors: DC2/DC3 cables prefixed DC1-, bilge pumps 3.x tagged OP31--33, template cover sheet. & 860-001 & Correct. \\
+      C7 & C & Drive cabinet DC1 supply cable 5G2.5 vs 5G6 for DC2/DC3; 25 A upstream for a 15 kW ATV650 plus bilge pumps. & 875.002; 874.004 & Check the cable sizing. \\
+      C8 & C & The FD's own P\&ID reference table (1.1) and PLC--RIO fail-safe table (2.2) are empty. & FD rev B & Fill in, referring to this drawing set. \\
+      \bottomrule
+    \end{tabular}};
+}

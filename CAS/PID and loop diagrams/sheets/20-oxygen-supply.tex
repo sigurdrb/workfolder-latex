@@ -1,0 +1,73 @@
+% P&ID: oxygen supply and distribution (Linde SOLVOX dosing cabinet, 4 channels, 3 used)
+\pidsheet{CAS-PID-200}{Oxygen supply and distribution}{Oxygen system: Linde SOLVOX dosing cabinet}{\pidrev}{%
+  % ---------------------------------------------------------------- supply and manifold
+  \offpage[in]{sup}{(4,190)}{O\textsubscript{2} from Hardingsmolt}{customer supply, 10 bar}
+  \hvalve{mv1}{(45,190)}{MV0.1}
+  \node[draw, line width=0.6pt, fill=white, minimum size=6mm] (f00) at (62,190) {};
+  \draw[line width=0.4pt] (f00.north west) -- (f00.south east) (f00.north east) -- (f00.south west);
+  \node[tagtext, below=3.5mm] at (f00) {F00 filter};
+  \hvalve{mv2}{(79,190)}{MV0.2}
+  \draw[oxyflow] (sup) -- (mv1-in);
+  \draw[oxygen] (mv1-in) (mv1-out) -- (f00.west) (f00.east) -- (mv2-in);
+  \draw[oxygen] (mv2-out) -- (110,190);
+  \tap{p40}{(95,190)}
+  \instr{pt40}{(95,207)}{PT}{40}{field} \draw[impulse] (p40) -- (pt40-s);
+  \instr{pi01}{(75,207)}{PI}{0.1}{field} \draw[impulse] (75,202.5) -- (75,195) -- (95,195) -- (p40);
+  % manifold
+  \draw[oxygen, line width=1.4pt] (110,215) -- (110,60);
+  \node[note, rotate=90, anchor=south, text=pidoxygen] at (108,140) {manifold 1};
+  % ---------------------------------------------------------------- channels n = 1..3 (+ spare 4)
+  \foreach \n/\y in {1/190, 2/150, 3/110} {
+    \draw[oxygen] (110,\y) -- (124,\y);
+    \flowelement{fe\n}{(127,\y)}
+    \instr{ft\n}{(127,\y+15)}{FT}{4\n}{field} \draw[impulse] (fe\n-n) -- (ft\n-s);
+    \draw[oxygen] (fe\n-out) -- (146.5,\y);
+    % control valve: 4-20 mA from FIC4n via the PWM driver U n
+    \cvalve{ov\n}{(150,\y)}{OV4\n\ (Linde PV\n)}
+    \draw[oxygen] (ov\n-out) -- (206,\y);
+    \instr{pi\n}{(178,\y+12)}{PI}{\n}{field} \tap{pit\n}{(178,\y)} \draw[impulse] (pit\n) -- (pi\n-s);
+    \checkvalve{cv\n}{(209,\y)}
+    \node[tagtext, below=3mm] at (209,\y) {CV\n};
+    \draw[oxyflow] (cv\n-out) -- (232,\y);
+    \offpage{to\n}{(232,\y)}{O\textsubscript{2} to injector MX-4\n}{CAS-PID-300, line \n}
+    \node[draw, line width=0.5pt, fill=white, minimum width=11mm, minimum height=5mm, align=center,
+          font=\sffamily\fontsize{4.6}{5}\selectfont] (u\n) at (150,\y+22) {U\n\ PWM\\B\"urkert 8605};
+    \draw[elec, sigarrow] (u\n.south) -- (ov\n-act);
+  }
+  \draw[oxygen] (110,75) -- (124,75); \node[note, right] at (125,75) {channel 4 spare (FT4, PV4, U4)};
+  \draw[boundary] (36,55) rectangle (226,232);
+  \node[anchor=north west, font=\sffamily\tiny\itshape, text=pidnote] at (37,231) {Linde scope: SOLVOX DC prop.\ high flow 4 ch, Rittal 1469 ("Oksygen skap")};
+  % ---------------------------------------------------------------- signals to / from the CAS PLC
+  \node[anchor=west, font=\sffamily\scriptsize\bfseries] at (36,40) {CAS PLC (CommonRIO, cabinet PLC/RIO1)};
+  \instr{pi40}{(95,25)}{PI}{40}{shared} \node[note, right=5mm] at (95,25) {O\textsubscript{2} supply pressure\\AI -R1-008 ch4, word 27};
+  \instr{pal40}{(70,25)}{PAL}{40}{shared}
+  \draw[elec, sigarrow] (pt40-e) -- (100,207) -- (100,45) -- (95,45) -- (pi40-n);
+  \draw[datalink] (pi40-w) -- (pal40-e);
+  \foreach \n/\y in {1/190, 2/150, 3/110} {
+    \offpage{fs\n}{(255,\y+15)}{FT4\n\ to FIC4\n}{CAS-PID-300}
+    \draw[elec, sigarrow] (ft\n-e) -- (fs\n);
+    \offpage[in]{fo\n}{(255,\y+27)}{OV4\n\ from FIC4\n}{CAS-PID-300}
+    \draw[elec, sigarrow] (fo\n-w) -- (u\n.east);
+  }
+  % ---------------------------------------------------------------- notes
+  \node[anchor=north west, align=left, font=\sffamily\tiny, text width=95mm] at (295,240) {%
+    \textbf{Notes}\\[1mm]
+    1. Linde SOLVOX dosing cabinet per Linde flowsheet (SOLVOX\_DC\_Prop\_high\_flow 4Ch\_with mass flow,
+       sheet 1): customer valve MV0.1, filter F00, MV0.2, manifold with PI 0.1, and per channel a mass flow
+       transmitter FT, control valve PV (B\"urkert 2865 proportional valve, opening set by the CAS PLC with
+       4--20 mA through PWM board U, B\"urkert 8605), PI and check valve CV. Channels 1--3 are used;
+       Linde PV1--3 / FT1--3 = OV41--43 / FT41--43 in CAS.\\[0.8mm]
+    2. FT41--43: 4--20 mA, 2-wire, on CommonRIO 750-455 -R1-008 ch1--3 (PLC words 24--26), range
+       0--150 kg/h in the PLC (ConfigValues OxygenFlowConfig). \textcolor{pidcheck}{FD table 14 gives the FIC
+       scaling as 0--20 (unit unclear); confirm the transmitter range.}\\[0.8mm]
+    3. OV41--43: 4--20 mA from CommonRIO 750-563 -R1-014 ch1/ch2 and -R1-015 ch1 (PLC out words 20--22),
+       0--100 \%\,=\,0--65535. Fail position: closed (NC valve, no signal = closed).\\[0.8mm]
+    4. PT40 (O\textsubscript{2} supply pressure, interface to Hardingsmolt): CommonRIO -R1-008 ch4, word 27.
+       \textcolor{pidcheck}{The PLC names this input Pen.Input.OxygenInjectionPressure, has no range
+       (DUT default 0--10) and no low alarm; FD/alarm list want PAL40 "oxygen not available".}\\[0.8mm]
+    5. \textcolor{pidcheck}{Cable list / drawing 792.001 sheet 14: the FT41 field symbol and cable are labelled
+       FT61 (PLC-PEN01-FT61-KX01 is used twice).}\\[0.8mm]
+    6. \textcolor{pidcheck}{PLC function flow diagram has separate "MainOxyValve 1--3" open/close valves; none
+       exist in the Linde flowsheet, the FD or the PLC.}
+  };
+}

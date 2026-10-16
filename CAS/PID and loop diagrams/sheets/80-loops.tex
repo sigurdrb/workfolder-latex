@@ -1,0 +1,279 @@
+% Instrument loop diagrams (ISA-5.4), typical loops. Terminals and cables from drawings 15169-792.001 rev 1 /
+% 792.002 rev 0 and cable list 15169-860-001 rev 1; I/O words and PLC objects from scaleaq/heimdall-plc.
+% Small + / - terminal pair beside a field instrument: \pm{name}{(x,y)} -> (name-p) top, (name-m) bottom
+\newcommand{\pmterm}[2]{%
+  \begin{scope}[shift={#2}]
+    \draw[line width=0.4pt, fill=white] (-1.6,0.4) rectangle (1.6,3.6); \node[font=\sffamily\fontsize{4.4}{4.4}\selectfont] at (0,2) {+};
+    \draw[line width=0.4pt, fill=white] (-1.6,-3.6) rectangle (1.6,-0.4); \node[font=\sffamily\fontsize{4.4}{4.4}\selectfont] at (0,-2) {$-$};
+    \coordinate (#1-p) at (1.6,2); \coordinate (#1-m) at (1.6,-2);
+  \end{scope}}
+\newcommand{\loophdr}{\loopcolumns{Field}{Field cable}{Cabinet terminals}{I/O module}{PLC function / operator HMI}}
+\newcommand{\powerbox}[2]{\node[draw, line width=0.4pt, fill=white, align=left, font=\sffamily\fontsize{4.6}{5.2}\selectfont,
+  anchor=north west, inner sep=1.2mm] at #1 {#2};}
+
+% =====================================================================================================  LD-801
+\pidsheet{CAS-LD-801}{Loop LT01: level inside pen, inlet 1 (typical 2-wire 4--20 mA input)}{Loop diagram, typical for LT01--03, LT21--23, PT41--46}{\pidrev}{%
+  \loophdr
+  \instr{lt}{(40,200)}{LT}{01}{field} \pmterm{lt}{(50,200)}
+  \node[note, below=5mm, align=center] at (40,200) {level inside pen, inlet 1\\on the gooseneck};
+  \node[draw, line width=0.4pt, font=\sffamily\tiny, align=center] at (40,172) {cal.\ 0--2 m\\= 4--20 mA};
+  \termstrip{xx}{(170,210)}{-XX06}{1,2}
+  \wire[dash pattern=on 2mm off 1mm]{(lt-m)}{(xx-1-w)}{signal ($-$)}
+  \wire[dash pattern=on 2mm off 1mm]{(lt-p)}{(xx-2-w)}{+24 V (+)}
+  \cable{122}{205.6}{201.2}{RIO1-PEN01-LT01-KX01\\3G0,75, PE / spare core}
+  \devbox{ai}{(250,200)}{40}{22}{-R1-106 750-455\\4 AI 4--20 mA, single-ended\\ch1 = A1 (term.\ 1)\\+24 V from field bus (term.\ 2)}
+  \wire{(xx-1-e)}{(230,205.6)}{A1}
+  \wire{(xx-2-e)}{(230,201.2)}{+24 V}
+  \powerbox{(218,182)}{\textbf{24 V loop supply}\\750-602 -R1-103 field bus\\$\leftarrow$ XF05 OUT+6 (CBM E8, 2 A, shared)\\
+     $\leftarrow$ XT02 QUINT DC/DC $\leftarrow$ XT01 UPS (2 x 12 V 26 Ah)\\0 V: module 0 V to -XX0V}
+  \node[note, align=left, anchor=north west] at (218,150) {Coupler -R1-100 750-362 (InletRIO1)\\Modbus TCP FC23, input word 0\\
+     bits 1..0 = diagnostics, value bits 14..4};
+  \instr{li}{(305,200)}{LI}{01}{shared}
+  \draw[datalink, sigarrow] (ai.east) -- (li-w);
+  \instr{ldy}{(335,200)}{LDY}{01}{behind} \funcbox{ldy}{$\Delta$}
+  \draw[datalink, sigarrow] (li-e) -- (ldy-w);
+  \instr{lic}{(365,200)}{LIC}{01}{shared}
+  \draw[datalink, sigarrow] (ldy-e) -- (lic-w);
+  \node[note, align=left, anchor=north west] at (290,185) {PLC: GVLMain.Inlet[0].Input.LevelInsidePen\\(AnalogSensor: 0--2 m, FilterFc 0.05 Hz,\\
+    quality alarm). Pair with LT21 in LDY01,\\mean of pairs = LIC01 PV (CAS-PID-400).};
+  \node[note, align=left, anchor=north west] at (5,150) {2-wire loop-powered transmitter: + to the +24 V terminal, $-$ to the\\
+    signal terminal, current returns through the 750-455 input to 0 V.\\Wire numbers / colours are not on the drawings or in the cable list.};
+  \looptable{%
+    LT01 & Level transmitter, inside pen at inlet 1 & VEGA VEGAPULS C22 (radar) & 0--2 m / 4--20 mA 2-wire & gooseneck inlet 1 & FD 3.2.2; sensor overview; ConfigValues \\
+    -XX06 1/2 & Field terminals, InletRIO1 & Phoenix & -- & PLC/RIO1 cabinet & 792.001 sh.31 \\
+    -R1-106 ch1 & Analog input & WAGO 750-455 & 4--20 mA, word 0 & PLC/RIO1 cabinet & 792.001 sh.31; FB.RIO.InletRIO.InputMapping \\
+    LI01, LDY01, LIC01 & Indication, over-height pair 1, level controller & CAS PLC (PFC200) & 0--2 m & PLC & FB.Inlet.InletSensors, FB.Inlet.InletSupervisor \\
+    \multicolumn{6}{@{}l}{\textit{Typical: LT02/LT03 on InletRIO2/3 (-XX06 1/2), LT21--23 on -XX06 3/4 (ch2, word 1), PT41--43 on 5/6 (ch3, word 2), PT44--46 on 7/8 (ch4, word 3).}} \\
+  }
+}
+
+% =====================================================================================================  LD-802
+\pidsheet{CAS-LD-802}{Loop PIC41: oxy pump pressure line 1, ATV650}{Loop diagram, typical for PIC41--43}{\pidrev}{%
+  \loophdr
+  \instr{pt}{(40,210)}{PT}{41}{field} \pmterm{pt}{(50,210)}
+  \node[note, below=5mm, align=center] at (40,210) {pressure after PU41};
+  \termstrip{xx}{(170,220)}{-XX06}{5,6}
+  \wire[dash pattern=on 2mm off 1mm]{(pt-m)}{(xx-1-w)}{signal}
+  \wire[dash pattern=on 2mm off 1mm]{(pt-p)}{(xx-2-w)}{+24 V}
+  \cable{122}{215.6}{211.2}{RIO1-PEN01-PT41-KX01, 3G0,75}
+  \devbox{ai}{(250,212)}{40}{14}{-R1-106 750-455 ch3\\InletRIO1 word 2}
+  \wire{(xx-1-e)}{(230,215.6)}{A3} \wire{(xx-2-e)}{(230,211.2)}{+24 V}
+  \instr{pic}{(305,212)}{PIC}{41}{shared}
+  \draw[datalink, sigarrow] (ai.east) -- (pic-w);
+  \node[note, above=5mm] at (pic) {SP 4.0 bar(a)};
+  % drive
+  \node[draw, line width=0.5pt, fill=white, minimum width=36mm, minimum height=22mm, align=center, font=\sffamily\tiny]
+       (vsd) at (40,140) {-FC01 Schneider ATV650D15N4\\15 kW, drive cabinet DC1\\embedded Ethernet: Modbus TCP\\Fr1 / Cd1 = Ethernet, EtHL = stop};
+  \motor{m}{(40,105)} \draw[line width=0.5pt] (vsd.south) -- (m-n);
+  \node[note, right=4mm] at (m) {PU41 Flygt NX 3153, 13.5 kW\\cable DC1-OP01-KW01? (DCx-OPxx-KW01 5G6)};
+  \devbox{sw}{(182,140)}{36}{10}{network cabinet NC\\Ethernet switch}
+  \draw[fieldbus] (vsd.east) -- (sw.west); \node[note, above] at (122,141) {Cat6 NC-DC1-KY01};
+  \devbox{dm}{(250,140)}{44}{14}{InletRIO[0] DriveMaster\\SCL.sModbusMasterTCP, unit 0}
+  \draw[fieldbus] (sw.east) -- (dm.west); \node[note, above] at (215,141) {NC-PLC/RIO1-KY01};
+  \instr{sy}{(305,140)}{SY}{41}{behind} \node[note, below=5mm] at (sy) {OxyPumpATV650};
+  \draw[datalink, sigarrow] (pic-s) -- (305,144.5);
+  \draw[fieldbus] (sy-w) -- (dm.east);
+  \instr{si}{(340,140)}{SI}{41}{shared} \instr{ua}{(370,140)}{UA}{41}{shared}
+  \draw[datalink] (sy-e) -- (si-w); \draw[datalink] (si-e) -- (ua-w);
+  \node[note, align=left, anchor=north west] at (218,128) {write FC23 every 100 ms: CMD 8501 (DRIVECOM), LFR 8502 [0.1 Hz]\\
+    read 3201..3211: ETA, RFR [0.1 Hz], LCR [0.01 A], THD [\%], OPR [\%]\\read FC3 every 1 s: LFT 7121 (last fault)};
+  % MiniCAS
+  \node[draw, line width=0.5pt, fill=white, minimum width=30mm, minimum height=10mm, align=center, font=\sffamily\tiny]
+       (mc) at (40,80) {-XK01 Flygt MiniCAS II\\leakage / thermal relay, DC1};
+  \draw[line width=0.4pt, dash pattern=on 2mm off 1mm] (m-w) -- (20,105) -- (20,85);
+  \node[note, left] at (19,95) {DC1-OP01-KX01};
+  \termstrip{dx}{(170,92)}{RIO1 -XX07}{15,16,17,18}
+  \wire[dash pattern=on 2mm off 1mm]{(mc.east)}{(dx-1-w)}{leakage}
+  \draw[line width=0.4pt, dash pattern=on 2mm off 1mm] (55,78) -- (dx-3-w); \node[note, above] at (110,79) {temperature};
+  \cable{122}{87.6}{78.8}{DC1-RIO1-KX01 13G0,75}
+  \devbox{di}{(250,82)}{40}{12}{-R1-104 750-1405 ch8 / ch9\\InletRIO1 word 5.7 / 5.8}
+  \wire{(dx-1-e)}{(230,87.6)}{DI8} \wire{(dx-3-e)}{(230,78.8)}{DI9}
+  \instr{xa}{(305,82)}{XA}{41}{shared} \instr{tah}{(335,82)}{TAH}{41}{shared}
+  \draw[datalink] (di.east) -- (xa-w); \draw[datalink] (xa-e) -- (tah-w);
+  \node[note, text=pidcheck, align=left, anchor=west] at (348,82) {read, not\\used in logic};
+  \looptable{%
+    PT41 & Pressure transmitter, after oxy pump PU41 & \textcolor{pidcheck}{not given} & 0--10 bar (PLC) / 4--20 mA 2-wire & branch line 1 & 792.001 sh.31; ConfigValues \\
+    PIC41 & Pressure controller, output pump speed 20--50 Hz & CAS PLC & SP 4.0 bar(a) & PLC & FB.OxySystem.OxyControl \\
+    -FC01 & Variable speed drive PU41 & Schneider ATV650D15N4 & 15 kW, Modbus TCP & drive cabinet DC1 & 874.004 sh.04; EAV64332; EAV64318 \\
+    XS41, TSH41 & Pump leakage / motor temperature (MiniCAS II) & Flygt MiniCAS II & dry contacts & DC1 & 874.004 sh.05; 792.001 sh.29 \\
+    \multicolumn{6}{@{}l}{\textit{Typical: line 2 / 3 on InletRIO2 / 3 and DC2 / DC3 (sim ports 5132 / 5133). \textcolor{pidcheck}{RIO2/3 have no leakage / temperature DIs on the drawings.}}} \\
+  }
+}
+
+% =====================================================================================================  LD-803
+\pidsheet{CAS-LD-803}{Loop FIC41: oxygen flow line 1 and control valve OV41}{Loop diagram, typical for FIC41--43}{\pidrev}{%
+  \loophdr
+  \instr{ft}{(40,205)}{FT}{41}{field} \pmterm{ft}{(50,205)}
+  \node[note, below=5mm, align=center] at (40,205) {O\textsubscript{2} mass flow, Linde ch.\,1};
+  \termstrip{xx}{(170,215)}{-XX01}{9,10}
+  \wire[dash pattern=on 2mm off 1mm]{(ft-m)}{(xx-1-w)}{signal}
+  \wire[dash pattern=on 2mm off 1mm]{(ft-p)}{(xx-2-w)}{+24 V}
+  \cable{122}{210.6}{206.2}{\textcolor{pidcheck}{PLC-PEN01-FT61-KX01} (sic), 3G0,75}
+  \devbox{ai}{(250,207)}{40}{14}{-R1-008 750-455 ch1\\CommonRIO word 24}
+  \wire{(xx-1-e)}{(230,210.6)}{A1} \wire{(xx-2-e)}{(230,206.2)}{+24 V}
+  \powerbox{(218,196)}{24 V: 750-602 -R1-006 $\leftarrow$ XF05 OUT+1 (2 A, all 24 CommonRIO AI loops)}
+  \instr{fic}{(305,180)}{FIC}{41}{shared}
+  \draw[datalink, sigarrow] (ai.east) -- (305,207) -- (fic-n);
+  \offpage[in]{sp}{(340,195)}{SP from OIC01}{CAS-PID-400}
+  \draw[datalink, sigarrow] (sp-w) -- (310,195) -- (308,184);
+  \instr{fy}{(335,165)}{FY}{41}{behind} \funcbox{fy}{$\frac{d}{dt}$}
+  \draw[datalink, sigarrow] (fic-s) -- (305,165) -- (fy-w);
+  \instr{i4}{(365,165)}{I}{4}{logic} \draw[datalink, sigarrow] (fy-e) -- (i4-w);
+  \devbox{ao}{(250,150)}{40}{14}{-R1-014 750-563 ch1\\CommonRIO out word 20\\0--65535 = 4--20 mA}
+  \draw[datalink, sigarrow] (i4-s) -- (365,150) -- (ao.east);
+  \termstrip{xa}{(170,158)}{-XX02}{1,2}
+  \wire{(230,153.6)}{(xa-1-e)}{AO1} \wire{(230,149.2)}{(xa-2-e)}{0 V}
+  \devbox{u1}{(40,150)}{30}{12}{U1 B\"urkert 8605\\PWM driver, Linde cabinet}
+  \wire[dash pattern=on 2mm off 1mm]{(xa-1-w)}{(55,153.6)}{4--20 mA}
+  \wire[dash pattern=on 2mm off 1mm]{(xa-2-w)}{(55,149.2)}{}
+  \cable{122}{153.6}{149.2}{PLC-PEN01-OV41-KX01, 3G0,75}
+  \cvalve{ov}{(40,118)}{OV41 (Linde PV1)}
+  \draw[elec, sigarrow] (u1.south) -- (ov-act);
+  \node[note, right=6mm, align=left] at (ov) {control valve, B\"urkert 2865 proportional, NC\\fail closed; PWM 280 Hz, 24 V};
+  \node[note, text=pidcheck, align=left, anchor=north west] at (5,100) {Linde cabinet terminal numbers and the 24 V supply of U1 are not on the\\
+    CAS drawings (Linde wiring sheet 2 only).};
+  \node[note, align=left, anchor=north west] at (290,140) {I4: valve permit (CAS-PID-300).\\Without it the output is forced\\to 0 (4 mA, valve closed).};
+  \looptable{%
+    FT41 & O\textsubscript{2} mass flow transmitter, Linde channel 1 & Linde (SUTO S418 type), \textcolor{pidcheck}{to confirm} & 0--150 kg/h (PLC) / 4--20 mA & Linde cabinet & Linde flowsheet; 792.001 sh.14 \\
+    FIC41, FY41 & Flow controller, rate limit 100 \% / 2 s & CAS PLC & 0--100 \% & PLC & FB.OxySystem.OxyControl \\
+    U1, OV41 & PWM driver and proportional valve & B\"urkert 8605 + 2865 & 4--20 mA $\rightarrow$ 0--100 \% & Linde cabinet & Linde sheet 2; 792.001 sh.20 \\
+    \multicolumn{6}{@{}l}{\textit{Typical: FT42/43 on -XX01 11/12, 13/14 (-R1-008 ch2/3, words 25/26); OV42 on -XX02 3/4 (-R1-014 ch2, word 21), OV43 on 5/6 (-R1-015 ch1, word 22).}} \\
+  }
+}
+
+% =====================================================================================================  LD-804
+\pidsheet{CAS-LD-804}{Loop OT01: Orbit 864 multisensor over RS-485 Modbus RTU}{Loop diagram, typical for the six Orbit 864 sensors}{\pidrev}{%
+  \loophdr
+  \foreach \k/\y in {1/210, 2/192, 3/174, 4/156, 5/138, 6/120} {
+    \instr{ot\k}{(35,\y)}{OT}{0\k}{field}
+    \node[note, right=5mm] at (ot\k) {Orbit 864 -- \k, slave \k};
+    \draw[fieldbus] (ot\k-e) ++(16,0) -- (150,\y);
+    \draw[line width=0.4pt] (ot\k-e) -- ++(16,0);
+  }
+  \node[note, align=center, above] at (122,212) {2-wire A/B per sensor\\(no GND / screen drawn)};
+  \devbox{hub}{(182,165)}{30}{70}{-MB01\\Waveshare\\RS485-HUB-8P\\isolated\\\\OUT1..OUT6\\(OUT7/8 spare)\\\\+24 V from\\-R1-002}
+  \devbox{652}{(250,165)}{44}{24}{-R1-003 750-652\\RS-232/485 serial\\D0+D2 = B, D1+D3 = A\\CommonRIO words 0--11}
+  \draw[fieldbus] (hub.east) -- (652.west); \node[note, above] at (215,166) {485A / 485B};
+  \instr{rtu}{(310,165)}{UY}{01}{behind}
+  \draw[datalink, sigarrow] (652.east) -- (rtu-w);
+  \node[note, below=5mm, align=center] at (rtu) {ModbusRTUData\\9600 8N1};
+  \instr{oi}{(345,190)}{OI}{01}{shared} \instr{ti}{(345,165)}{TI}{01}{shared} \instr{si}{(345,140)}{SI}{01}{shared}
+  \node[note, right=5mm] at (oi) {O\textsubscript{2} mg/L, \% sat};
+  \node[note, right=5mm] at (ti) {temperature};
+  \node[note, right=5mm] at (si) {salinity};
+  \draw[datalink] (rtu-e) -- (330,165) -- (330,190) -- (oi-w) (330,165) -- (ti-w) (330,165) -- (330,140) -- (si-w);
+  \node[note, align=left, anchor=north west] at (218,145) {Registers (FC3): oxygen block PDU 0 (66 regs): DO 40038,\\
+    temperature 40046, saturation 40054; conductivity block PDU 872:\\salinity 40926; pressure block PDU 1744: depth 41790.\\
+    Float, high word first. Stay-awake: FC06 1 to PDU 9209.};
+  \node[note, text=pidcheck, align=left, anchor=north west] at (5,105) {Sensor 24 V supply and the field cable are not on the drawings or in the cable list.\\
+    FD tags: inside OT01--03, outside OT21--23; drawing: OT01--06 on hub ports 1--6.\\Which sensors are inside (EnableForControl) is a non-retained online setting.};
+  \looptable{%
+    OT01..06 & O\textsubscript{2} / temperature / salinity / depth multisensor & In-Situ / Orbit 864 (RDO Core) & DO 0--60 mg/L; Modbus RTU & pen, 3 inside, 3 outside & FD table 17; 792.001 sh.11 \\
+    -MB01 & RS-485 hub, 8 isolated ports & Waveshare RS485-HUB-8P & 24 V & PLC/RIO1 cabinet & 792.001 sh.11 \\
+    -R1-003 & Serial interface behind CommonRIO & WAGO 750-652 & RS-485 9600 8N1 & PLC/RIO1 cabinet & 792.001 sh.11; PFC200\_Sim ModbusRTUData \\
+  }
+}
+
+% =====================================================================================================  LD-805
+\pidsheet{CAS-LD-805}{Loop SC31: Framo inlet pump 1 over OPC UA}{Loop diagram, typical for inlet pumps PM-31..33}{\pidrev}{%
+  \loophdr
+  \node[draw, line width=0.5pt, fill=white, minimum width=60mm, minimum height=34mm, align=center, font=\sffamily\tiny]
+       (pcc) at (47,195) {Framo pump control cabinet PCC1\\Beckhoff CX8200 (TF6100 OPC UA server)\\ABB ACS880-31 over EtherCAT\\Framo PM-31 (874.001: SX1000, 60 kW)\\\\
+       spare relays K1 "pump running", K2--K4 on -X2 1--16\\E-stop -S1.3 into ACS880 XSTO};
+  \devbox{sw}{(182,195)}{36}{10}{network cabinet NC\\Ethernet switch}
+  \draw[extlink] (pcc.east) -- (sw.west); \node[note, above] at (122,196) {Cat6 NC-PCC1-KY01 (5 m)};
+  \devbox{ds}{(250,195)}{44}{14}{PFC200 Data Source Manager\\data source Framo\_1}
+  \draw[extlink] (sw.east) -- (ds.west); \node[note, above] at (215,196) {NC-PLC/RIO1-KY01};
+  \foreach \t/\l/\y in {HS/{start, stop, reset}/220, SY/speed setpoint/200, KY/heartbeat/180, YI/state/160, UA/alarms/140} {
+    \instr{b\t}{(310,\y)}{\t}{31}{shared}
+    \node[note, right=5mm] at (b\t) {\l};
+    \draw[extlink] (290,\y) -- (b\t-w);
+  }
+  \draw[extlink] (ds.east) -- (290,195); \draw[extlink] (290,220) -- (290,140);
+  \node[note, align=left, anchor=north west] at (218,180) {Nodes (namespace FramoPLS\_1):\\Start i=257, Stop i=258, Reset i=259,\\
+    SpeedSetpoint i=261, HeartbeatToggle i=277,\\PumpState* i=250..256, alarms i=228..248,\\drive values i=42..212, vacuum system i=279..298.\\
+    Sim: opc.tcp://10.1.2.101:4841, update 200 ms.};
+  \node[note, text=pidcheck, align=left, anchor=north west] at (5,170) {Not used by CAS: the hardwired "pump running" contact K1 and an external\\
+    E-stop loop into XSTO. Only Ethernet is drawn between PCC1 and CAS.};
+  \looptable{%
+    PM-31 & Framo inlet pump 1 with local controller & Framo SR2000 (FD) / \textcolor{pidcheck}{SX1000 (874.001)} & 40--130 rpm & pump module 1 & FD 3.2.1; 874.001 \\
+    SY31, KY31 & Speed setpoint (LIC01 in REMOTE), heartbeat & CAS PLC & rpm; toggle 1 s / timeout 5 s & PLC & FB.Inlet.InletControl; PRG.FramoDataProcessing \\
+    \multicolumn{6}{@{}l}{\textit{Typical: PCC2 / PCC3 (Cat6 NC-PCC2/3-KY01, 60 m), data sources Framo\_2 / Framo\_3 (sim 4842 / 4843).}} \\
+  }
+}
+
+% =====================================================================================================  LD-806
+\pidsheet{CAS-LD-806}{Loop XV61 / FT61 / PT61-62: outlet cylinder 1}{Loop diagram, typical for cylinders 1--4}{\pidrev}{%
+  \loophdr
+  % solenoids
+  \node[draw, line width=0.5pt, fill=white, minimum width=24mm, minimum height=14mm, align=center, font=\sffamily\tiny] (xv) at (40,210) {XV61 double solenoid\\Hawe PSL\\O / C / 0 V};
+  \termstrip{x4}{(170,220)}{-XX04}{1,2,3,4}
+  \wire[dash pattern=on 2mm off 1mm]{(52,214)}{(x4-1-w)}{O}
+  \wire[dash pattern=on 2mm off 1mm]{(52,210)}{(x4-2-w)}{0 V}
+  \wire[dash pattern=on 2mm off 1mm]{(52,206)}{(x4-3-w)}{C}
+  \cable{122}{215.6}{202.4}{PLC-PEN01-XV61-KX01, 4G0,75}
+  \devbox{do}{(250,210)}{44}{18}{-R1-019 750-1515 ch1 / ch2\\relays XK01 / XK02 (PLC-RPT 24DC)\\contact 11 = +24 V (-R1-018)\\XX04 diode terminals}
+  \wire{(x4-1-e)}{(228,215.6)}{XK01.14} \wire{(x4-3-e)}{(228,206.8)}{XK02.14}
+  \instr{hs}{(310,210)}{HS}{61}{shared} \draw[datalink, sigarrow] (hs-w) -- (do.east);
+  \node[note, right=5mm] at (hs) {DO word 24.0 / 24.1};
+  % counter
+  \instr{ft}{(40,165)}{FT}{61}{field} \node[note, below=5mm] at (ft) {oil flow, 3-wire pulse};
+  \termstrip{x5}{(170,175)}{-XX05}{1,2,3}
+  \wire[dash pattern=on 2mm off 1mm]{(44.5,169.4)}{(x5-1-w)}{pulse}
+  \wire[dash pattern=on 2mm off 1mm]{(44.5,165)}{(x5-2-w)}{+24 V}
+  \wire[dash pattern=on 2mm off 1mm]{(44.5,160.6)}{(x5-3-w)}{0 V}
+  \cable{122}{170.6}{161.8}{PLC-PEN01-FT61-KX01, 4G0,75}
+  \devbox{cnt}{(250,165)}{44}{14}{-R1-004 750-638 DI1 (rev 1 wiring)\\CommonRIO words 12/13}
+  \wire{(x5-1-e)}{(228,170.6)}{+DI1}
+  \instr{zy}{(310,165)}{ZY}{61}{behind} \funcbox{zy}{$\Sigma$} \draw[datalink, sigarrow] (cnt.east) -- (zy-w);
+  \instr{zi}{(345,165)}{ZI}{61}{shared} \draw[datalink, sigarrow] (zy-e) -- (zi-w);
+  % pressures
+  \instr{pta}{(30,120)}{PT}{61}{field} \pmterm{pta}{(40,120)}
+  \instr{ptb}{(30,104)}{PT}{62}{field} \pmterm{ptb}{(40,104)}
+  \termstrip{x1}{(170,130)}{-XX01}{17,18,19,20}
+  \wire[dash pattern=on 2mm off 1mm]{(pta-m)}{(x1-1-w)}{} \wire[dash pattern=on 2mm off 1mm]{(pta-p)}{(x1-2-w)}{}
+  \wire[dash pattern=on 2mm off 1mm]{(ptb-m)}{(x1-3-w)}{} \wire[dash pattern=on 2mm off 1mm]{(ptb-p)}{(x1-4-w)}{}
+  \cable{122}{125.6}{112.4}{PLC-PEN01-PT61/62-KX01}
+  \devbox{ai}{(250,120)}{44}{14}{-R1-009 750-455 ch1 / ch2\\CommonRIO words 28 / 29}
+  \wire{(x1-1-e)}{(228,125.6)}{A1} \wire{(x1-3-e)}{(228,116.8)}{A2}
+  \instr{pah}{(310,120)}{PAH}{61}{shared} \draw[datalink, sigarrow] (ai.east) -- (pah-w);
+  \node[note, right=5mm] at (pah) {end position};
+  \node[note, text=pidcheck, align=left, anchor=north west] at (5,90) {PT61..68 range not in the PLC (DUT default 0--10); transmitter type PT5401 0--250 bar (Servi).};
+  \looptable{%
+    XV61 & Directional valve cylinder 1, open / close & Hawe PSL size 2 & 24 V DC, min 250 mA & hydraulic cabinet & 792.001 sh.24; Servi A1 \\
+    FT61 & Oil flow meter cylinder 1 (position by pulse count) & HySense QG100 & $\approx$5200 pulses / l & hydraulic cabinet & 792.001 sh.10 (rev 1) \\
+    PT61 / PT62 & Cylinder 1 pressure open / close side & PT5401 (Servi) & 0--250 bar / 4--20 mA & hydraulic cabinet & 792.001 sh.15 \\
+    \multicolumn{6}{@{}l}{\textit{Typical: cylinders 2--4 per the table on CAS-PID-500.}} \\
+  }
+}
+
+% =====================================================================================================  LD-807
+\pidsheet{CAS-LD-807}{Loop LS711: bilge level switches, inlet box 1}{Loop diagram, typical for LS7nm H / HH and QE7n}{\pidrev}{%
+  \loophdr
+  \foreach \k/\t/\y/\c in {1/LSH 711/215/H, 2/LSHH 711/197/HH, 3/LSH 712/179/H, 4/LSHH 712/161/HH, 5/LSH 713/143/H, 6/LSHH 713/125/HH} {
+    \node[draw, circle, line width=0.45pt, minimum size=9mm, font=\sffamily\fontsize{5}{5.5}\selectfont, align=center] (ls\k) at (40,\y) {\t};
+  }
+  \termstrip{x7}{(170,222)}{-XX07}{1,2,3,4,5,6,7,8,9,10,11,12,13,14}
+  \foreach \k in {1,...,6} {
+    \pgfmathtruncatemacro{\a}{2*\k-1} \pgfmathtruncatemacro{\b}{2*\k}
+    \draw[line width=0.4pt, dash pattern=on 2mm off 1mm] (ls\k.east) -- (x7-\a-w);
+    \draw[line width=0.4pt, dash pattern=on 2mm off 1mm] ($(ls\k.east)+(0,-2)$) -- (x7-\b-w);
+  }
+  \node[draw, circle, line width=0.45pt, minimum size=9mm, font=\sffamily\fontsize{5}{5.5}\selectfont, align=center] (qe) at (40,107) {XS 71};
+  \draw[line width=0.4pt, dash pattern=on 2mm off 1mm] (qe.east) -- (x7-13-w);
+  \draw[line width=0.4pt, dash pattern=on 2mm off 1mm] ($(qe.east)+(0,-2)$) -- (x7-14-w);
+  \node[note, left=1mm, align=right] at (qe.west) {QE71 bilge breakers\\(aux contacts in DC1)};
+  \node[note, align=center, above] at (110,222) {one cable per switch:\\RIO1-PEN01-LS711H-KX01 ...};
+  \devbox{di}{(250,170)}{44}{40}{-R1-104 750-1405\\ch1..ch7\\odd terminal = DI\\even terminal = +24 V\\(-R1-105, XF05 OUT+7)\\\\InletRIO1 word 5.0..5.6}
+  \foreach \k in {1,3,5,7,9,11,13} \draw[line width=0.4pt] (x7-\k-e) -- (228,{222-\k*4.4});
+  \instr{lah}{(310,190)}{LAH}{711}{shared} \instr{lahh}{(340,190)}{LAHH}{711}{shared}
+  \draw[datalink, sigarrow] (di.east) -- (300,170) -- (300,190) -- (lah-w);
+  \draw[datalink] (lah-e) -- (lahh-w);
+  \node[note, text=pidcheck, align=left, anchor=north west] at (290,175) {PLC: BilgePumpSwitchHigh / HighHigh[0..2],\\CircuitBreakerBilgePump --\\
+    read, but no alarm and no 2oo3 trip (FD 3.2.6).};
+  \looptable{%
+    LS711H..LS713HH & Water detected (H) / high-high (HH), chambers 1--3 inlet box 1 & VEGA VEGAPOINT 11 & 24 V switch & inlet box 1 & FD table 16; 792.001 sh.29 \\
+    QE71 & Bilge pump breakers, aux contacts in series & -- & dry contact & drive cabinet DC1 & 874.004 sh.05 \\
+    \multicolumn{6}{@{}l}{\textit{Typical: inlet boxes 2 / 3 on InletRIO2 / 3 -R1-104 (cables RIO2/RIO3-PEN01-...).}} \\
+  }
+}

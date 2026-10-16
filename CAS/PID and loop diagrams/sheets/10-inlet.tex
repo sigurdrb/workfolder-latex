@@ -1,0 +1,116 @@
+% P&ID: water inlet and Framo inlet pump, typical for inlet n = 1..3 (drawn for n = 1)
+\pidsheet{CAS-PID-100}{Water inlet and Framo inlet pump (typical inlet 1--3)}{Inlet system, drawn for inlet 1}{\pidrev}{%
+  % ---------------------------------------------------------------- sea / intake / pump
+  \node[font=\sffamily\scriptsize, text=pidwater, align=center] at (30,160) {SEA\\intake 10--30 m};
+  \node[draw, line width=0.6pt, minimum width=10mm, minimum height=8mm, fill=white] (xf) at (30,130) {};
+  \foreach \k in {-3,-1,1,3} \draw[line width=0.3pt] ($(xf)+(\k,-4)$) -- ++(0,8);
+  \node[tagtext, below=4.5mm] at (xf) {XF-31\\intake / fish screen};
+  \framopump{pm}{(80,130)}{PM-31\\Framo inlet pump\\20\,000 m\textsuperscript{3}/h, 40--130 rpm}
+  \draw[waterflow] (xf.east) -- (pm-in);
+  \node[note, above] at (52,131) {tunnel \O1700 PVC};
+  \motor{pmm}{(80,150)} \draw[mech] (pmm-s) -- (pm-n);
+  \node[note, right] at (84,152) {PM rim motor, 60 kW};
+  % ---------------------------------------------------------------- riser / gooseneck / to pen
+  \draw[waterflow] (pm-out) -- (170,130);
+  \draw[water] (170,130) -- (170,188) -- (255,188);
+  \draw[waterflow] (255,188) -- (255,150);
+  \node[note, text=pidwater, rotate=90, anchor=south] at (168,160) {2000-M01-LW-0041};
+  \node[note, text=pidwater, below] at (232,187) {gooseneck over the floating collar};
+  \offpage{toPen}{(247,145)}{Inlet 1 to pen}{CAS-PID-400}
+  \draw[water] (255,150) -- (255,147.5);
+  % side-stream tie-ins to the oxygenation branch (suction low, return high)
+  \tap{sst}{(170,140)} \tap{ssr}{(170,170)}
+  \draw[waterflow] (sst) -- (195,140);
+  \offpage{toOx}{(195,140)}{Side-stream to PU41}{CAS-PID-300}
+  \node[note, text=pidwater, above] at (184,141) {200-M01-LW-0042};
+  \offpage[in]{fromOx}{(195,170)}{Return from MX-41}{CAS-PID-300}
+  \draw[waterflow] (fromOx-w) -- (ssr);
+  % ---------------------------------------------------------------- vacuum system (Framo)
+  \vessel{tv}{(210,200)}{22}{10}{TV-31}
+  \draw[water] (210,188) -- (tv.south);
+  \node[note, right] at (221,194) {vacuum chamber};
+  \node[draw, line width=0.5pt, fill=white, minimum width=7mm, minimum height=5mm, font=\sffamily\tiny] (ej) at (210,216) {EJ};
+  \node[tagtext, left=1mm] at (ej.west) {EJ-31\\ejector};
+  \draw[line width=0.5pt] (ej.south) -- (tv.north);
+  \offpage[in]{air}{(100,228)}{Compressed air}{CAS-PID-600}
+  \cvalve[solenoid]{xva}{(180,228)}{XV31A}
+  \tap{airp}{(150,228)}
+  \draw[line width=0.5pt] (air) -- (xva-in);
+  \draw[line width=0.5pt] (xva-out) -- (210,228) -- (ej.north);
+  \instr{pt31}{(150,217)}{PT}{31}{field} \draw[impulse] (airp) -- (pt31-n);
+  \cvalve[solenoid]{xvb}{(245,200)}{XV31B}
+  \draw[line width=0.5pt] (tv.east) -- (xvb-in); \draw[line width=0.5pt] (xvb-out) -- (256,200);
+  \node[note, right] at (256,200) {vent};
+  \instr{lsh}{(185,206)}{LSH}{31}{field} \instr{lsl}{(185,193)}{LSL}{31}{field}
+  \draw[impulse] (lsh-e) -- (193,206) |- ($(tv.west)+(0,2)$);
+  \draw[impulse] (lsl-e) -- (193,193) |- ($(tv.west)+(0,-2)$);
+  % ---------------------------------------------------------------- Framo package control
+  \instr{seq}{(120,205)}{UY}{31}{computer}
+  \node[note, above=5mm] at (seq) {vacuum / start sequence};
+  \draw[elec, sigarrow] (seq-n) ++(0,0) -- (120,238) -- (180,238) -- (xva-act);
+  \draw[elec, sigarrow] (seq-s) -- (120,180) -- (262,180) -- (262,214) -- (245,214) -- (xvb-act);
+  \draw[elec] (lsh-w) -- (140,206); \draw[elec] (lsl-w) -- (140,193);
+  \draw[elec] (pt31-w) -- (140,217); \draw[elec] (140,217) -- (140,193); \draw[elec] (140,205) -- (seq-e);
+  \instr{sc}{(80,190)}{SC}{31}{computer}
+  \node[note, left=5mm] at (sc) {Framo PLC\\CX8200};
+  \draw[elec] (seq-w) -- (100,205) -- (100,190) -- (sc-e);
+  \vsd{vsd}{(80,170)}{VSD ACS880}
+  \draw[elec, sigarrow] (sc-s) -- (vsd.north);
+  \node[note, right] at (81,180) {EtherCAT};
+  \draw[line width=0.5pt] (vsd.south) -- (pmm-n);
+  \draw[boundary] (10,112) rectangle (272,244);
+  \node[anchor=north west, font=\sffamily\tiny\itshape, text=pidnote] at (11,243) {Framo scope (supplier package, pump control cabinet PCC1)};
+  % ---------------------------------------------------------------- CAS PLC functions (InletControl[0])
+  \node[anchor=west, font=\sffamily\scriptsize\bfseries] at (40,88) {CAS PLC -- FB InletControl[0] / PRG.FramoDataProcessing};
+  \instr{hs}{(60,70)}{HS}{31}{shared}   \node[note, below=5.5mm] at (60,70) {start / stop / reset};
+  \instr{si}{(90,70)}{SI}{31}{shared}   \node[note, below=5.5mm] at (90,70) {speed [rpm]};
+  \instr{yi}{(120,70)}{YI}{31}{shared}  \node[note, below=5.5mm] at (120,70) {Framo state};
+  \instr{ua}{(150,70)}{UA}{31}{shared}  \node[note, below=5.5mm] at (150,70) {pump alarms};
+  \instr{ky}{(180,70)}{KY}{31}{shared}  \node[note, below=5.5mm] at (180,70) {heartbeat};
+  \instr{sic}{(215,70)}{SY}{31}{shared} \node[note, below=5.5mm] at (215,70) {speed SP};
+  \draw[extlink] (sc-w) -- (20,190) -- (20,100) -- (230,100);
+  \foreach \b in {hs,si,yi,ua,ky,sic} \draw[extlink] (\b-n) -- (\b-n |- 0,100);
+  \node[note, above] at (150,101) {OPC UA to PCC1 (sim opc.tcp:\,/\,/10.1.2.101:4841)};
+  \offpage[in]{lic}{(245,40)}{Speed SP from LIC01}{CAS-PID-400}
+  \draw[datalink, sigarrow] (lic-w) -- (215,40) -- (sic-s);
+  \instr{i1}{(250,70)}{I}{1}{logic}
+  \draw[datalink] (ky-s) -- (180,55) -- (250,55) -- (i1-s);
+  \draw[datalink] (yi-s) -- (120,58) -- (180,58);
+  \offpage{toPerm}{(258,70)}{Permit O\textsubscript{2} line 1}{CAS-PID-300}
+  \draw[datalink, sigarrow] (i1-e) -- (toPerm);
+  % ---------------------------------------------------------------- notes
+  \node[anchor=north west, align=left, font=\sffamily\tiny, text width=100mm] at (290,240) {%
+    \textbf{Notes}\\[1mm]
+    1. Framo inlet pump with local controller PCC1 (Beckhoff CX8200; ABB ACS880 VSD over EtherCAT). The CAS PLC
+       writes Start, Stop, Reset, SpeedSetpoint and HeartbeatToggle and reads states, alarms and drive values
+       over OPC UA (PRG.FramoDataProcessing; Framo spec 0000\_CAS\_SPEC\_CTRLSYS rev B).\\[0.8mm]
+    2. Vacuum system: the Framo PLC opens XV31A to run ejector EJ-31 until LSL31, and on stop opens XV31B to
+       break the vacuum so the pen does not drain back (FD 3.2.1.1). LSH31 overfill: alarm in CAS after 5 s.
+       V001/V002, LSL01/LSH02 and air pressure PT31 are read over OPC UA.\\[0.8mm]
+    3. SY31 in CAS: speed setpoint = LIC01 output in REMOTE (all pumps get the same speed); actual speed while
+       starting, frozen in HOLD. In START and HOLD Framo runs its own preset speed.\\[0.8mm]
+    4. KY31: the PLC sets Framo\_1.HeartbeatToggle 1 s after Framo cleared it; no clear for 5 s =
+       HeartbeatTimeout: pump shown UNAVAILABLE, no start sent, I1 drops.\\[0.8mm]
+    5. \textcolor{pidcheck}{Cabinet drawing 874.001 shows a Framo SX1000; the FD and the folder have SR2000.}\\[1.5mm]
+    \textbf{Interlocks}\\[1mm]
+    I1. Oxygenation permit line 1 = PM-31 in REMOTE AND heartbeat OK
+        (InletPump.Status.EnableOxyControl $\rightarrow$ OxyControl.InletPermit, CAS-PID-300).\\[0.8mm]
+    I2. \textcolor{pidcheck}{FD 3.2.6: 2oo3 LS71mHH in inlet box 1 stops PM-31. Not in the PLC
+        (CAS-PID-600).}\\[0.8mm]
+    I3. \textcolor{pidcheck}{PLC function flow diagram: group start only with the outlet open. Not in the PLC.}\\[1.5mm]
+    \textbf{Typical}\\[0.5mm]
+    \begin{tabular}{@{}llll@{}}
+      \toprule
+      n & 1 & 2 & 3 \\
+      \midrule
+      Pump, intake & PM-31, XF-31 & PM-32, XF-32 & PM-33, XF-33 \\
+      Vacuum system & TV-31, XV31A/B & TV-32, XV32A/B & TV-33, XV33A/B \\
+      Switches & LSH31, LSL31 & LSH32, LSL32 & LSH33, LSL33 \\
+      Main line & LW-0041 & LW-0043 & LW-0045 \\
+      Framo cabinet & PCC1 & PCC2 & PCC3 \\
+      PLC & Inlet[0] & Inlet[1] & Inlet[2] \\
+      OPC UA (sim) & :4841 & :4842 & :4843 \\
+      \bottomrule
+    \end{tabular}
+  };
+}

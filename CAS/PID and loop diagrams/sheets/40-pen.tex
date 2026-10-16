@@ -1,0 +1,117 @@
+% P&ID: pen (closed bag), level and oxygen measurement, LIC01 and OIC01
+\pidsheet{CAS-PID-400}{Pen instruments, level control LIC01 and oxygen control OIC01}{Pen PEN01}{\pidrev}{%
+  % ---------------------------------------------------------------- pen vessel, inlets, outlet
+  \node[draw, line width=0.8pt, minimum width=140mm, minimum height=95mm, fill=white,
+        rounded corners=12mm] (pen) at (130,118) {};
+  \node[font=\sffamily\small\bfseries, text=pidnote] at (130,150) {PEN01};
+  \node[note, align=center] at (130,143) {closed bag 20\,000 m\textsuperscript{3}, \O50.5 m, depth 17.3 m\\water inside held above the sea outside (over-height)};
+  \draw[line width=0.4pt, draw=pidwater] (62,160) -- (198,160);
+  \node[note, text=pidwater, anchor=west] at (63,162) {water surface inside};
+  \foreach \n/\y in {1/158, 2/146, 3/134} {
+    \offpage{in\n}{(4,\y)}{Inlet \n\ from PM-3\n}{CAS-PID-100}
+    \draw[waterflow] (in\n-e) -- (60,\y);
+  }
+  \draw[waterflow] (130,70.5) -- (130,52);
+  \offpage{out}{(117,46)}{Bottom outlet}{CAS-PID-500}
+  \draw[water] (130,52) -- (130,48.6);
+  \node[note, text=pidwater, right] at (131,62) {\O5.5 m bottom outlet};
+  % ---------------------------------------------------------------- level: three pairs inside / outside
+  \draw[line width=0.4pt, draw=pidwater, dash pattern=on 3mm off 1mm] (60,177) -- (205,177);
+  \node[note, text=pidwater, anchor=west] at (150,179) {sea surface outside the pen};
+  \foreach \n/\x in {1/75, 2/115, 3/155} {
+    \instr{lti\n}{(\x,188)}{LT}{0\n}{field} \draw[impulse] (lti\n-s) -- (\x,160);
+    \instr{lto\n}{(\x+16,188)}{LT}{2\n}{field} \draw[impulse] (lto\n-s) -- (\x+16,177);
+    \instr{ldy\n}{(\x+8,212)}{LDY}{0\n}{behind} \funcbox{ldy\n}{$\Delta$}
+    \draw[elec, sigarrow] (lti\n-n) -- (\x,200) -- (\x+5,200) -- (\x+5,208.5);
+    \draw[elec, sigarrow] (lto\n-n) -- (\x+16,200) -- (\x+11,200) -- (\x+11,208.5);
+    \node[note, below=5.5mm, align=center] at (\x+8,182) {InletRIO\n\\words 0/1};
+  }
+  \instr{ly}{(205,212)}{LY}{01}{behind} \funcbox{ly}{$\bar{x}$}
+  \foreach \n/\x in {1/75, 2/115, 3/155} \draw[datalink] (ldy\n-n) -- (\x+8,222);
+  \draw[datalink, sigarrow] (83,222) -- (205,222) -- (ly-n);
+  \instr{lic}{(232,212)}{LIC}{01}{shared}
+  \draw[datalink, sigarrow] (ly-e) -- (lic-w);
+  \node[note, right=5mm, align=left] at (lic) {SP 0.06 m (O-35)\\out 40--130 rpm};
+  \instr{lal}{(232,190)}{LAL}{01}{shared}  \node[note, right=5mm] at (lal) {level measurement lost};
+  \draw[datalink] (ly-s) -- (205,190) -- (lal-w);
+  \instr{i6}{(255,190)}{I}{6}{logic}
+  \draw[datalink, sigarrow] (lal-e) -- (i6-w);
+  \draw[datalink, sigarrow] (i6-n) -- (255,205) -- (240,205) -- (236,208);
+  \offpage{tosp}{(248,226)}{SP to SY31/32/33}{CAS-PID-100}
+  \draw[datalink, sigarrow] (lic-n) -- (232,226) -- (tosp);
+  % ---------------------------------------------------------------- oxygen: Orbit 864 multisensors
+  \foreach \n/\x in {1/90, 2/120, 3/150} {
+    \instr{oti\n}{(\x,108)}{OT}{0\n}{field}
+    \node[note, above=5mm, align=center] at (\x,108) {+TT0\n, ST0\n};
+  }
+  \foreach \n/\y in {1/150, 2/128, 3/106} {
+    \instr{oto\n}{(225,\y)}{OT}{2\n}{field}
+    \node[note, right=5mm, align=left] at (225,\y) {outside\\+TT2\n, ST2\n};
+  }
+  \node[draw, line width=0.5pt, fill=white, align=center, font=\sffamily\fontsize{4.6}{5}\selectfont,
+        minimum width=26mm, minimum height=8mm] (hub) at (190,40) {RS-485 hub -MB01\\750-652 -R1-003, CommonRIO};
+  % one trunk per group, short branches from each sensor (no overlapping line markings)
+  \foreach \n/\x in {1/90, 2/120, 3/150} \draw[fieldbus] (oti\n-s) -- (\x,90);
+  \draw[fieldbus] (90,90) -- (176,90) -- (176,44);
+  \foreach \n/\y in {1/150, 2/128, 3/106} \draw[fieldbus] (oto\n-s) -- (225,\y-8) -- (210,\y-8);
+  \draw[fieldbus] (210,142) -- (210,40) -- (hub.east);
+  \node[note, rotate=90, anchor=south] at (175,64) {Modbus RTU 9600 8N1};
+  % OIC01 chain
+  \instr{oy}{(250,70)}{OY}{01}{behind} \funcbox{oy}{$\bar{x}$}
+  \draw[datalink, sigarrow] (hub.south) -- (190,26) -- (250,26) -- (oy-s);
+  \instr{oic}{(275,70)}{OIC}{01}{shared}
+  \draw[datalink, sigarrow] (oy-e) -- (oic-w);
+  \node[note, above=5mm, align=center] at (oic) {SP 8.0 mg/L\\out kg/h O\textsubscript{2}};
+  \instr{oi}{(250,48)}{OI}{01}{shared} \node[note, left=5mm] at (oi) {\% saturation};
+  \draw[datalink] (oy-s) ++(0,0) -- (250,52.5);
+  \instr{fy}{(275,48)}{FY}{01}{behind} \funcbox{fy}{$\div$}
+  \draw[datalink, sigarrow] (oic-s) -- (fy-n);
+  \node[note, right=5.5mm, align=left] at (fy) {share between\\lines in auto};
+  \foreach \n/\y in {1/34, 2/26, 3/18} {
+    \offpage{sp\n}{(290,\y)}{SP to FIC4\n}{}
+  }
+  \draw[datalink] (fy-s) -- (275,18) -- (290,18) (275,26) -- (290,26) (275,34) -- (290,34);
+  \node[note] at (303,12) {CAS-PID-300};
+  \instr{i7}{(275,92)}{I}{7}{logic}
+  \draw[datalink, sigarrow] (oy-n) -- (250,92) -- (i7-w);
+  \draw[datalink, sigarrow] (i7-s) -- (oic-n);
+  % ---------------------------------------------------------------- CO2 / TGP (Solu-Blu)
+  \instr{qt}{(170,82)}{QT}{11}{field}  \node[note, left=5mm] at (qt) {CO\textsubscript{2}};
+  \instr{pt}{(190,82)}{PT}{11}{field}  \node[note, below=5mm] at (190,82) {TGP};
+  \instr{qi}{(40,60)}{QI}{11}{shared} \instr{pi}{(60,60)}{PI}{11}{shared}
+  \draw[elec, sigarrow] (qt-w) -- (165.5,82) -- (165.5,75) -- (40,75) -- (qi-n);
+  \draw[elec, sigarrow] (pt-s) -- (190,72) -- (60,72) -- (pi-n);
+  \node[note, below=5mm, align=center] at (50,60) {CommonRIO -R1-007 ch1/ch2\\words 20/21};
+  % ---------------------------------------------------------------- notes
+  \node[anchor=north west, align=left, font=\sffamily\tiny, text width=84mm] at (306,240) {%
+    \textbf{Notes}\\[1mm]
+    1. Level: inside LT01--03 (VEGAPULS radar on the gooseneck), outside LT21--23 (submersible pressure
+       probe), one pair per inlet on InletRIO n words 0/1, 0--2 m, 2-wire 4--20 mA. LDY0n = over-height of
+       pair n = LT0n $-$ LT2n from the unfiltered values, then a Butterworth low-pass (FilterFc 0.05 Hz);
+       a pair drops out when either transmitter is bad or disabled (FB.Inlet.InletSensors).\\[0.8mm]
+    2. LY01 = mean over-height of the valid pairs = LIC01 PV (FB.Pen.PenControl). Inside / outside means
+       for display: each transmitter filtered on its own, then averaged.\\[0.8mm]
+    3. LIC01 (FB.Inlet.InletSupervisor): Kp 450 rpm/m, Ti 60 s, out 40--130 rpm, common speed setpoint
+       of all inlet pumps in REMOTE. Tracks the actual pump speed while pumps start, freezes when a pump in
+       level control loses its heartbeat (HOLD).
+       \textcolor{pidcheck}{FD table 8: P scheduled on the number of pumps (0.5/1/2), I 600 s, PV scaling 0--20 cm,
+       deviation and L/H alarms; the PLC has one gain set and no L/H alarms.}\\[0.8mm]
+    4. Orbit 864 x6 on RS-485 through the 750-652 behind CommonRIO and the Waveshare hub -MB01, slaves 1--6.
+       Each gives O\textsubscript{2} (mg/L, \% sat), temperature, salinity and depth. OY01 = mean O\textsubscript{2} of
+       the sensors with EnableForControl = OIC01 PV.
+       \textcolor{pidcheck}{FD: inside OT01--03, outside OT21--23, PV normally OT03 with a selector; cabinet drawing:
+       OT01--OT06 on hub ports 1--6. EnableForControl defaults to FALSE and is not retained: after a restart OIC01
+       has no PV until set online.}\\[0.8mm]
+    5. OIC01: Kp 50, Ti 1800 s, SP 8.0 mg/L; output = total O\textsubscript{2} flow [kg/h], split by FY01 between
+       the lines in auto (each up to FlowMax 104.2 kg/h; lines in manual counted with their measured flow).
+       \textcolor{pidcheck}{FD table 13/14: output 0--100 \% to OV41--43 directly or as cascade to FIC41--43,
+       P scheduled on the number of oxy pumps.}\\[0.8mm]
+    6. QT11 / PT11: PSI Solu-Blu CO\textsubscript{2} / total dissolved gas pressure, 2-wire 4--20 mA.
+       \textcolor{pidcheck}{No engineering range in the PLC (DUT default 0--10). Drawing 792.001 shows QT11 with an
+       "O2 transmitter" symbol.}\\[1.5mm]
+    \textbf{Interlocks}\\[1mm]
+    I6. No valid level pair (LevelControlOK FALSE): LIC01 to manual at SafeOutput 60 rpm, alarm LAL01
+        (LevelMeasurementLost); back to auto bumplessly.\\[0.8mm]
+    I7. No good O\textsubscript{2} sensor for control (OxyControlOK FALSE): OIC01 to manual, output frozen.
+  };
+}

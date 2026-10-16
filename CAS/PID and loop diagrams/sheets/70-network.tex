@@ -1,0 +1,101 @@
+% Control system architecture: network, PLC, Modbus TCP couplers with their module racks, drives, Framo
+% A rack is drawn as a row of modules: \iomod{x}{y}{designation}{type}{fill}
+\newcommand{\iomod}[5]{%
+  \node[draw, line width=0.4pt, fill=#5, minimum width=26mm, minimum height=6.2mm, inner sep=0.3mm,
+        font=\sffamily\fontsize{4.2}{4.6}\selectfont, align=center, rotate=90] at (#1,#2) {#3\ \ #4};}
+\colorlet{modai}{blue!12}\colorlet{modao}{green!14}\colorlet{moddi}{orange!14}\colorlet{moddo}{red!12}
+\colorlet{modsp}{gray!12}\colorlet{modcx}{violet!12}
+\pidsheet{CAS-LAY-700}{Control system network and I/O nodes}{Control system: PLC, Modbus TCP couplers, drives, Framo}{\pidrev}{%
+  % ---------------------------------------------------------------- network cabinet
+  \node[draw, line width=0.6pt, minimum width=305mm, minimum height=9mm, align=center, font=\sffamily\scriptsize]
+       (nc) at (165,228) {Network cabinet NC: Ethernet switch (not drawn on any sheet) -- Cat6 star, cable list NC-xxx-KY01};
+  % ---------------------------------------------------------------- PLC / RIO1 cabinet
+  \draw[boundary] (8,92) rectangle (205,212);
+  \node[anchor=north west, font=\sffamily\tiny\bfseries] at (9,211) {PLC/RIO1 cabinet =F1+AC (15169-792.001 rev 1), UPS ADEL CBI245A};
+  \node[draw, line width=0.6pt, fill=modcx, minimum width=22mm, minimum height=26mm, align=center,
+        font=\sffamily\tiny] (plc) at (24,180) {-R1-000\\PFC200\\750-8212\\CAS PLC};
+  % CommonRIO rack (R1-001 ... R1-020) as on the drawing
+  \node[draw, line width=0.6pt, fill=modcx, minimum width=26mm, minimum height=8mm, align=center,
+        font=\sffamily\fontsize{4.2}{4.6}\selectfont, rotate=90] (cr) at (46,180) {-R1-001 750-362 coupler};
+  \foreach \k/\d/\t/\c in {1/002/602/modsp, 2/003/652/modcx, 3/004/638/moddi, 4/005/638/moddi, 5/006/602/modsp,
+      6/007/455/modai, 7/008/455/modai, 8/009/455/modai, 9/010/455/modai, 10/011/455/modai, 11/012/455/modai,
+      12/013/602/modsp, 13/014/563/modao, 14/015/563/modao, 15/016/602/modsp, 16/017/1405/moddi,
+      17/018/602/modsp, 18/019/1515/moddo, 19/020/1515/moddo} {
+    \iomod{\fpeval{47.5+\k*6.6}}{180}{-R1-\d}{750-\t}{\c}
+  }
+  \node[note, anchor=west] at (40,163) {CommonRIO (PLC FB.RIO.CommonRIO, sim 10.1.2.48:502): 750-652 Orbit RS-485 | 2x 750-638 cylinder counters |
+    6x 750-455 AI | 2x 750-563 AO | 750-1405 DI | 2x 750-1515 DO};
+  \node[note, anchor=west, text=pidcheck] at (40,158) {Drawing: six 750-455 (-R1-007..012, two spare). PLC: five (words 20--39), DI at word 40 -- with six the DI is word 44.};
+  % InletRIO1 rack (R1-100 ... R1-106)
+  \node[draw, line width=0.6pt, fill=modcx, minimum width=26mm, minimum height=8mm, align=center,
+        font=\sffamily\fontsize{4.2}{4.6}\selectfont, rotate=90] (r1) at (46,125) {-R1-100 750-362 coupler};
+  \foreach \k/\d/\t/\c in {1/101/1405/moddi, 2/102/1515/moddo, 3/103/602/modsp, 4/106/455/modai, 5/105/602/modsp, 6/104/1405/moddi} {
+    \iomod{\fpeval{47.5+\k*6.6}}{125}{-R1-\d}{750-\t}{\c}
+  }
+  \node[note, anchor=west, align=left] at (98,128) {InletRIO1 (PLC InletRIO[0], sim 10.1.2.101:5121)\\
+    AI words 0--3: LT01, LT21, PT41, PT44 (-R1-106)\\DI word 4: cabinet status (-R1-101), word 5: LS711..713H/HH, QE71,\\
+    PU41 leakage / temperature (-R1-104); DO word 0.0: reset XF05 (-R1-102)};
+  \node[draw, line width=0.5pt, minimum width=16mm, minimum height=7mm, align=center, font=\sffamily\tiny]
+       (hub) at (60,103) {-MB01 RS-485\\hub, 8 ports};
+  \draw[fieldbus] (60.7,167) -- (60.7,140) -- (36,140) -- (36,103) -- (hub.west);
+  \node[note, anchor=west] at (69,103) {Modbus RTU 9600 8N1 to Orbit 864 x6 (OT01--06 on ports 1--6), slaves 1--6};
+  % ---------------------------------------------------------------- RIO2 / RIO3
+  \foreach \n/\y in {2/65, 3/30} {
+    \draw[boundary] (8,\y-16) rectangle (205,\y+16);
+    \node[anchor=north west, font=\sffamily\tiny\bfseries] at (9,\y+15) {RIO\n\ cabinet (15169-792.002 rev 0), no UPS};
+    \node[draw, line width=0.6pt, fill=modcx, minimum width=26mm, minimum height=8mm, align=center,
+          font=\sffamily\fontsize{4.2}{4.6}\selectfont, rotate=90] (rio\n) at (46,\y-1) {-R1-100 750-362/040};
+    \foreach \k/\d/\t/\c in {1/101/1405/moddi, 2/102/1515/moddo, 3/103/602/modsp, 4/106/455/modai, 5/105/602/modsp, 6/104/1405/moddi} {
+      \iomod{\fpeval{47.5+\k*6.6}}{\y-1}{-R1-\d}{750-\t}{\c}
+    }
+  }
+  \node[note, anchor=west, align=left] at (98,64) {InletRIO2 (InletRIO[1], sim :5122): LT02, LT22, PT42, PT45;\\LS721..723H/HH, QE72.
+    \textcolor{pidcheck}{No PU42 leakage / temperature DIs.}};
+  \node[note, anchor=west, align=left] at (98,29) {InletRIO3 (InletRIO[2], sim :5123): LT03, LT23, PT43, PT46;\\LS731..733H/HH, QE73.
+    \textcolor{pidcheck}{No RIO3 drawing; from the cable list.}};
+  % ---------------------------------------------------------------- drives and Framo
+  \foreach \n/\y in {1/195, 2/165, 3/135} {
+    \node[draw, line width=0.5pt, fill=modcx, minimum width=34mm, minimum height=10mm, align=center, font=\sffamily\tiny]
+         (dc\n) at (240,\y) {Drive cabinet DC\n\\ATV650D15N4 -FC01, PU4\n};
+    \node[draw, line width=0.5pt, fill=modcx, minimum width=34mm, minimum height=10mm, align=center, font=\sffamily\tiny]
+         (pcc\n) at (290,\y) {Framo PCC\n\\CX8200 + ACS880, PM-3\n};
+  }
+  \node[note, align=left, anchor=north west] at (222,126) {DC n: Modbus TCP on the embedded Ethernet port,\\
+    polled by InletRIO[i] (2nd SCL master), unit id 0,\\sim 10.1.2.101:5131--5133.\\
+    PCC n: OPC UA server (Framo spec), read / written by\\PRG.FramoDataProcessing, sim 10.1.2.101:4841--4843.};
+  \node[draw, line width=0.5pt, minimum width=34mm, minimum height=8mm, align=center, font=\sffamily\tiny] (ats) at (240,90) {ATS cabinet\\no signals to the PLC};
+  % ---------------------------------------------------------------- links
+  \draw[fieldbus] (plc.north) -- (24,223.5);
+  \draw[fieldbus] (cr.east) ++(0,0) -- (46,223.5);
+  % couplers: network enters at the middle of the left side (rotated nodes: .north = left side)
+  \draw[fieldbus] (40,223.5) -- (40,125) -- (r1.north);
+  \draw[fieldbus] (30,223.5) -- (30,64) -- (rio2.north);
+  \draw[fieldbus] (18,223.5) -- (18,29) -- (rio3.north);
+  \draw[fieldbus] (217,223.5) -- (217,90) -- (ats.west);
+  \draw[extlink] (313,223.5) -- (313,135);
+  \foreach \n/\y in {1/195, 2/165, 3/135} { \draw[fieldbus] (217,\y) -- (dc\n.west); \draw[extlink] (313,\y) -- (pcc\n.east); }
+  \node[note, anchor=west] at (314,215) {OPC UA};
+  \node[note, anchor=east] at (216,215) {Modbus TCP};
+  \node[note, anchor=west, text=pidcheck, align=left] at (40,218) {Only one Cat6 (NC-PLC/RIO1-KY01) to the PLC/RIO1 cabinet for PFC200,\\R1-001 and R1-100: internal link not drawn.};
+  % ---------------------------------------------------------------- legend for the rack colours
+  \foreach \c/\t/\y in {modai/{750-455 AI 4--20 mA}/60, modao/{750-563 AO 4--20 mA}/54, moddi/{750-1405 DI / 750-638 counter}/48,
+                        moddo/{750-1515 DO}/42, modsp/{750-602 24 V feed}/36, modcx/{coupler / CPU / 750-652 serial}/30} {
+    \node[draw, fill=\c, minimum width=4mm, minimum height=3mm] at (226,\y) {};
+    \node[note, anchor=west] at (229,\y) {\t};
+  }
+  % ---------------------------------------------------------------- notes
+  \node[anchor=north west, align=left, font=\sffamily\tiny, text width=70mm] at (322,240) {%
+    \textbf{Notes}\\[1mm]
+    1. The PFC200 has no local I/O. All field I/O is on 750-362 Modbus TCP couplers polled by the PLC program:
+       CommonRIO FC23 read 41 / write 25 words (WagoAppPlcModbus), InletRIO n FC23 read 26 / write 21
+       words every 100 ms (SCL.sModbusMasterTCP). The 750-652 behind CommonRIO carries Modbus RTU in the
+       coupler's process image (words 0--11).\\[0.8mm]
+    2. Naming: the drawings' "RIO1" is the inlet-1 coupler -R1-100 (PLC InletRIO[0]); the PLC's CommonRIO is
+       coupler -R1-001 in the same cabinet.\\[0.8mm]
+    3. IP addresses are not on any drawing. The values shown are the simulator defaults in the PLC
+       (PFC200\_Sim GVL ConfigValues).\\[0.8mm]
+    4. Process image order of a 750-362: complex and analog modules first in slot order, then digital
+       modules packed bit-wise. Word numbers in this set follow the PLC mapping; CAS-PID-900 compares
+       them with the drawings.
+  };
+}

@@ -1,0 +1,38 @@
+% CAS (Heimdall) -- P&IDs and instrument loop diagrams.
+% Drawing practice: ANSI/ISA-5.1 (identification and symbols) and ANSI/ISA-5.4 (loop diagrams) as
+% presented in Kuphaldt, "Lessons In Industrial Instrumentation" ch. 7, and Sands & Verhappen (eds.),
+% "A Guide to the Automation Body of Knowledge", 3rd ed., ISA 2018, ch. 1.
+% Content: functional description P-15169-CAS-FD-01 rev B, preliminary P&ID rev B, cabinet drawings
+% 15169-792.001/.002, cable list 15169-860-001, and the PLC project scaleaq/heimdall-plc (CODESYS
+% CAS-Heimdall, application PFC200_Sim). checklist.md says how to re-check it against those sources.
+\documentclass{article}
+\usepackage[a3paper,landscape,margin=0mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{caspid}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+\pagestyle{empty}
+
+% Revision of the whole set; each sheet shows it in its title block
+\newcommand{\pidrev}{A / 2026-10-16}
+
+\begin{document}
+\input{sheets/00-cover}
+\input{sheets/01-legend}
+\input{sheets/10-inlet}
+\input{sheets/20-oxygen-supply}
+\input{sheets/30-oxygenation}
+\input{sheets/40-pen}
+\input{sheets/50-outlet}
+\input{sheets/60-utilities}
+\input{sheets/70-network}
+\input{sheets/80-loops}
+\input{sheets/90-io-list}
+\input{sheets/95-open-points}
+\end{document}

@@ -1,0 +1,91 @@
+% P&ID: utilities -- bilge in the inlet boxes (typical inlet 1), compressed air, cabinet power status
+\pidsheet{CAS-PID-600}{Utilities: bilge, compressed air, cabinet power status}{Utilities, bilge drawn for inlet box 1}{\pidrev}{%
+  % ---------------------------------------------------------------- inlet box 1: three chambers
+  \node[anchor=west, font=\sffamily\scriptsize\bfseries] at (10,236) {Inlet box 1 (pump module 1): three chambers};
+  \foreach \m/\x in {1/20, 2/90, 3/160} {
+    \draw[line width=0.7pt] (\x,225) -- (\x,150) -- (\x+55,150) -- (\x+55,225);
+    \node[note] at (\x+27.5,221) {chamber \m};
+    \draw[line width=0.3pt, draw=pidwater] (\x+2,157) -- (\x+53,157);
+    \pump{bp\m}{(\x+16,165)}{}
+    \node[tagtext, below=5.5mm] at (\x+16,165) {BP-71\m\ bilge pump\\own float switch};
+    \draw[water] (bp\m-out) -- (\x+22,232);
+    \node[note, text=pidwater, right] at (\x+22,231) {overboard};
+    \instr{lsh\m}{(\x+44,190)}{LSH}{71\m}{field}
+    \instr{lshh\m}{(\x+44,208)}{LSHH}{71\m}{field}
+    \draw[impulse] (lsh\m-s) -- (\x+44,176); \draw[impulse] (lshh\m-s) ++(4,0) -- (\x+48,199) -- (\x+48,180);
+    \node[note, right=4.5mm] at (lsh\m) {H};
+    \node[note, right=4.5mm] at (lshh\m) {HH};
+  }
+  % drive cabinet DC1: bilge contactors and breakers
+  \node[draw, line width=0.5pt, minimum width=60mm, minimum height=14mm, align=left, font=\sffamily\tiny]
+       (dc) at (60,128) {Drive cabinet DC1: bilge contactors -XK11/12/13 (230 V coils),\\breakers -XF11/12/13, aux contacts in series = QE71};
+  \foreach \m/\x in {1/20, 2/90, 3/160} \draw[line width=0.5pt] (bp\m-s) -- (\x+16,150) ;
+  \draw[line width=0.5pt] (36,150) -- (36,135);
+  \instr{qe}{(120,128)}{XS}{71}{field} \node[note, below=5mm] at (120,128) {QE71 breakers};
+  \draw[elec] (dc.east) -- (qe-w);
+  % ---------------------------------------------------------------- CAS PLC: InletRIO1 DI word 5
+  \node[anchor=west, font=\sffamily\scriptsize\bfseries] at (10,98) {CAS PLC -- InletRIO1 750-1405 -R1-104 (DI word 5)};
+  \foreach \m/\x in {1/30, 2/80, 3/130} {
+    \instr{lah\m}{(\x,80)}{LAH}{71\m}{shared}
+    \instr{lahh\m}{(\x+20,80)}{LAHH}{71\m}{shared}
+  }
+  \foreach \m/\xs/\x in {1/64/30, 2/134/80, 3/204/130} {
+    \draw[elec, sigarrow] (lsh\m-w) ++(0,0) -- (\xs-4.5,190) -- (\xs-4.5,100) -- (\x,100) -- (lah\m-n);
+    \draw[elec, sigarrow] (lshh\m-e) -- (\xs+8,208) -- (\xs+8,103) -- (\x+20,103) -- (lahh\m-n);
+  }
+  \instr{xa}{(180,80)}{XA}{71}{shared} \draw[elec, sigarrow] (qe-s) -- (120,108) -- (180,108) -- (xa-n);
+  \node[note, below=5mm, align=center] at (105,80) {ch1--6: LS711H, LS711HH, ... LS713HH; ch7: QE71};
+  \instr{i2}{(225,80)}{I}{2}{logic}
+  \draw[datalink] (lahh1-s) -- (50,66) -- (225,66) -- (i2-s);
+  \draw[datalink] (lahh2-s) -- (100,66); \draw[datalink] (lahh3-s) -- (150,66);
+  \node[note, right=5mm, align=left, text=pidcheck] at (i2) {2oo3 HH\\stop PM-31\\(not in PLC)};
+  \offpage{tostop}{(232,95)}{Stop PM-31}{CAS-PID-100}
+  \draw[datalink, sigarrow] (i2-n) -- (225,95) -- (tostop);
+  \node[openpoint, text=pidcheck, font=\sffamily\tiny, align=left] at (70,40) {Bilge pump contactors: DC sheet 05 expects RIO\\
+    relays -XK1/2/3 (230 V); no RIO drawing has them, the\\PLC has no outputs for them.};
+  % ---------------------------------------------------------------- compressed air
+  \node[anchor=west, font=\sffamily\scriptsize\bfseries] at (250,236) {Compressed air};
+  \node[draw, line width=0.5pt, minimum width=24mm, minimum height=8mm, align=center, font=\sffamily\tiny]
+       (comp) at (265,220) {compressed air\\supply (Framo)};
+  \foreach \n/\y in {1/215, 2/205, 3/195} {
+    \offpage{ca\n}{(285,\y)}{Air to EJ-3\n}{}
+  }
+  \draw[line width=0.5pt] (comp.east) -- (281,220) -- (281,195) -- (ca3);
+  \draw[line width=0.5pt] (281,215) -- (ca1) (281,205) -- (ca2);
+  \node[note] at (298,189) {CAS-PID-100};
+  \node[note, text=pidcheck, align=left, anchor=north west] at (250,186) {Source not on any drawing\\(prelim P\&ID: "From compressed air <dwg no.>").};
+  % ---------------------------------------------------------------- cabinet power status (InletRIO n DI word 4)
+  \node[anchor=west, font=\sffamily\scriptsize\bfseries] at (258,160) {Cabinet power status (InletRIO n, -R1-101, DI word 4)};
+  \foreach \k/\t/\y in {0/{XF05 24 V field breaker tripped}/145, 1/{XF05 load $>$ 80 \%}/133,
+                        2/{XF01 230 V breaker tripped}/121, 3/{UPS: backup power on}/109, 4/{UPS: battery low / fault}/97} {
+    \instr{ya\k}{(268,\y)}{YA}{3\k}{shared}
+    \node[note, right=5mm] at (ya\k) {4.\k\quad \t};
+  }
+  \instr{hsr}{(268,82)}{HS}{35}{shared} \node[note, right=5mm] at (hsr) {DO 0.0\quad reset XF05 (-R1-102 ch1)};
+  \node[note, text=pidcheck, align=left, anchor=north west] at (260,73) {RIO2/RIO3: 4.3 and 4.4 are wired to +24 V (no UPS in those\\
+    cabinets) and always read TRUE. The PLC maps them as\\BackupPowerOn / BatteryFault. Only FieldPower24VTripped\\(4.0) is used by the PLC.};
+  % ---------------------------------------------------------------- notes
+  \node[anchor=north west, align=left, font=\sffamily\tiny, text width=64mm] at (328,240) {%
+    \textbf{Notes}\\[1mm]
+    1. Each inlet box has three chambers with a self-controlled bilge pump and two level switches
+       (VEGAPOINT 11): LS7nmH water detected (alarm), LS7nmHH high-high (FD 3.2.6, table 16).
+       n = inlet box, m = chamber.\\[0.8mm]
+    2. Switches on InletRIO n 750-1405 -R1-104 ch1--6, bilge breakers QE7n on ch7, 2-wire 24 V
+       (drawings 792.001 sh.29, 792.002 sh.12). PLC: Inlet[i].Input.BilgePumpSwitchHigh / HighHigh[0..2],
+       CircuitBreakerBilgePump (InletRIO words 5.0--5.6).
+       \textcolor{pidcheck}{The PLC reads them but raises no alarm and has no 2oo3 trip.}\\[0.8mm]
+    3. Power: shore / barge supply via the ATS cabinet (875.001, no signals to the PLC). UPS (ADEL CBI245A,
+       2 x 12 V 26 Ah) only in the PLC/RIO1 cabinet.\\[1.5mm]
+    \textbf{Typical}\\[0.5mm]
+    \begin{tabular}{@{}llll@{}}
+      \toprule
+      n & 1 & 2 & 3 \\
+      \midrule
+      Switches & LS711..713H/HH & LS721..723H/HH & LS731..733H/HH \\
+      Breakers & QE71 & QE72 & QE73 \\
+      RIO & InletRIO1 & InletRIO2 & InletRIO3 \\
+      Drive cabinet & DC1 & DC2 & DC3 \\
+      \bottomrule
+    \end{tabular}
+  };
+}

@@ -1,0 +1,342 @@
+% caspid.sty -- ISA-5.1 / ISA-5.4 drawing symbols for the CAS (Heimdall) P&IDs and loop diagrams.
+% Symbols follow ANSI/ISA-5.1 as presented in Kuphaldt, "Lessons In Industrial Instrumentation"
+% (ch. "Instrumentation documents") and Sands & Verhappen, "A Guide to the Automation Body of Knowledge"
+% (ISA, 2018). Sizes in mm on an A3 sheet; one drawing unit = 1 mm.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{caspid}[2026/10/16 CAS P&ID symbols]
+
+\RequirePackage{tikz}
+\RequirePackage{xcolor}
+\usetikzlibrary{arrows.meta, calc, positioning, shapes.geometric, shapes.misc, decorations.markings,
+  decorations.pathreplacing, fit, backgrounds, patterns}
+
+% ------------------------------------------------------------------------------------------- colours
+\definecolor{pidwater}{RGB}{0,90,170}       % water lines
+\definecolor{pidoxygen}{RGB}{0,140,60}      % oxygen gas lines
+\definecolor{pidoil}{RGB}{150,90,0}         % hydraulic oil
+\definecolor{pidsignal}{RGB}{0,0,0}
+\definecolor{pidnote}{RGB}{90,90,90}
+\definecolor{pidcheck}{RGB}{200,0,0}        % open point / to be verified
+
+% ------------------------------------------------------------------------------------------- line styles
+% Process lines (ISA-5.1: heavy solid). Colour shows the medium; the legend says which.
+\tikzset{
+  pid/.style={x=1mm, y=1mm, line cap=round, line join=round, font=\sffamily\scriptsize},
+  water/.style={line width=0.9pt, draw=pidwater},
+  waterflow/.style={water, postaction={decorate}, decoration={markings,
+      mark=at position 0.5 with {\arrow{Triangle[length=2.4mm,width=1.8mm]}}}},
+  oxygen/.style={line width=0.9pt, draw=pidoxygen},
+  oxyflow/.style={oxygen, postaction={decorate}, decoration={markings,
+      mark=at position 0.5 with {\arrow{Triangle[length=2.4mm,width=1.8mm]}}}},
+  oil/.style={line width=0.7pt, draw=pidoil},
+  % Signal lines (ISA-5.1)
+  elec/.style={line width=0.35pt, dash pattern=on 2.2mm off 1.2mm},          % electric signal 4-20 mA, 24 V
+  datalink/.style={line width=0.35pt, postaction={decorate},                % internal system / data link:
+      decoration={markings, mark=between positions 0.08 and 0.95 step 4mm    % line with small circles
+        with {\fill[white] (0,0) circle (0.55mm); \draw[line width=0.3pt] (0,0) circle (0.55mm);}}},
+  % Fieldbus network (ISA-5.1-2009: hollow diamonds): Modbus TCP and Modbus RTU to RIO, drives, sensors
+  fieldbus/.style={line width=0.35pt, postaction={decorate},
+      decoration={markings, mark=between positions 0.06 and 0.96 step 5mm
+        with {\filldraw[fill=white, line width=0.3pt] (-0.75mm,0) -- (0,0.75mm) -- (0.75mm,0) -- (0,-0.75mm) -- cycle;}}},
+  % Data link between independent systems (filled circles): OPC UA to the Framo pump controllers
+  extlink/.style={line width=0.35pt, postaction={decorate},
+      decoration={markings, mark=between positions 0.06 and 0.96 step 4mm with {\fill (0,0) circle (0.55mm);}}},
+  impulse/.style={line width=0.35pt},                                         % process connection to an instrument
+  pneu/.style={line width=0.35pt, postaction={decorate},                    % pneumatic (not used in CAS)
+      decoration={markings, mark=between positions 0.1 and 0.9 step 4mm
+        with {\draw (-0.6mm,-0.9mm) -- (0.0mm,0.9mm) (0.4mm,-0.9mm) -- (1.0mm,0.9mm);}}},
+  mech/.style={line width=0.35pt, dash pattern=on 0.6mm off 0.8mm},         % mechanical link / shaft
+  sigarrow/.style={-{Stealth[length=1.8mm,width=1.4mm]}},
+  boundary/.style={line width=0.3pt, dash pattern=on 4mm off 1mm on 0.8mm off 1mm, draw=pidnote},
+  note/.style={font=\sffamily\tiny, text=pidnote, align=left},
+  tagtext/.style={font=\sffamily\tiny, align=center, inner sep=0.3mm},
+  openpoint/.style={draw=pidcheck, line width=0.5pt, rounded corners=1mm, inner sep=1mm},
+}
+
+% ------------------------------------------------------------------------------------------- instruments
+% \instr[options]{name}{(x,y)}{LETTERS}{loop number}{location}
+% location: field | panel | aux | behind | shared | plc | computer | logic
+%   field    : discrete instrument, field mounted (plain circle)
+%   panel    : discrete instrument, main panel (circle, solid line)
+%   behind   : behind panel / not normally accessible (circle, dashed line)
+%   shared   : shared display / shared control, PLC function shown on the HMI (circle in square, solid line)
+%   sharedf  : shared display / control, field (circle in square, no line)
+%   plc      : programmable logic controller function (diamond in square, solid line)
+%   computer : computer function (hexagon, solid line)
+%   logic    : interlock / binary logic (diamond)
+\newcommand{\instr}[6][]{%
+  \begin{scope}[shift={#3}]
+    \def\caspidloc{#6}%
+    \def\caspidtmp{field}\ifx\caspidloc\caspidtmp
+      \draw[line width=0.45pt, fill=white] (0,0) circle (4.5);
+    \fi
+    \def\caspidtmp{panel}\ifx\caspidloc\caspidtmp
+      \draw[line width=0.45pt, fill=white] (0,0) circle (4.5); \draw[line width=0.45pt] (-4.5,0) -- (4.5,0);
+    \fi
+    \def\caspidtmp{aux}\ifx\caspidloc\caspidtmp
+      \draw[line width=0.45pt, fill=white] (0,0) circle (4.5);
+      \draw[line width=0.45pt] (-4.45,0.35) -- (4.45,0.35) (-4.45,-0.35) -- (4.45,-0.35);
+    \fi
+    \def\caspidtmp{behind}\ifx\caspidloc\caspidtmp
+      \draw[line width=0.45pt, fill=white] (0,0) circle (4.5);
+      \draw[line width=0.45pt, dash pattern=on 0.9mm off 0.6mm] (-4.5,0) -- (4.5,0);
+    \fi
+    \def\caspidtmp{shared}\ifx\caspidloc\caspidtmp
+      \draw[line width=0.45pt, fill=white] (-4.5,-4.5) rectangle (4.5,4.5);
+      \draw[line width=0.45pt] (0,0) circle (4.5); \draw[line width=0.45pt] (-4.5,0) -- (4.5,0);
+    \fi
+    \def\caspidtmp{sharedf}\ifx\caspidloc\caspidtmp
+      \draw[line width=0.45pt, fill=white] (-4.5,-4.5) rectangle (4.5,4.5);
+      \draw[line width=0.45pt] (0,0) circle (4.5);
+    \fi
+    \def\caspidtmp{plc}\ifx\caspidloc\caspidtmp
+      \draw[line width=0.45pt, fill=white] (-4.5,-4.5) rectangle (4.5,4.5);
+      \draw[line width=0.45pt] (0,4.5) -- (4.5,0) -- (0,-4.5) -- (-4.5,0) -- cycle;
+      \draw[line width=0.45pt] (-4.5,0) -- (4.5,0);
+    \fi
+    \def\caspidtmp{computer}\ifx\caspidloc\caspidtmp
+      \draw[line width=0.45pt, fill=white] (-4.8,0) -- (-2.4,4.2) -- (2.4,4.2) -- (4.8,0) -- (2.4,-4.2) -- (-2.4,-4.2) -- cycle;
+      \draw[line width=0.45pt] (-4.8,0) -- (4.8,0);
+    \fi
+    \def\caspidtmp{logic}\ifx\caspidloc\caspidtmp
+      \draw[line width=0.45pt, fill=white] (0,5) -- (5,0) -- (0,-5) -- (-5,0) -- cycle;
+    \fi
+    \node[tagtext, font=\sffamily\fontsize{5.5}{6}\selectfont] at (0,1.9) {#4};
+    \node[tagtext, font=\sffamily\fontsize{5.5}{6}\selectfont] at (0,-2.0) {#5};
+    \coordinate (#2) at (0,0);
+    \coordinate (#2-n) at (0,4.5); \coordinate (#2-s) at (0,-4.5);
+    \coordinate (#2-e) at (4.5,0); \coordinate (#2-w) at (-4.5,0);
+    #1
+  \end{scope}%
+}
+
+% Function box at the upper right of a bubble (ISA-5.1 compute functions: I/P, sqrt, x, Sigma, f(x), <, >)
+% \fbox{instrument name}{text}
+\newcommand{\funcbox}[2]{%
+  \node[draw, line width=0.4pt, fill=white, font=\sffamily\fontsize{5}{5}\selectfont, inner sep=0.4mm,
+        minimum size=3.6mm] at ($(#1)+(4.6,4.6)$) {#2};%
+}
+% Small annotation next to an instrument: alarms, range, I/O address
+\newcommand{\instrnote}[3][right]{\node[note, #1=0.5mm of #2] {#3};}
+
+% ------------------------------------------------------------------------------------------- equipment
+% Centrifugal pump (ISA-5.1 / Kuphaldt p.552): circle, suction at the eye on the left, tangential discharge
+% nozzle at the top going right, triangular support underneath. \pump{name}{(x,y)}{tag}
+\newcommand{\pump}[3]{%
+  \begin{scope}[shift={#2}]
+    \draw[line width=0.6pt, fill=white] (-3.2,-3.8) -- (-4.4,-6.2) -- (4.4,-6.2) -- (3.2,-3.8);   % support
+    \draw[line width=0.6pt, fill=white] (0,3.4) -- (6.5,3.4) -- (6.5,5) -- (0,5) -- cycle;       % discharge nozzle
+    \draw[line width=0.6pt, fill=white] (0,0) circle (5);                                        % casing on top
+    \coordinate (#1) at (0,0);
+    \coordinate (#1-in) at (-5,0); \coordinate (#1-out) at (6.5,4.2);
+    \coordinate (#1-n) at (0,5); \coordinate (#1-s) at (0,-6.2);
+    \node[tagtext, below=7mm] at (0,0) {#3};
+  \end{scope}%
+}
+% Large axial / propeller inlet pump (Framo), drawn as a pump in a box: \framopump{name}{(x,y)}{tag}
+\newcommand{\framopump}[3]{%
+  \begin{scope}[shift={#2}]
+    \draw[line width=0.6pt, fill=white] (-7,-6) rectangle (7,6);
+    \draw[line width=0.6pt] (0,0) circle (4);
+    \draw[line width=0.6pt] (-2.5,-3) -- (3.8,0) -- (-2.5,3);
+    \coordinate (#1) at (0,0);
+    \coordinate (#1-in) at (-7,0); \coordinate (#1-out) at (7,0);
+    \coordinate (#1-n) at (0,6); \coordinate (#1-s) at (0,-6);
+    \node[tagtext, below=7mm] at (0,0) {#3};
+  \end{scope}%
+}
+% Electric motor: \motor{name}{(x,y)}
+\newcommand{\motor}[2]{%
+  \begin{scope}[shift={#2}]
+    \draw[line width=0.5pt, fill=white] (0,0) circle (3.2);
+    \node[font=\sffamily\scriptsize\bfseries] at (0,0) {M};
+    \coordinate (#1) at (0,0); \coordinate (#1-n) at (0,3.2); \coordinate (#1-s) at (0,-3.2);
+    \coordinate (#1-e) at (3.2,0); \coordinate (#1-w) at (-3.2,0);
+  \end{scope}%
+}
+% Variable speed drive box: \vsd{name}{(x,y)}{text}
+\newcommand{\vsd}[3]{%
+  \node[draw, line width=0.5pt, fill=white, minimum width=13mm, minimum height=7mm, align=center,
+        font=\sffamily\tiny] (#1) at #2 {#3};%
+}
+% Control valve, body horizontal: \cvalve[actuator]{name}{(x,y)}{tag}  actuator: diaphragm | motor | solenoid | none
+\newcommand{\cvalve}[4][diaphragm]{%
+  \begin{scope}[shift={#3}]
+    \draw[line width=0.6pt, fill=white] (-3.5,-2.2) -- (-3.5,2.2) -- (3.5,-2.2) -- (3.5,2.2) -- cycle;
+    \fill (0,0) circle (0.6);                                       % globe body (ISA: dot in the bow tie)
+    \def\caspidact{#1}%
+    \def\caspidtmp{diaphragm}\ifx\caspidact\caspidtmp
+      \draw[line width=0.5pt] (0,0) -- (0,4.2); \draw[line width=0.5pt, fill=white] (-3,4.2) arc (180:0:3) -- cycle;
+      \coordinate (#2-act) at (0,7.2);
+    \fi
+    \def\caspidtmp{motor}\ifx\caspidact\caspidtmp
+      \draw[line width=0.5pt] (0,0) -- (0,3.6); \draw[line width=0.5pt, fill=white] (0,6.2) circle (2.6);
+      \node[font=\sffamily\tiny\bfseries] at (0,6.2) {M}; \coordinate (#2-act) at (0,8.8);
+    \fi
+    \def\caspidtmp{solenoid}\ifx\caspidact\caspidtmp
+      \draw[line width=0.5pt] (0,0) -- (0,3.6); \draw[line width=0.5pt, fill=white] (-2.4,3.6) rectangle (2.4,7.2);
+      \node[font=\sffamily\tiny\bfseries] at (0,5.4) {S}; \coordinate (#2-act) at (0,7.2);
+    \fi
+    \def\caspidtmp{hydraulic}\ifx\caspidact\caspidtmp
+      \draw[line width=0.5pt] (0,0) -- (0,3.6); \draw[line width=0.5pt, fill=white] (-3,3.6) rectangle (3,7.2);
+      \node[font=\sffamily\tiny\bfseries] at (0,5.4) {H}; \coordinate (#2-act) at (0,7.2);
+    \fi
+    \def\caspidtmp{none}\ifx\caspidact\caspidtmp \coordinate (#2-act) at (0,0); \fi
+    \coordinate (#2) at (0,0); \coordinate (#2-in) at (-3.5,0); \coordinate (#2-out) at (3.5,0);
+    \node[tagtext, below=3mm] at (0,0) {#4};
+  \end{scope}%
+}
+% Manual / on-off valve (plain gate): \hvalve{name}{(x,y)}{tag}
+\newcommand{\hvalve}[3]{%
+  \begin{scope}[shift={#2}]
+    \draw[line width=0.6pt, fill=white] (-3,-1.9) -- (-3,1.9) -- (3,-1.9) -- (3,1.9) -- cycle;
+    \coordinate (#1) at (0,0); \coordinate (#1-in) at (-3,0); \coordinate (#1-out) at (3,0);
+    \node[tagtext, below=2.6mm] at (0,0) {#3};
+  \end{scope}%
+}
+% Check valve, flow to the right (Body of Knowledge Fig 1-3): bow tie with the downstream half filled.
+% \checkvalve{name}{(x,y)}
+\newcommand{\checkvalve}[2]{%
+  \begin{scope}[shift={#2}]
+    \draw[line width=0.6pt, fill=white] (-3,-1.9) -- (-3,1.9) -- (3,-1.9) -- (3,1.9) -- cycle;
+    \filldraw[line width=0.6pt] (0,0) -- (3,1.9) -- (3,-1.9) -- cycle;
+    \coordinate (#1) at (0,0); \coordinate (#1-in) at (-3,0); \coordinate (#1-out) at (3,0);
+  \end{scope}%
+}
+% Hydraulic cylinder (outlet damper actuator): \cylinder{name}{(x,y)}{tag}
+\newcommand{\hcylinder}[3]{%
+  \begin{scope}[shift={#2}]
+    \draw[line width=0.5pt, fill=white] (-7,-2.5) rectangle (5,2.5);
+    \draw[line width=0.5pt] (1,-2.5) -- (1,2.5); \draw[line width=0.6pt] (1,0) -- (10,0);
+    \coordinate (#1) at (0,0); \coordinate (#1-rod) at (10,0); \coordinate (#1-a) at (-5,2.5); \coordinate (#1-b) at (3,2.5);
+    \node[tagtext, below=3mm] at (-1,0) {#3};
+  \end{scope}%
+}
+% Vessel / tank with a label: \vessel{name}{(x,y)}{w}{h}{text}
+\newcommand{\vessel}[5]{%
+  \node[draw, line width=0.7pt, rounded corners=3mm, minimum width=#3 mm, minimum height=#4 mm,
+        align=center, font=\sffamily\scriptsize, fill=white] (#1) at #2 {#5};%
+}
+% Equipment box (skid / package / cabinet): \package{name}{(x,y)}{w}{h}{text}
+\newcommand{\package}[5]{%
+  \node[draw, line width=0.5pt, dash pattern=on 3mm off 1mm, minimum width=#3 mm, minimum height=#4 mm,
+        align=center, font=\sffamily\scriptsize] (#1) at #2 {#5};%
+}
+% In-line flow element (magnetic / thermal mass): \flowelement{name}{(x,y)}
+\newcommand{\flowelement}[2]{%
+  \begin{scope}[shift={#2}]
+    \draw[line width=0.6pt, fill=white] (-2.5,-2.5) rectangle (2.5,2.5);
+    \draw[line width=0.4pt] (-2.5,-2.5) -- (2.5,2.5);
+    \coordinate (#1) at (0,0); \coordinate (#1-in) at (-2.5,0); \coordinate (#1-out) at (2.5,0);
+    \coordinate (#1-n) at (0,2.5);
+  \end{scope}%
+}
+% Sensing point / process connection (small dot)
+\newcommand{\tap}[2]{\fill #2 circle (0.7); \coordinate (#1) at #2;}
+
+% ------------------------------------------------------------------------------------------- sheet links
+% Off-page connector (ISA: arrow pentagon pointing in the flow direction) with the stream text and the sheet
+% it continues on / comes from. \offpage[out|in]{name}{(x,y)}{stream}{sheet}
+%   out: tip points right; in: tip points left. The box spans x = 0..26 from (x,y) in both cases.
+%   Anchors: (name-w) left end, (name-e) right end; (name) = left end (out) / right end (in), the usual
+%   connection point when the line comes from the left (out) or goes on to the left (in).
+\newcommand{\offpage}[5][out]{%
+  \begin{scope}[shift={#3}]
+    \def\caspiddir{#1}\def\caspidtmp{out}%
+    \ifx\caspiddir\caspidtmp
+      \draw[line width=0.5pt, fill=white] (0,-2.6) -- (23,-2.6) -- (26,0) -- (23,2.6) -- (0,2.6) -- cycle;
+      \coordinate (#2) at (0,0);
+      \node[font=\sffamily\fontsize{4.6}{5}\selectfont, align=center] at (11.5,0) {#4};
+    \else
+      \draw[line width=0.5pt, fill=white] (3,-2.6) -- (26,-2.6) -- (26,2.6) -- (3,2.6) -- (0,0) -- cycle;
+      \coordinate (#2) at (26,0);
+      \node[font=\sffamily\fontsize{4.6}{5}\selectfont, align=center] at (14.5,0) {#4};
+    \fi
+    \coordinate (#2-w) at (0,0); \coordinate (#2-e) at (26,0);
+    \coordinate (#2-n) at (13,2.6); \coordinate (#2-s) at (13,-2.6);
+    \node[font=\sffamily\tiny\itshape, text=pidnote, align=center] at (13,-4.6) {#5};
+  \end{scope}%
+}
+
+% ------------------------------------------------------------------------------------------- loop diagrams
+% ISA-5.4 layout [Kuphaldt p.538; Body of Knowledge Fig 1-13]: location columns left to right, field on the
+% left, controller on the right, device table at the bottom. Column boundaries are fixed for every loop sheet:
+%   0-95 field | 95-150 field cable | 150-215 cabinet terminals | 215-285 I/O module | 285-390 PLC / HMI
+\newcommand{\loopcolumns}[5]{%
+  \foreach \x in {95,150,215,285} \draw[line width=0.4pt] (\x,62) -- (\x,240);
+  \draw[line width=0.4pt] (0,62) rectangle (390,240); \draw[line width=0.4pt] (0,232) -- (390,232);
+  \foreach \x/\t in {47.5/{#1}, 122.5/{#2}, 182.5/{#3}, 250/{#4}, 337.5/{#5}}
+    \node[font=\sffamily\scriptsize\bfseries, align=center] at (\x,236) {\t};
+}
+% Terminal strip: stacked numbered squares going down from (x,y). \termstrip{name}{(x,y)}{label}{t1,t2,...}
+% Anchors (name-1), (name-2), ... at the centres; (name-k-w) / (name-k-e) on the left / right sides.
+\newcommand{\termstrip}[4]{%
+  \begin{scope}[shift={#2}]
+    \node[font=\sffamily\tiny\bfseries, anchor=south] at (0,2.4) {#3};
+    \foreach \t [count=\k] in {#4} {
+      \draw[line width=0.4pt, fill=white] (-2.2,-\k*4.4+2.2) rectangle (2.2,-\k*4.4-2.2);
+      \node[font=\sffamily\fontsize{4.4}{4.6}\selectfont] at (0,-\k*4.4) {\t};
+      \coordinate (#1-\k) at (0,-\k*4.4);
+      \coordinate (#1-\k-w) at (-2.2,-\k*4.4); \coordinate (#1-\k-e) at (2.2,-\k*4.4);
+    }
+  \end{scope}%
+}
+% Cable ellipse around wires at x, from y1 to y2, with the cable label above it: \cable{x}{y1}{y2}{label}
+\newcommand{\cable}[4]{%
+  \draw[line width=0.35pt] (#1,{(#2+#3)/2}) ellipse (2.4 and {abs(#2-#3)/2+2.6});
+  \node[font=\sffamily\fontsize{4.4}{4.8}\selectfont, align=center, anchor=south] at (#1,{max(#2,#3)+2.8}) {#4};%
+}
+% Wire with a label: \wire[style]{from}{to}{label above}
+\newcommand{\wire}[4][]{\draw[line width=0.45pt, #1] #2 -- #3 node[midway, above, font=\sffamily\fontsize{4.2}{4.4}\selectfont] {#4};}
+% Box for a module / device with terminals on the left: \devbox{name}{(x,y)}{w}{h}{text}
+\newcommand{\devbox}[5]{%
+  \node[draw, line width=0.5pt, fill=white, minimum width=#3 mm, minimum height=#4 mm, align=center,
+        font=\sffamily\tiny] (#1) at #2 {#5};%
+}
+% Bottom device table of a loop sheet (y 0..58): \looptable{rows} with columns
+% Tag | Description | Make / model | Range / signal | Location | Source
+\newcommand{\looptable}[1]{%
+  \node[anchor=north west, inner sep=0pt] at (0,58) {%
+    \fontsize{5.6}{6.6}\selectfont
+    \begin{tabular}{@{}p{24mm}p{70mm}p{48mm}p{44mm}p{40mm}p{70mm}@{}}
+      \toprule
+      \textbf{Tag} & \textbf{Description} & \textbf{Make / model} & \textbf{Range / signal} & \textbf{Location} & \textbf{Source} \\
+      \midrule
+      #1
+      \bottomrule
+    \end{tabular}};%
+}
+
+% ------------------------------------------------------------------------------------------- sheet frame
+% A3 landscape drawing frame with a title block. \pidsheet{drawing no}{title}{system}{revision}{body}
+\newcommand{\pidsheet}[5]{%
+  \begin{tikzpicture}[pid, remember picture, overlay]
+    \coordinate (P0) at ($(current page.south west)+(10,10)$);
+    \coordinate (P1) at ($(current page.north east)+(-10,-10)$);
+    \draw[line width=0.8pt] (P0) rectangle (P1);
+    % title block, bottom right, 180 x 26 mm
+    \coordinate (T0) at ($(P1|-P0)+(-180,0)$);
+    \draw[line width=0.6pt] (T0) rectangle ($(P1|-P0)+(0,26)$);
+    \draw[line width=0.3pt] ($(T0)+(0,13)$) -- ++(180,0);
+    \draw[line width=0.3pt] ($(T0)+(110,0)$) -- ++(0,26);
+    \draw[line width=0.3pt] ($(T0)+(145,0)$) -- ++(0,13);
+    \node[anchor=north west, font=\sffamily\tiny, text=pidnote] at ($(T0)+(1,26)$) {Title};
+    \node[anchor=west, font=\sffamily\small\bfseries] at ($(T0)+(2,19)$) {#2};
+    \node[anchor=north west, font=\sffamily\tiny, text=pidnote] at ($(T0)+(1,13)$) {System};
+    \node[anchor=west, font=\sffamily\scriptsize] at ($(T0)+(2,6)$) {#3};
+    \node[anchor=north west, font=\sffamily\tiny, text=pidnote] at ($(T0)+(111,26)$) {Drawing no.};
+    \node[anchor=west, font=\sffamily\small\bfseries] at ($(T0)+(112,19)$) {#1};
+    \node[anchor=north west, font=\sffamily\tiny, text=pidnote] at ($(T0)+(111,13)$) {Project};
+    \node[anchor=west, font=\sffamily\tiny] at ($(T0)+(112,7)$) {15169 CAS Heimdall};
+    \node[anchor=west, font=\sffamily\tiny] at ($(T0)+(112,3.5)$) {ScaleAQ};
+    \node[anchor=north west, font=\sffamily\tiny, text=pidnote] at ($(T0)+(146,13)$) {Rev. / date};
+    \node[anchor=west, font=\sffamily\scriptsize] at ($(T0)+(147,6)$) {#4};
+  \end{tikzpicture}%
+  \begin{tikzpicture}[pid, remember picture, overlay]
+    \begin{scope}[shift={($(current page.south west)+(15,42)$)}]
+      #5
+    \end{scope}
+  \end{tikzpicture}%
+  \null\newpage
+}
+\endinput

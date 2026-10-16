@@ -1,0 +1,64 @@
+% Cover sheet and drawing index
+\pidsheet{CAS-PID-000}{Cover sheet and drawing index}{All systems}{\pidrev}{%
+  \node[anchor=north west, align=left, text width=180mm] at (5,240) {%
+    {\fontsize{22}{26}\selectfont\bfseries CAS Heimdall}\\[3mm]
+    {\Large P\&IDs and instrument loop diagrams}\\[2mm]
+    {\normalsize Closed aquaculture pen PEN01 -- project 15169, ScaleAQ}\\[8mm]
+    \small
+    \textbf{Purpose.} One set of process and instrument drawings for the CAS pen, split at system level, with
+    off-page connectors between the systems, typical instrument loop diagrams, and an I/O list checked
+    line by line against the cabinet drawings and the PLC project.\\[3mm]
+    \textbf{Drawing practice.} ANSI/ISA-5.1 instrument identification and symbols, and ANSI/ISA-5.4
+    loop diagrams, as presented in T.~R.~Kuphaldt, \emph{Lessons In Industrial Instrumentation},
+    ch.~7, and N.~Sands, I.~Verhappen (eds.), \emph{A Guide to the Automation Body of Knowledge},
+    3rd ed., ISA 2018, ch.~1. Symbols and letters: sheet CAS-PID-001.\\[3mm]
+    \textbf{Sources.}
+    \begin{tabular}[t]{@{}ll@{}}
+      Functional description & P-15169-CAS-FD-01 rev B (13.05.26) \\
+      Alarm list & P-15169-CAS-FD-02 rev A \\
+      Framo control spec & 0000\_CAS\_SPEC\_CTRLSYS rev B \\
+      Oxygen cabinet & Linde SOLVOX DC prop.\ high flow 4 ch (flowsheet) \\
+      Hydraulics & Servi S6377070 / 2939238 rev A1 (18.06.26) \\
+      Cabinet drawings & 15169-792.001 rev 1 (PLC/RIO1), 792.002 rev 0 (RIO2/3), \\
+                       & 874.001 (Framo), 874.004 (drive), 875.001/002 (ATS, distribution) \\
+      Cable list & 15169-860-001 rev 1 \\
+      PLC project & scaleaq/heimdall-plc, branch inletControl (CODESYS CAS-Heimdall, PFC200\_Sim) \\
+      Reference only & CAS prelim P\&ID rev B (sketch) \\
+    \end{tabular}\\[3mm]
+    \textbf{Status.} Revision A is drawn from the documents above. Points where the sources disagree, or
+    where something is missing, are marked in red on the sheets and listed on CAS-PID-950. How to re-check the set
+    against its sources: checklist.md next to the .tex file.
+  };
+  \node[anchor=north west, align=left] at (205,240) {%
+    \small\textbf{Drawing index}\\[2mm]
+    \footnotesize
+    \begin{tabular}{@{}lll@{}}
+      \toprule
+      Drawing & Title & Type \\
+      \midrule
+      CAS-PID-000 & Cover sheet and drawing index & -- \\
+      CAS-PID-001 & Legend: symbols, letters, lines & Legend \\
+      CAS-PID-100 & Water inlet and Framo inlet pumps (typical inlet 1--3) & P\&ID \\
+      CAS-PID-200 & Oxygen supply and distribution (Linde cabinet) & P\&ID \\
+      CAS-PID-300 & Inlet-branch oxygenation (typical line 1--3) & P\&ID \\
+      CAS-PID-400 & Pen instruments, level and oxygen control & P\&ID \\
+      CAS-PID-500 & Outlet dampers and hydraulic power unit & P\&ID \\
+      CAS-PID-600 & Utilities: bilge, power, cabinet status & P\&ID \\
+      CAS-LAY-700 & Control system network and I/O nodes & Architecture \\
+      CAS-LD-801 & Loop LT01: level inside pen, 4--20 mA & Loop \\
+      CAS-LD-802 & Loop PIC41: oxy pump pressure, ATV650 & Loop \\
+      CAS-LD-803 & Loop FIC41: oxygen flow and valve OV41 & Loop \\
+      CAS-LD-804 & Loop OT01: Orbit 864 over RS-485 & Loop \\
+      CAS-LD-805 & Loop SC31: Framo inlet pump over OPC UA & Loop \\
+      CAS-LD-806 & Loop XV61/FT61/PT61: outlet cylinder 1 & Loop \\
+      CAS-LD-807 & Loop LS711: bilge level switches inlet 1 & Loop \\
+      CAS-PID-900 & I/O list 1/2: CommonRIO, drawing vs PLC & List \\
+      CAS-PID-901 & I/O list 2/2: InletRIO 1--3, drawing vs PLC & List \\
+      CAS-PID-950 & Open points & List \\
+      \bottomrule
+    \end{tabular}\\[4mm]
+    \footnotesize\textbf{Numbering.} n = inlet / oxygen line 1, 2, 3. PLC index i = n $-$ 1.\\
+    Typical sheets are drawn for n = 1; inlets 2 and 3 are identical with the loop numbers\\
+    and node names in the table on each sheet.
+  };
+}

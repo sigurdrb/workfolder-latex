@@ -1,0 +1,105 @@
+% P&ID: bottom outlet with four hydraulic dampers and the Servi hydraulic power unit
+\pidsheet{CAS-PID-500}{Outlet dampers and hydraulic power unit}{Outlet system}{\pidrev}{%
+  % ---------------------------------------------------------------- water: outlet with four dampers
+  \offpage[out]{in}{(4,205)}{Bottom outlet from pen}{CAS-PID-400}
+  \draw[water] (in-e) -- (45,205);
+  \draw[water, line width=1.4pt] (45,230) -- (45,170);
+  \foreach \k/\y in {1/230, 2/215, 3/200, 4/185} {
+    \draw[water] (45,\y) -- (76.5,\y);
+    \cvalve[none]{dv\k}{(80,\y)}{}
+    \node[tagtext, above=2.5mm] at (80,\y) {damper \k};
+    \draw[waterflow] (dv\k-out) -- (125,\y);
+  }
+  \draw[water] (125,230) -- (125,185); \draw[waterflow] (125,207) -- (145,207);
+  \node[note, text=pidwater, right] at (146,207) {to sea};
+  \draw[water] (45,170) -- (60,170) -- (60,160);
+  \offpage{dc}{(47,150)}{to dead fish system DC-81}{Barge Control, out of scope}
+  \draw[water] (60,170) -- (100,170) -- (100,160);
+  \offpage{ss}{(87,128)}{to sludge system SS-91}{Barge Control, out of scope}
+  \draw[water] (100,160) -- (100,130.6);
+  \node[note, text=pidwater, right] at (61,165) {200-M01-LD-001};
+  \node[note, text=pidwater, right] at (101,150) {200-M01-LS-001};
+  % ---------------------------------------------------------------- hydraulic power unit (Servi)
+  \vessel{tl}{(28,60)}{22}{14}{TL61\\tank 12 l}
+  \pump{pu}{(62,60)}{}
+  \node[tagtext, below=6mm] at (pu) {PU61 gear pump\\3.5 l/min, 150 bar};
+  \motor{m}{(62,38)} \draw[mech] (m-n) -- (pu-s);
+  \node[note, left=4mm] at (m) {M61 1.5 kW, DOL};
+  \draw[oil] (tl.east) -- (pu-in);
+  \draw[oil] (pu-out) -- (68,90) -- (150,90);
+  \node[note, text=pidoil, above] at (100,90) {P};
+  \draw[oil] (150,80) -- (39,80) -- (39,67);
+  \node[note, text=pidoil, below] at (100,80) {T (return)};
+  \instr{pi61}{(80,105)}{PI}{61}{field} \tap{pit}{(80,90)} \draw[impulse] (pit) -- (pi61-s);
+  \instr{lsl}{(10,82)}{LSL}{61}{field} \draw[impulse] (lsl-s) -- (10,60) -- (17,60);
+  \node[note, above=5mm, align=center] at (lsl) {+ TSH61\\in series};
+  % ---------------------------------------------------------------- cylinder 1 (typical for 1..4)
+  \cvalve[solenoid]{xv}{(160,90)}{XV61}
+  \node[note, below=6mm, align=center] at (160,90) {double solenoid\\XV61\_O / XV61\_C};
+  \draw[oil] (150,90) -- (xv-in);
+  \draw[oil] (150,80) -- (150,85) ;
+  \draw[oil] (xv-out) -- (180,90) -- (180,120);
+  \flowelement{ft}{(180,112)}
+  \instr{ft61}{(198,112)}{FT}{61}{field} \draw[impulse] (ft-out) ++(0,0) -- (ft61-w);
+  \hcylinder{cy}{(200,140)}{cylinder 1\\HRC-N-D-40/20x300}
+  \draw[oil] (180,120) -- (180,143) -- (193,143) -- (193,142.5);
+  \draw[oil] (176,90) -- (176,80) -- (150,80);
+  \draw[oil] (172,92) -- (172,155) -- (203,155) -- (203,142.5);
+  \tap{pa}{(180,130)} \instr{pt61}{(160,130)}{PT}{61}{field} \draw[impulse] (pa) -- (pt61-e);
+  \tap{pb}{(172,150)} \instr{pt62}{(155,150)}{PT}{62}{field} \draw[impulse] (pb) -- (pt62-e);
+  \node[note, right] at (181,126) {A: open};
+  \node[note, right] at (204,152) {B: close};
+  \draw[mech] (cy-rod) -- (225,140) -- (225,240) -- (80,240) -- (80,232.3);
+  \node[note, below] at (180,240) {cylinder 1 rod drives damper 1};
+  % ---------------------------------------------------------------- CAS PLC functions (OutletControl)
+  \node[anchor=west, font=\sffamily\scriptsize\bfseries] at (230,92) {CAS PLC -- FB OutletControl, CommonRIO};
+  \instr{hs}{(240,75)}{HS}{61}{shared}  \node[note, below=5mm] at (240,75) {open / close};
+  \instr{zy}{(265,75)}{ZY}{61}{behind}  \funcbox{zy}{$\Sigma$}
+  \node[note, below=5.5mm, align=center] at (265,75) {position from\\pulse count};
+  \instr{zi}{(290,75)}{ZI}{61}{shared}  \node[note, below=5mm] at (290,75) {0--100 \%};
+  \draw[datalink, sigarrow] (zy-e) -- (zi-w);
+  \instr{pah}{(240,50)}{PAH}{61}{shared} \node[note, below=5mm] at (240,50) {end position};
+  \instr{hsp}{(265,50)}{HS}{65}{shared} \node[note, below=5mm] at (265,50) {HPU pump};
+  \instr{ua}{(290,50)}{UA}{65}{shared}  \node[note, below=5mm] at (290,50) {starter fault};
+  \draw[elec, sigarrow] (ft61-e) -- (265,112) -- (zy-n);
+  \node[note, right] at (266,104) {750-638 -R1-004 ch1};
+  \draw[elec, sigarrow] (hs-n) -- (240,98) -- (160,98) -- (xv-act);
+  \node[note, above] at (205,98) {DO 750-1515 -R1-019 ch1/2, relays XK01/XK02};
+  \draw[elec, sigarrow] (pt61-w) -- (140,130) -- (140,35) -- (240,35) -- (pah-s);
+  \draw[elec] (pt62-w) -- (140,150) -- (140,130);
+  \draw[elec, sigarrow] (hsp-s) -- (265,28) -- (62,28) -- (m-s);
+  \draw[elec] (ua-s) -- (290,24) -- (66,24) -- (66,28);
+  \draw[elec] (lsl-n) -- (10,100);
+  \node[note, above, text=pidcheck] at (10,100) {no input};
+  % ---------------------------------------------------------------- notes
+  \node[anchor=north west, align=left, font=\sffamily\tiny, text width=90mm] at (300,240) {%
+    \textbf{Notes}\\[1mm]
+    1. Outlet: \O5.5 m bottom outlet with four dampers, each moved by a hydraulic cylinder from the Servi HPU
+       (hydraulic schematic S6377070 / 2939238 rev A1). Fail position wanted: close (FD 3.2.3, HOLD).
+       Dead fish and sludge pumps are controlled by Barge Control, not by the CAS PLC.\\[0.8mm]
+    2. Cylinder n: XV6n double-solenoid valve (Hawe PSL), XV6n\_O on 750-1515 -R1-019 ch 2n$-$1, XV6n\_C on
+       ch 2n, via interposing relays XK; oil-flow meter FT6n (HySense QG100, $\approx$5200 pulses/l,
+       2080 pulses full stroke) on 750-638 counters -R1-004/005; PT(2n$-$1) open side and PT(2n) close side
+       on 750-455 -R1-009/010, end position by high pressure (FB.Outlet.OutletControl).\\[0.8mm]
+    3. HPU pump PU61/M61: direct-on-line starter, PLC start = DO word 24.9, reset = 24.10, starter fault =
+       DI word 40.0. \textcolor{pidcheck}{Drawing 792.001 R1: these channels are spare (-R1-020 ch2/3) and DI
+       -R1-017 is all spare; with six 750-455 modules on CommonRIO the DI word is 44, not 40.}\\[0.8mm]
+    4. \textcolor{pidcheck}{LSL61 + TSH61 (tank level / temperature, in series): FD wants a DI; no input on the
+       drawings and Outlet.Input.HydraulicOilTankFault is not mapped in the PLC. XV65 shut-off valve was removed
+       from drawing R1, but its cable is still in the cable list; cable list also has PT69--PT612.}\\[1.5mm]
+    \textbf{Typical}\\[0.5mm]
+    \begin{tabular}{@{}lllll@{}}
+      \toprule
+      Cylinder & 1 & 2 & 3 & 4 \\
+      \midrule
+      Valve & XV61 & XV62 & XV63 & XV64 \\
+      DO ch (R1-019) & 1 / 2 & 3 / 4 & 5 / 6 & 7 / 8 \\
+      Flow meter & FT61 & FT62 & FT63 & FT64 \\
+      Counter & R1-004 ch1 & R1-004 ch2 & R1-005 ch1 & R1-005 ch2 \\
+      PT open / close & PT61 / 62 & PT63 / 64 & PT65 / 66 & PT67 / 68 \\
+      AI module & R1-009 & R1-009 & R1-010 & R1-010 \\
+      PLC & Cylinder[0] & Cylinder[1] & Cylinder[2] & Cylinder[3] \\
+      \bottomrule
+    \end{tabular}
+  };
+}

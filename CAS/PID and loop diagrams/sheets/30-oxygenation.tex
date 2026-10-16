@@ -1,0 +1,110 @@
+% P&ID: inlet-branch oxygenation, typical for line n = 1..3 (drawn for n = 1)
+\pidsheet{CAS-PID-300}{Inlet-branch oxygenation (typical line 1--3)}{Oxygenation, drawn for line 1}{\pidrev}{%
+  % ---------------------------------------------------------------- process: side-stream through the injector
+  \offpage{fromIn}{(4,150)}{Side-stream from LW-0041}{CAS-PID-100}
+  \pump{pu}{(62,150)}{}
+  \node[tagtext, anchor=north] at (38,146) {PU41 oxy pump\\Flygt NX 3153, 13.5 kW};
+  \draw[waterflow] (fromIn-e) -- (pu-in);
+  \node[note, text=pidwater, above] at (44,151) {200-M01-LW-0042};
+  \motor{pum}{(62,128)} \draw[mech] (pum-n) -- (pu-s);
+  \vsd{vsd}{(62,108)}{ATV650D15N4\\drive cab.\ DC1 -FC01}
+  \draw[line width=0.5pt] (vsd.north) -- (pum-s);
+  \draw[water] (pu-out) -- (68,170) -- (100,170);
+  \tap{p41}{(88,170)}
+  \instr{pt41}{(88,190)}{PT}{41}{field} \draw[impulse] (p41) -- (pt41-s);
+  \vessel{mx}{(124,170)}{28}{12}{MX-41\\O\textsubscript{2} injector}
+  \draw[water] (100,170) -- (mx.west);
+  \draw[waterflow] (mx.east) -- (190,170);
+  \tap{p44}{(160,170)}
+  \instr{pt44}{(160,190)}{PT}{44}{field} \draw[impulse] (p44) -- (pt44-s);
+  \offpage{toIn}{(190,170)}{Return to LW-0041}{CAS-PID-100}
+  % oxygen in
+  \offpage{o2in}{(84,215)}{O\textsubscript{2} from Linde ch.\,1}{CAS-PID-200}
+  \draw[oxyflow] (o2in-e) -- (124,215) -- (mx.north);
+  \node[note, right] at (125,206) {Chucaotech CT10, max 104.2 kg/h O\textsubscript{2}};
+  % pump leakage / temperature (Flygt MiniCAS II in drive cabinet DC1)
+  \instr{xs}{(30,128)}{XS}{41}{field}  \node[note, below=5mm] at (30,128) {leakage};
+  \instr{tsh}{(30,108)}{TSH}{41}{field} \node[note, below=5mm] at (30,108) {motor temp.};
+  \draw[impulse] (xs-e) -- (pum-w); \draw[impulse] (tsh-e) -- (45,108) -- (45,126) -- (58.8,126);
+  % ---------------------------------------------------------------- CAS PLC functions
+  \node[anchor=west, font=\sffamily\scriptsize\bfseries] at (10,78) {CAS PLC -- FB OxyControl[0], InletRIO[0]};
+  % PIC41 -> drive over Modbus TCP
+  \instr{pic}{(88,62)}{PIC}{41}{shared} \node[note, below=5mm] at (88,62) {SP 4.0 bar(a)};
+  \draw[elec, sigarrow] (pt41-w) -- (80,190) -- (80,75) -- (88,75) -- (pic-n);
+  \instr{hs}{(30,62)}{HS}{41}{shared}   \node[note, below=5mm] at (30,62) {pump start / stop};
+  \instr{si}{(50,40)}{SI}{41}{shared}   \node[note, below=5mm] at (50,40) {Hz, A, \%};
+  \instr{ua}{(30,40)}{UA}{41}{shared}   \node[note, below=5mm] at (30,40) {drive alarms};
+  \draw[fieldbus] (pic-w) -- (62,62) -- (vsd.south);
+  \draw[fieldbus] (hs-e) -- (62,62);
+  \draw[fieldbus] (si-n) -- (50,50) -- (62,50) -- (62,62);
+  \draw[fieldbus] (ua-e) -- (40,40) -- (40,50) -- (50,50);
+  \node[note, rotate=90, anchor=south] at (61,82) {Modbus TCP};
+  \instr{xa}{(10,128)}{XA}{41}{shared}  \instr{tah}{(10,108)}{TAH}{41}{shared}
+  \draw[elec] (xs-w) -- (xa-e); \draw[elec] (tsh-w) -- (tah-e);
+  \node[note, below=5mm, align=center] at (10,108) {DI InletRIO1\\5.7 / 5.8};
+  % FIC41 -> OV41
+  \instr{fic}{(150,62)}{FIC}{41}{shared}
+  \offpage[in]{ft}{(185,95)}{FT41 from Linde ch.\,1}{CAS-PID-200}
+  \draw[elec, sigarrow] (ft-w) -- (150,95) -- (fic-n);
+  \offpage[in]{sp}{(185,40)}{FIC41 SP: share of OIC01}{CAS-PID-400}
+  \draw[datalink, sigarrow] (sp-w) -- (150,40) -- (fic-s);
+  \node[note, left=5mm, align=right] at (150,46) {SP};
+  \instr{fy}{(200,62)}{FY}{41}{behind} \funcbox{fy}{$\frac{d}{dt}$}
+  \node[note, below=5.5mm] at (200,62) {rate limit\\100 \% / 2 s};
+  \draw[datalink, sigarrow] (fic-e) -- (fy-w);
+  \instr{i4}{(225,62)}{I}{4}{logic}
+  \draw[datalink, sigarrow] (fy-e) -- (i4-w);
+  \offpage{ov}{(240,62)}{to OV41 (AO -R1-014 ch1)}{CAS-PID-200}
+  \draw[elec, sigarrow] (i4-e) -- (ov);
+  % permits
+  \instr{pi44}{(160,120)}{PI}{44}{shared} \draw[elec, sigarrow] (pt44-s) ++(0,0) -- (pt44-s |- 0,175) ;
+  \draw[elec, sigarrow] (165,190) -- (172,190) -- (172,128) -- (160,128) -- (pi44-n);
+  \instr{pal}{(115,120)}{PAL}{41}{shared} \node[note, below=5mm] at (115,120) {valve pressure low};
+  \draw[datalink] (pic-e) -- (105,62) -- (105,112) -- (115,112) -- (pal-s);
+  \draw[datalink] (pal-e) -- (225,120) -- (i4-n);
+  \offpage[in]{perm}{(185,140)}{Permit from I1 (inlet 1)}{CAS-PID-100}
+  \instr{i5}{(140,140)}{I}{5}{logic}
+  \draw[datalink, sigarrow] (perm-w) -- (i5-e);
+  \draw[datalink, sigarrow] (i5-w) -- (20,140) -- (20,76) -- (30,76) -- (hs-n);
+  \draw[datalink] (i5-s) -- (140,128) -- (225,128) -- (225,120);
+  % ---------------------------------------------------------------- notes
+  \node[anchor=north west, align=left, font=\sffamily\tiny, text width=100mm] at (285,240) {%
+    \textbf{Notes}\\[1mm]
+    1. Oxy pump PU41 (Flygt NX 3153 LT, 13.5 kW, 1455 rpm) on a Schneider ATV650D15N4 (drive cabinet DC1).
+       The CAS PLC talks to the drive on its embedded Ethernet port, Modbus TCP: writes CMD 8501 (DRIVECOM) and
+       LFR 8502 (0.1 Hz), reads ETA 3201, RFR 3202, LCR 3204 (0.01 A), THD 3209, OPR 3211 every 100 ms and LFT
+       7121 every 1 s (FB.RIO.InletRIO, FB.OxySystem.OxyPumpATV650).\\[0.8mm]
+    2. PIC41: PV PT41 (pressure after the pump, InletRIO1 750-455 ch3 = word 2, 0--10 bar), SP 4.0 bar(a),
+       output pump speed 20--50 Hz. Manual / preset 40 Hz while starting, in pump manual or with bad PV.\\[0.8mm]
+    3. FIC41: PV FT41 (CAS-PID-200), SP = line 1 share of OIC01's total O\textsubscript{2} flow (CAS-PID-400),
+       output valve position 0--100 \%, rate limited by FY41 (ValveRampTime 2 s).\\[0.8mm]
+    4. PT44: pressure after the injector, InletRIO1 ch4 = word 3, 0--10 bar; indication only.
+       \textcolor{pidcheck}{FD table 15 wants a low differential-pressure alarm across the injector (PT44--PT41); not in
+       the PLC. FD numbers the transmitters PT41/43/45 (in) and PT42/44/46 (out); the cabinet drawings and
+       cable list use PT41--43 after the pump and PT44--46 after the injector -- drawn as the cabinet drawings.}\\[0.8mm]
+    5. XS41 / TSH41: Flygt MiniCAS II leakage / thermal relay in DC1, dry contacts to InletRIO1 DI 5.7 / 5.8.
+       \textcolor{pidcheck}{Read but not used by any PLC logic; RIO2/3 have no such inputs on the drawings.}\\[1.5mm]
+    \textbf{Interlocks}\\[1mm]
+    I5. Line start: operator EnableOxyControl AND permit I1 from inlet 1 AND NOT emergency stop
+        $\rightarrow$ oxy pump starts in auto. \textcolor{pidcheck}{EmergencyStop is not wired to any input.}\\[0.8mm]
+    I4. Valve permit: pump running for RunDelay (30 s) after line start AND PT41 good AND PT41 $>$ 3.0 bar
+        (ValveOpenPressure); otherwise OV41 is forced closed (4 mA), also in valve manual. Oxygenation active
+        without the permit raises PAL41 (ValvePressureLow).\\[1.5mm]
+    \textbf{Typical}\\[0.5mm]
+    \begin{tabular}{@{}llll@{}}
+      \toprule
+      n & 1 & 2 & 3 \\
+      \midrule
+      Pump, drive & PU41, DC1 & PU42, DC2 & PU43, DC3 \\
+      Injector & MX-41 & MX-42 & MX-43 \\
+      Pressure after pump / injector & PT41 / PT44 & PT42 / PT45 & PT43 / PT46 \\
+      Controllers & PIC41, FIC41 & PIC42, FIC42 & PIC43, FIC43 \\
+      Flow, valve & FT41, OV41 & FT42, OV42 & FT43, OV43 \\
+      Branch line & LW-0042 & LW-0044 & LW-0046 \\
+      RIO node & InletRIO1 & InletRIO2 & InletRIO3 \\
+      Drive (sim) & :5131 & :5132 & :5133 \\
+      PLC & OxySystem[0] & OxySystem[1] & OxySystem[2] \\
+      \bottomrule
+    \end{tabular}
+  };
+}
