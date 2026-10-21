@@ -1,0 +1,934 @@
+% CAS (Heimdall) -- system functional description: oxygen system.
+% Structure after Cooling, Software Engineering for Real-Time Systems (2020), sec. 14.3 [COO].
+% Build: latexmk -pdf -interaction=nonstopmode "CAS FD Oxygen.tex"
+\documentclass[11pt,a4paper]{article}
+% amsmath defines \tag; casfd.sty defines its own \tag for instrument tags. Load amsmath first and
+\usepackage{amsmath}
+\usepackage{casfd}
+\usepackage{adjustbox}
+
+\newcommand{\Otwo}{O\textsubscript{2}}
+\newcommand{\degC}{\,\textdegree C}
+\newcommand{\TBD}{\textcolor{red}{TBD}}
+\setlength{\emergencystretch}{2em}
+
+\casfdheader{Oxygen system}{CAS-FD-20}{A}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This document describes how the oxygen system of the CAS closed pen at Heimdall works,
+and how the control system runs it. It is written for the project team, the operators, the
+commissioning engineers and the oxygen supplier Normex. It covers every instrument and actuator
+of the oxygen system, the control principle, the start and stop sequences, the interlocks, the
+alarms and the fault handling, as implemented in the PLC program of 2026-10-21 and as required by
+the Norwegian functional description [FD]. Items that are not decided are marked \open{n} and listed
+in Section~\ref{sec:open}; decisions are marked \decided{n}.
+\end{abstract}
+
+\tableofcontents
+
+% =============================================================================================
+\section{Introduction}
+\label{sec:intro}
+
+\subsection{Purpose}
+Fish in the closed pen get all their oxygen from the water pumped in. The intake water does not
+hold enough oxygen for the biomass, so pure oxygen is dissolved into a side stream on each of the
+three inlets, and the dissolved \Otwo{} in the pen is controlled to a setpoint. This document is
+the \emph{system functional specification} of that oxygen system in the sense of Cooling
+[COO, \S14.3]: it describes the system as blocks (Section~\ref{sec:block}), as functions
+(Section~\ref{sec:func}), and states the functional (Section~\ref{sec:freq}) and non-functional
+(Section~\ref{sec:nfreq}) requirements.
+
+\subsection{Scope}
+In scope:
+\begin{itemize}[nosep]
+  \item the oxygen gas supply and distribution panel up to each injector (supplier Normex), as far
+        as it is seen by the control system;
+  \item per inlet line $n = 1,2,3$: the side-stream (oxy) pump with its variable speed drive, the
+        pressure transmitters, the \Otwo{} injector (oxygenator), the \Otwo{} flow meter and the
+        \Otwo{} control valve;
+  \item the pen \Otwo{} measurement (Orbit 864 multisensors) and the pen \Otwo{} controller OIC01;
+  \item the PLC functions, alarms, interlocks and operator functions for all of the above.
+\end{itemize}
+Not in scope: the inlet pumps (Framo, see the inlet FD), the emergency oxygenation ([FD] \S3.2.5,
+a separate system without connection to the control system), and the CO\textsubscript{2}/TDGP
+measurement except where it acts on the oxygen system.
+
+\subsection{Sources}
+\begin{small}
+\begin{longtable}{@{}P{14mm}P{98mm}P{45mm}@{}}
+\caption{Sources. Codes in brackets are used in the text.}\label{tab:sources}\\
+\toprule
+Code & Document & Used for \\
+\midrule
+\endfirsthead
+\toprule
+Code & Document & Used for \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+{[COO]} & J.~Cooling, \emph{Software Engineering for Real-Time Systems}, 2020, \S14.3 System functional specifications & Structure of this document \\
+{[FD]} & P-15169-CAS-FD-01 Funksjonsbeskrivelse CAS rev~B (Norwegian), \S3.2.4 Oksygentilførsel, tables 12--15, 17 & Required functions \\
+{[AL]} & P-15169-CAS-FD-02 Alarmliste CAS Heimdall rev~A & Required alarms \\
+{[PID]} & CAS P\&ID and loop diagrams (workfolder-latex), sheets CAS-PID-200, -300, -400, CAS-LAY-700, CAS-LD-802..804, CAS-PID-900/901, -950 & Tags, I/O, open points \\
+{[PLC]} & Heimdall PLC project (CODESYS export of 2026-10-21): \texttt{FB.OxySystem.OxyControl}, \texttt{OxyPumpATV650}, \texttt{OxySensors}, \texttt{FB.Inlet.InletSupervisor}, \texttt{FB.Pen.PenControl}, \texttt{FB.RIO.InletRIO}, DUT \texttt{System.OxySystem}, \texttt{PFC200\_Sim} \texttt{ConfigValues} & Implemented behaviour, defaults \\
+{[PD]} & CAS program design (workfolder-latex), oxygen dataflow O1--O10 & Software structure \\
+{[DB]} & CAS design basis (workfolder-latex) and CasDesignBasis v2.3.12 & Process model, tuning \\
+{[O2S]} & Beregningsark dimensjonering ved bortfall av pumper eller strøm, 17.03.26 & \Otwo{} demand, saturation targets \\
+{[CT]} & Chucaotech: Oppsett innløsere CT.xlsx; brochure & Injector capacity \\
+{[NX]} & Flygt NX 3153 LT 3\textasciitilde{} 411 datasheet, 06.01.2026; MiniCAS II & Side-stream pump \\
+{[HZ]} & Risikovurdering -- HAZID -- Oksygen (copy 2026-02-04) & Hazards \\
+{[SO]} & Sensor Overview CAS V1.xlsx & Sensors \\
+{[ORB]} & Orbit 864 assembly manual DOC100486-04; RDO Core IC spec sheet; RDO Core Modbus interface spec & Pen \Otwo{} sensors \\
+{[EAV]} & Schneider ATV600 communication parameters EAV64332 V4.6; ATV6xx programming manual EAV64318 & Drive registers, fault codes \\
+{[NMX]} & Normex: revised request sketch 15.10.26; CS Instruments VA~500 datasheet & Oxygen panel \\
+\end{longtable}
+\end{small}
+
+\subsection{Abbreviations}
+\begin{small}
+\begin{tabularx}{\textwidth}{@{}P{22mm}L P{22mm}L@{}}
+\toprule
+AI / AO / DI & analog input / analog output / digital input & OIC & oxygen indicating controller \\
+DRIVECOM & CiA 402 drive state machine used by the ATV & PIC & pressure indicating controller \\
+ETA, CMD & drive status / command word (Modbus registers) & PI & proportional--integral (controller) \\
+FD & functional description & PLC & programmable logic controller (WAGO PFC200) \\
+FIC & flow indicating controller & RIO & remote I/O node (WAGO 750-362 coupler) \\
+HMI & human--machine interface & SP / PV & setpoint / process value \\
+LOX & liquid oxygen & TDGP & total dissolved gas pressure \\
+MX & mixer: here the \Otwo{} injector (oxygenator) & VSD & variable speed drive (ATV650) \\
+\bottomrule
+\end{tabularx}
+\end{small}
+
+\subsection{Revision note}
+\begin{small}
+\begin{tabularx}{\textwidth}{@{}P{10mm}P{22mm}L@{}}
+\toprule
+Rev. & Date & Change \\
+\midrule
+A & 2026-10-21 & First issue. Written from [FD] rev~B, the P\&ID set and the PLC program of 2026-10-21. Reflects the choice of Normex as oxygen supplier\decided{1}. \\
+\bottomrule
+\end{tabularx}
+\end{small}
+
+\textbf{Decisions referred to in this document.}
+\decided{1} 2026-10-21: Normex is the supplier of the oxygen supply and distribution panel (replaces
+the Linde SOLVOX cabinet drawn on CAS-PID-200).
+\decided{2} The side-stream pump drive is a Schneider ATV650D15N4 in drive cabinet DC$n$ (drawing
+874.004), controlled over Modbus TCP on its embedded Ethernet port. [PD] and [DB] still name an
+ATV320 in places; the PLC block is \var{OxyPumpATV650}.
+
+% =============================================================================================
+\section{Block diagram description}
+\label{sec:block}
+
+Cooling's block diagram description [COO \S14.3.2] lists the physical parts of the system and how
+they are connected. Figure~\ref{fig:block} shows the oxygen system as blocks and network links;
+Figure~\ref{fig:process} shows one inlet line as a simplified process diagram with the P\&ID tags.
+
+\subsection{Process in one paragraph}
+Each of the three Framo inlet pumps (PM-31..33) pushes sea water into the pen through its inlet line.
+A small side stream (about 300\,m\textsuperscript{3}/h, 2--4\,\% of the inlet flow [DB]) is
+taken from each inlet line by a side-stream pump (oxy pump PU4$n$), pressurised, and led through a
+Chucaotech \Otwo{} injector (MX-4$n$) where pure oxygen gas is added and dissolved. The
+oxygen-rich side stream returns to the same inlet line and enters the pen with the main flow.
+The control system measures the dissolved \Otwo{} in the pen and sets how much oxygen gas each line
+gets. A line can only add oxygen while its inlet pump runs: an injector on a stopped inlet cannot
+bring oxygen into the pen [DB].
+
+\subsection{Blocks}
+
+\textbf{Oxygen supply and distribution panel (Normex)\decided{1}.} Oxygen gas comes from a central
+supply (type \TBD: LOX tank, generator, or the customer's supply line\open{1}) to a distribution panel.
+According to the Normex sketch [NMX] the panel has a DN50 header with manometer PI-01.4
+($-1$..+6\,bar), and per line a ball valve BV-01.$n$, a flow meter FM-01.$n$, a motorised control
+valve MV-01.$n$, a pressure transmitter PT-01.$n$ ($-1$..+6\,bar), a manometer PI-01.$n$ and an
+outlet valve OV-02.$n$, with a manual bypass (OV-01.$n$, BV-01.$n$) around each line and cross-over
+valves BV-01.7/01.8. The pneumatic shut-off valves PV-01.$n$ and the water-in-pipe transmitter
+WD-01.1 are taken out of the scope. The supply pressure is marked ``2.5\,bar ?'' on the sketch\open{1}.
+In this document the flow meter and the control valve keep the CAS tags of the P\&ID: FM-01.$n$ =
+\itag{FT4$n$}, MV-01.$n$ = \itag{OV4$n$}. The oxygen supply pressure seen by the PLC is \itag{PT40}.
+The interface (signals, ranges, valve type) is not yet agreed with Normex\open{2}\textsuperscript{,}\open{3}\textsuperscript{,}\open{8}.
+
+\textbf{Side-stream pump PU4$n$.} Flygt NX 3153 LT, 13.5\,kW, 400\,V, 28\,A, 1455\,rpm, impeller
+240\,mm [NX]. Duty point at 50\,Hz: 5.05\,m\textsuperscript{3}/min at 10.2\,m head; shut-off
+head 18.3\,m. Leakage and motor temperature sensors are standard; a Flygt MiniCAS II relay in
+drive cabinet DC$n$ gives dry contacts \itag{XS4$n$} (leakage) and \itag{TSH4$n$} (temperature).
+
+\textbf{Variable speed drive -FC01 in DC$n$.} Schneider ATV650D15N4, 15\,kW\decided{2}. The PLC
+reaches it on the drive's embedded Ethernet port with Modbus TCP. The connection is opened by the
+line's \var{InletRIO[i]} function block, which runs a second, separate \var{SCL.sModbusMasterTCP}
+master for the drive (the drive has its own IP address). Drive cabinet drawing 874.004 shows no
+Ethernet connection yet; an RJ45 DIN-rail socket is proposed\open{20}.
+
+\textbf{Pressure transmitters.} \itag{PT41..43} after the pump (= before the injector) and
+\itag{PT44..46} after the injector, 4--20\,mA 2-wire on the line's InletRIO 750-455. A transmitter
+\emph{before} the pump is not on the P\&ID; the sensor overview [SO] lists six transmitters
+``before and after'' the injector, with make and range not yet chosen\open{17}.
+
+\textbf{\Otwo{} injector MX-4$n$.} Chucaotech CT10 per line. Capacity [CT]: 405\,l/min =
+34.7\,kg/h \Otwo{} at 5\,\% gas/liquid ratio (v/v), 1215\,l/min = 104.2\,kg/h at 15\,\%. The PLC
+caps the flow of one line at \var{FlowMax} = 104.2\,kg/h, i.e.\ assumes 15\,\%\open{7}.
+
+\textbf{\Otwo{} flow meter FT4$n$ and control valve OV4$n$.} Both in the Normex panel and
+both wired to the CommonRIO (Section~\ref{sec:io}). The flow meter in the Normex offer is a CS
+Instruments VA~500 thermal mass flow meter (4--20\,mA, not isolated, and Modbus RTU; unit
+selectable, e.g.\ kg/h or Nl/min) [NMX]. The PLC expects 4--20\,mA = 0--150\,kg/h\open{3}. The
+PLC drives the valve with 4--20\,mA = 0--100\,\% opening; [FD] describes a PWM solenoid valve fed
+``via 4--20\,mA'', the Linde cabinet had a Bürkert 2865 proportional valve behind a PWM driver,
+and the Normex sketch shows a motorised valve\open{2}.
+
+\textbf{Pen \Otwo{} sensors.} Six Orbit 864 multisensors (In-Situ RDO Core IC: \Otwo{} in mg/L and
+\% saturation, temperature, conductivity/salinity, pressure). Three inside the pen
+(\itag{OT01..03}, used for control) and three outside (\itag{OT21..23}, reference) [PID CAS-PID-400].
+They share one RS-485 line, Modbus RTU 9600\,8N1, slave addresses 1--6, through an 8-port
+isolated hub -MB01 to a WAGO 750-652 serial module in the CommonRIO.
+
+\textbf{Control system.} WAGO PFC200 (750-8212) PLC without local I/O. All field I/O is on
+WAGO 750-362 Modbus TCP couplers: the \emph{CommonRIO} (-R1-001, PLC/RIO1 cabinet) and one
+\emph{InletRIO} per inlet (-R1-100 in the PLC/RIO1, RIO2 and RIO3 cabinets). The Framo pump
+controllers (PCC$n$) are OPC UA servers; the inlet pump state and heartbeat from them give the
+permit for the oxygen line. The HMI reads and writes \var{GVLMain} through the PLC's OPC UA server.
+
+\begin{figure}[htbp]
+\centering
+\begin{adjustbox}{max width=\linewidth}\begin{tikzpicture}[x=1cm, y=1cm, font=\small]
+  % network row
+  \node[ext, minimum width=22mm] (hmi) at (0.6,0) {HMI\\\footnotesize OPC UA client};
+  \node[ext, minimum width=70mm] (sw) at (7.6,0) {Ethernet switch, network cabinet NC};
+  \node[ext, minimum width=26mm] (pcc) at (14.4,0) {Framo PCC$n$\\\footnotesize inlet pump PM-3$n$};
+  % control row
+  \node[proc, minimum width=22mm] (plc) at (0.6,-2.4) {PLC PFC200\\\footnotesize 750-8212};
+  \node[proc, minimum width=30mm] (crio) at (4.6,-2.4) {CommonRIO\\\footnotesize 750-362 -R1-001};
+  \node[proc, minimum width=30mm] (irio) at (9.0,-2.4) {InletRIO $n$\\\footnotesize 750-362 -R1-100};
+  \node[proc, minimum width=26mm] (vsd) at (14.4,-2.4) {ATV650 -FC01\\\footnotesize drive cabinet DC$n$};
+  % field row
+  \node[ext, minimum width=26mm, text width=25mm] (orb) at (0.9,-5.2) {750-652 + hub\\Orbit 864 $\times$6\\\footnotesize OT01..03, OT21..23};
+  \node[ext, minimum width=34mm, text width=33mm] (nmx) at (5.0,-5.2) {Normex \Otwo{} panel\\\footnotesize FT41..43, OV41..43, PT40};
+  \node[ext, minimum width=30mm, text width=29mm] (pts) at (9.0,-5.2) {Line $n$ field\\\footnotesize PT4$n$, PT4($n$+3), XS/TSH4$n$};
+  \node[ext, minimum width=26mm] (pu) at (14.4,-5.2) {PU4$n$\\\footnotesize NX 3153, 13.5 kW};
+  % links
+  \draw[very thick] (hmi) -- (sw) node[lab, pos=0.5, above=1pt] {OPC UA};
+  \draw[very thick] (sw) -- (pcc) node[lab, pos=0.5, above=1pt] {OPC UA};
+  \draw[very thick] (plc.north) -- (plc.north |- sw.south);
+  \draw[very thick] (crio.north) -- (crio.north |- sw.south);
+  \draw[very thick] (irio.north) -- (irio.north |- sw.south);
+  \draw[very thick] (vsd.north) -- (vsd.north |- sw.south);
+  \node[lab] at (11.9,-1.0) {Modbus TCP};
+  \draw[sig] (crio.south) ++(-0.6,0) -- ++(0,-1.0) -| (orb.north);
+  \node[lab] at (2.2,-3.95) {RS-485, Modbus RTU};
+  \draw[sig, <->] (crio.south) ++(0.4,0) -- ++(0,-1.0) -| (nmx.north);
+  \node[lab] at (6.0,-3.95) {4--20 mA AI/AO};
+  \draw[sig] (pts.north) -- (irio.south) node[lab, pos=0.5] {4--20 mA, DI};
+  \draw[very thick] (vsd.south) -- (pu.north) node[lab, pos=0.5] {motor cable};
+  \draw[sig] (pts.east) -- (pu.west) node[lab, pos=0.5, above=1pt] {XS/TSH};
+  \draw[sig] (vsd.west) -- (irio.east) node[lab, pos=0.5, above=1pt] {2nd master};
+\end{tikzpicture}\end{adjustbox}
+\caption{Block diagram of the oxygen system for one line $n$ (three lines in total; CommonRIO,
+PLC, HMI and the Orbit sensors are shared). Thick: Ethernet; dashed: field signals. The drive
+is a Modbus TCP slave of the PLC; the ``2nd master'' runs in the line's \texttt{InletRIO} block.}
+\label{fig:block}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\begin{adjustbox}{max width=\linewidth}\begin{tikzpicture}[x=1cm, y=1cm]
+  % main water line and pen
+  \draw[pipe, draw=blue!70!black] (0,0) -- (13.9,0);
+  \node[font=\scriptsize, anchor=north west, text=blue!70!black] at (0,-0.1) {from inlet pump PM-31 (LW-0041)};
+  \node[draw, rounded corners=8pt, minimum width=22mm, minimum height=30mm, fill=blue!4,
+        font=\small\bfseries] (pen) at (15.1,0.2) {};
+  \node[font=\small\bfseries] at (15.1,-1.0) {PEN01};
+  % side stream
+  \draw[very thick, draw=blue!70!black] (1.4,0) -- (1.4,1.5) -- (2.15,1.5);
+  \node[draw, circle, minimum size=7mm, fill=white] (pu) at (2.5,1.5) {};
+  \draw (pu.north) -- (pu.east) -- (pu.south);
+  \node[font=\scriptsize, anchor=north] at (2.5,1.05) {PU41};
+  \draw[very thick, draw=blue!70!black] (pu.east) -- (6.1,1.5);
+  \node[draw, fill=blue!8, minimum width=14mm, minimum height=8mm, font=\scriptsize, align=center]
+       (mx) at (6.8,1.5) {MX-41\\injector};
+  \draw[pipe, draw=blue!70!black] (7.5,1.5) -- (10,1.5) -- (10,0.08);
+  \node[font=\scriptsize, text=blue!70!black, anchor=south] at (4.6,1.55) {side stream LW-0042};
+  % drive
+  \node[ext, minimum height=7mm, font=\scriptsize] (vsd) at (2.5,3.0) {ATV650 SC41};
+  \draw[densely dotted, thick] (vsd.south) -- (pu.north);
+  % PT41, PIC41
+  \draw (4.2,1.5) -- (4.2,2.15);
+  \node[inst] (pt41) at (4.2,2.6) {PT\\41};
+  \node[ctrl] (pic) at (4.2,4.0) {PIC\\41};
+  \draw[sig] (pt41) -- (pic);
+  \draw[sig] (pic.west) -- (vsd.north east);
+  % PT44
+  \draw (8.7,1.5) -- (8.7,2.15);
+  \node[inst] (pt44) at (8.7,2.6) {PT\\44};
+  % O2 supply
+  \node[ext, minimum width=24mm, text width=23mm, font=\scriptsize] (sup) at (14.8,4.6) {\Otwo{} supply,\\Normex panel};
+  \draw[pipe, draw=teal] (sup.west) -- (6.8,4.6) -- (mx.north);
+  \draw (13.1,4.6) -- (13.1,5.15);
+  \node[inst] (pt40) at (13.1,5.6) {PT\\40};
+  \draw (10.6,4.6) -- (10.6,5.15);
+  \node[inst] (ft41) at (10.6,5.6) {FT\\41};
+  % control valve (bow tie + actuator)
+  \draw[fill=white] (8.3,4.35) -- (8.3,4.85) -- (8.9,4.35) -- (8.9,4.85) -- cycle;
+  \draw (8.6,4.6) -- (8.6,5.1);
+  \draw[fill=white] (8.35,5.1) rectangle (8.85,5.35);
+  \node[font=\scriptsize, anchor=north] at (8.6,4.3) {OV41};
+  \node[ctrl] (fic) at (9.6,6.5) {FIC\\41};
+  \draw[sig] (ft41) -- (fic);
+  \draw[sig] (fic.west) -| (8.6,5.35);
+  % pen O2, OIC01, FY01
+  \node[inst] (ot) at (15.1,0.75) {OT\\01..03};
+  \node[ctrl] (oic) at (15.1,2.6) {OIC\\01};
+  \draw[sig] (ot) -- (oic);
+  \node[inst, densely dashed] (fy) at (12.3,2.6) {FY\\01};
+  \draw[sig] (oic) -- (fy);
+  \draw[sig] (fy.north) -- (12.3,6.5) -- (fic.east);
+  \node[font=\scriptsize, anchor=west, align=left] at (12.4,6.75) {SP: share of total};
+  \node[font=\scriptsize, anchor=west, align=left, text=teal] at (6.9,3.9) {\Otwo{} gas};
+\end{tikzpicture}\end{adjustbox}
+\caption{Simplified process diagram of oxygen line 1 with the tags of [PID CAS-PID-200/300/400]
+(lines 2 and 3 alike: PU42/43, PT42/43, MX-42/43, PT45/46, FT42/43, OV42/43). Blue: water;
+green: \Otwo{} gas; dashed: signals. FY01 shares OIC01's total \Otwo{} flow between the lines.}
+\label{fig:process}
+\end{figure}
+
+\subsection{Typical tags per line}
+\begin{center}
+\begin{small}
+\begin{tabularx}{\textwidth}{@{}P{34mm}P{22mm}P{22mm}P{22mm}L@{}}
+\toprule
+Item & Line 1 & Line 2 & Line 3 & PLC object \\
+\midrule
+Side-stream pump, drive & PU41, DC1 -FC01 & PU42, DC2 -FC01 & PU43, DC3 -FC01 & \var{OxySystem[i].OxyPump} \\
+Pressure after pump / after injector & PT41 / PT44 & PT42 / PT45 & PT43 / PT46 & \var{.Input.OxyPumpPressure} / \var{.OxynatorOutletPressure} \\
+Injector & MX-41 & MX-42 & MX-43 & -- \\
+\Otwo{} flow, valve & FT41, OV41 & FT42, OV42 & FT43, OV43 & \var{.Input.OxygenFlow}, \var{.OxyValve} \\
+Controllers & PIC41, FIC41 & PIC42, FIC42 & PIC43, FIC43 & \var{OxyControl[i]} \\
+RIO node & InletRIO1 & InletRIO2 & InletRIO3 & \var{InletRIO[i]}, $i = n-1$ \\
+\bottomrule
+\end{tabularx}
+\end{small}
+\end{center}
+[FD] numbers the pressure transmitters PT41/43/45 (in) and PT42/44/46 (out); the cabinet drawings
+and this document use PT41--43 after the pump and PT44--46 after the injector\open{27}.
+
+% =============================================================================================
+\section{Functional diagram description}
+\label{sec:func}
+
+Cooling's functional diagram description [COO \S14.3.3] shows what the system does, as functions
+and signal flows, independent of the hardware. The oxygen system has three layers:
+\begin{enumerate}[nosep]
+  \item \textbf{Pen \Otwo{} control} (one per pen): OIC01 sets the \emph{total} oxygen gas flow
+        to the pen, and FY01 shares it between the lines in auto.
+  \item \textbf{Line flow control} (one per line): FIC4$n$ sets the valve OV4$n$ so the line's
+        measured \Otwo{} flow follows its share.
+  \item \textbf{Side-stream pressure control} (one per line): PIC4$n$ sets the pump speed so the
+        water pressure after the pump (into the injector) is constant.
+\end{enumerate}
+Around these sit the line start sequence, the valve permit and the drive state machine.
+
+\begin{figure}[htbp]
+\centering
+\begin{adjustbox}{max width=\linewidth}\begin{tikzpicture}[x=1cm, y=1cm, font=\small]
+  % pen layer
+  \node[ext, minimum width=16mm] (sp) at (0,0) {SP\\\footnotesize mg/L};
+  \node[sm] (oic) at (2.6,0) {OIC01\\\footnotesize PI};
+  \node[sm, text width=26mm] (fy) at (6.0,0) {FY01 share\\\footnotesize $\min\!\big(\frac{T-M}{n_A}, F_\text{max}\big)$};
+  \node[sm] (fic) at (9.5,0) {FIC4$n$\\\footnotesize PI};
+  \node[sm] (ramp) at (12.0,0) {FY4$n$\\\footnotesize 100\,\%/2\,s};
+  \node[sm, minimum width=10mm] (perm) at (14.0,0) {I4\\\footnotesize\&};
+  \node[ext] (ov) at (15.8,0) {OV4$n$};
+  \draw[flow] (sp) -- (oic);
+  \draw[flow] (oic) -- node[lab, above=2pt] {$T$ kg/h} (fy);
+  \draw[flow] (fy) -- node[lab, above=2pt] {SP kg/h} (fic);
+  \draw[flow] (fic) -- node[lab, above=2pt] {\%} (ramp);
+  \draw[flow] (ramp) -- (perm);
+  \draw[flow] (perm) -- node[lab, above=2pt] {mA} (ov);
+  % feedbacks
+  \node[ext] (oy) at (2.6,-1.9) {OY01\\\footnotesize mean OT01..03};
+  \draw[flow] (oy) -- node[lab, right] {PV mg/L} (oic);
+  \node[ext] (ft) at (9.5,-1.9) {FT4$n$};
+  \draw[flow] (ft) -- node[lab, right] {PV kg/h} (fic);
+  \node[ext, text width=26mm] (man) at (6.0,-1.9) {lines not in auto\\\footnotesize measured flow $M$};
+  \draw[flow] (man) -- (fy);
+  \node[ext, text width=22mm] (pv) at (14.0,-1.9) {permit:\\\footnotesize Fig.~\ref{fig:permit}};
+  \draw[flow] (pv) -- (perm);
+  % pressure layer
+  \node[ext, minimum width=16mm] (psp) at (0,-4.0) {SP\\\footnotesize 4.0 bar};
+  \node[sm] (pic) at (2.6,-4.0) {PIC4$n$\\\footnotesize PI};
+  \node[sm, text width=24mm] (sel) at (6.0,-4.0) {select\\\footnotesize PIC or preset 40 Hz};
+  \node[sm] (drv) at (9.5,-4.0) {OxyPump-\\ATV650};
+  \node[ext] (atv) at (12.0,-4.0) {ATV650};
+  \node[ext] (pu) at (14.0,-4.0) {PU4$n$};
+  \node[ext] (pt) at (2.6,-5.8) {PT4$n$ (after pump)};
+  \draw[flow] (psp) -- (pic);
+  \draw[flow] (pic) -- node[lab, above=2pt] {Hz} (sel);
+  \draw[flow] (sel) -- node[lab, above=2pt] {20--50 Hz} (drv);
+  \draw[flow] (drv) -- node[lab, below=2pt] {CMD, LFR} (atv);
+  \draw[flow] (atv) -- (pu);
+  \draw[flow] (pt) -- node[lab, right] {PV bar} (pic);
+  \draw[sig] (pu.south) -- ++(0,-0.9) -| node[lab, pos=0.25, below] {water pressure} (pt.east);
+\end{tikzpicture}\end{adjustbox}
+\caption{Control scheme [COO Fig.~7.8 style]. Top: pen \Otwo{} cascade, OIC01 over FIC4$n$ for each
+line in auto. Bottom: pressure loop of each line. $T$ = OIC01 output, $M$ = measured flow of the
+active lines not in auto, $n_A$ = number of lines in auto, $F_\text{max}$ = \texttt{FlowMax}.}
+\label{fig:cascade}
+\end{figure}
+
+\subsection{Pen \texorpdfstring{\Otwo}{O2} measurement (OY01)}
+The pen \Otwo{} used for control is the mean dissolved \Otwo{} concentration (mg/L) of the Orbit
+sensors that are \emph{selected for control} (\var{Orbit864SensorConfig[k].EnableForAutoControl},
+retained; default sensors 1--3 inside the pen), \emph{enabled}, and of good quality. Sensors with
+communication failure or bad quality drop out of the mean at once. When none is left, the pen
+\Otwo{} measurement is bad (\var{Pen.Status.OxyControlOK} = FALSE). The mean saturation (\%) of the
+same sensors is calculated for display. [FD] asks instead for one sensor (OT03) selected by the
+operator, and on failure a switch to the lowest of the others; the PLC averages the selected
+sensors (deviation, Table~\ref{tab:dev}).
+
+\subsection{Pen oxygen controller OIC01}
+OIC01 is a PI controller from the pen \Otwo{} [mg/L] to the \emph{total} oxygen gas flow to the
+pen [kg/h]. Because the pen responds to the total flow, its gain does not change with the number
+of lines running; one parameter set is enough (the three sets of [FD] table~13 are not needed).
+\begin{itemize}[nosep]
+  \item \textbf{Enabled} when the pen is started (\var{PenStart}) and at least one line is in auto.
+  \item \textbf{Output limits}: 0 to the sum of \var{FlowMax} of the lines in auto plus the
+        measured flow of the active lines not in auto (and \var{MaxOutput} if set), so the
+        integral cannot wind up beyond what the lines can deliver.
+  \item \textbf{Bumpless start}: on the first enabled cycle the output starts at the measured
+        total flow.
+  \item \textbf{Manual}: the operator can set the total flow by hand
+        (\var{OxyController.Command.Manual}, \var{.ManualOutput}).
+  \item \textbf{Bad \Otwo{} measurement}: the output is frozen at its last value (interlock I7
+        on CAS-PID-400) for as long as the measurement is bad\open{14}.
+\end{itemize}
+
+\subsection{Sharing between the lines (FY01)}
+A line is \emph{in auto} when oxygenation is active, the valve permit is given, the FIC is
+enabled, the valve is not in manual and the flow measurement is good. Every cycle:
+\begin{equation*}
+  \text{SP}_i = \min\!\Big(F_{\text{max},i},\ \frac{T - \sum_{j\notin A}F_j}{n_A}\Big)
+  \quad \text{for each line } i \text{ in auto } (A),
+\end{equation*}
+where $F_j$ is the measured flow of an active line that is not in auto. A line that drops out of
+auto, or a manual line whose valve the operator moves, is made up by the other lines in the
+same cycle, not slowly through the integral of OIC01. A line not in auto shows its measured flow
+as its setpoint.
+
+\subsection{Line flow controller FIC4\texorpdfstring{$n$}{n} and valve OV4\texorpdfstring{$n$}{n}}
+FIC4$n$ is a PI controller from the line's \Otwo{} flow [kg/h] to the valve opening 0--100\,\%.
+Its output passes a rate limiter (FY4$n$): the valve command changes at most 100\,\% per
+\var{ValveRampTime} (2\,s), computed with the task cycle time. The rate-limited command is written
+to the 750-563 as 0--65535 = 4--20\,mA.
+\begin{itemize}[nosep]
+  \item \textbf{Auto}: SP = the line's share from FY01.
+  \item \textbf{Valve manual}: the operator sets the opening (\var{OxyValve.Command.Manual},
+        \var{.ManualSetpoint}); the FIC tracks it, so the return to auto is bumpless. The line then
+        counts as ``not in auto'' with its measured flow.
+  \item \textbf{Flow measurement bad}: the FIC holds the last valve position and the line leaves
+        auto; its flow is then counted as 0 in the sharing\open{15}.
+  \item \textbf{No permit or oxygenation not active}: output forced to 0\,\% = 4\,mA = valve closed,
+        also in valve manual (Section~\ref{sec:permit}).
+\end{itemize}
+
+\subsection{Side-stream pressure controller PIC4\texorpdfstring{$n$}{n}}
+PIC4$n$ is a PI controller from the pressure after the pump (PT4$n$) to the pump speed, limited
+to 20--50\,Hz. Setpoint \var{PressureSetpoint} = 4.0\,bar (absolute is assumed\open{17}). It is
+active only while the pump runs. While the pump is starting, in pump manual, with
+\var{PressureController.Enabled} = FALSE, or with a bad pressure measurement, the pump runs at
+the preset speed (\var{PresetSpeed_Hz} = 40\,Hz) or, in manual, at the operator's speed. The
+purpose is a constant water pressure and flow through the injector, which keeps its gas transfer
+stable. Whether the pump can reach 4.0\,bar is not confirmed: the datasheet head at the duty
+point is 10.2\,m (about 1\,bar) at 50\,Hz\open{18}.
+
+\subsection{Line start and stop sequence}
+\label{sec:seq}
+Each line has a group start ([FD] \S3.2.4). Figure~\ref{fig:seq} shows the sequence.
+\begin{enumerate}[nosep]
+  \item The operator starts the line (\var{OxySystem[i].Command.EnableOxyControl} = TRUE).
+  \item The line is \emph{started} when that command is set AND the inlet pump of the same line is
+        in REMOTE with a live heartbeat (\var{Inlet[i].InletPump.Status.EnableOxyControl}, interlock
+        I5) AND no emergency stop\open{22}\textsuperscript{,}\open{23}.
+  \item In pump auto the oxy pump is started; it runs at the preset speed until it reaches
+        the minimum speed, then PIC4$n$ takes over.
+  \item When the pump has been running for \var{RunDelay} (30\,s), \emph{oxygenation is active}.
+  \item With the valve permit (Section~\ref{sec:permit}) the valve may open and the line joins the
+        sharing (in auto).
+  \item \textbf{Stop}: when the operator stops the line, the inlet permit is lost, or the pump
+        stops, oxygenation ends at once and the valve command goes to 4\,mA (closed) in the same
+        cycle; the 2\,s ramp applies only while the valve is permitted. The pump stops when the line
+        is not started (pump in auto).
+\end{enumerate}
+In pump manual the operator can start and stop the oxy pump alone (\var{OxyPump.Command.Start/Stop}),
+also without the inlet permit; oxygenation still needs the line to be started.
+
+\begin{figure}[htbp]
+\centering
+\begin{adjustbox}{max width=\linewidth}\begin{tikzpicture}[x=1cm, y=1cm, font=\small]
+  \tikzset{st/.style={state, text width=34mm}}
+  \node[st] (s0) at (0,0) {Line stopped\\\footnotesize pump off, valve 4 mA};
+  \node[st] (s1) at (6.2,0) {Pump starting\\\footnotesize preset speed 40 Hz};
+  \node[st] (s2) at (12.4,0) {Pump running\\\footnotesize PIC4$n$ active, valve closed};
+  \node[st] (s3) at (12.4,-3.2) {Oxygenation active\\\footnotesize FIC4$n$ in auto};
+  \node[st] (s4) at (6.2,-3.2) {Valve held closed\\\footnotesize alarm ValvePressureLow};
+  \draw[flow] (s0) -- node[lab, above=3pt] {EnableOxyControl\\AND inlet permit} (s1);
+  \draw[flow] (s1) -- node[lab, above=3pt] {speed $\geq$\\MinSpeed $-$ 0.5 Hz} (s2);
+  \draw[flow] (s2) -- node[lab, right=3pt] {running for\\RunDelay 30 s} (s3);
+  \draw[flow] ([yshift=2mm]s3.west) -- node[lab, above=3pt] {no valve permit} ([yshift=2mm]s4.east);
+  \draw[flow] ([yshift=-2mm]s4.east) -- node[lab, below=3pt] {permit again} ([yshift=-2mm]s3.west);
+  \draw[flow] (s3.south) -- ++(0,-0.8) -| (s0.south);
+  \draw (s4.south) -- ++(0,-0.8);
+  \node[lab, anchor=north] at (6.2,-4.75) {stop command, inlet permit lost, pump fault or pump stopped $\rightarrow$ valve closed, pump stopped};
+\end{tikzpicture}\end{adjustbox}
+\caption{Line start/stop sequence (per line, pump in auto). Any state returns to ``Line stopped''
+on the stop conditions.}
+\label{fig:seq}
+\end{figure}
+
+\subsection{Valve permit (interlock I4)}
+\label{sec:permit}
+The valve may open only when oxygen can be dissolved: the side stream must flow with pressure.
+\begin{figure}[htbp]
+\centering
+\begin{adjustbox}{max width=\linewidth}\begin{tikzpicture}[x=1cm, y=1cm, font=\small]
+  \node[anchor=east] (a1) at (0,1.2) {pump state = Running};
+  \node[anchor=east] (a2) at (0,0.4) {PT4$n$ enabled and good};
+  \node[anchor=east] (a3) at (0,-0.4) {PT4$n$ $>$ ValveOpenPressure (3.0 bar)};
+  \node[draw, minimum width=10mm, minimum height=26mm, fill=yellow!12] (g1) at (1.2,0.4) {\&};
+  \foreach \y in {1.2,0.4,-0.4} \draw (0.05,\y) -- (0.7,\y);
+  \node[anchor=east] (a4) at (0,-0.9) {oxygenation active};
+  \node[draw, minimum width=10mm, minimum height=16mm, fill=yellow!12] (g2) at (4.4,0.1) {\&};
+  \draw[flow] (g1.east) -- node[lab, above=1pt] {ValvePermit} (g2.west |- 0,0.4);
+  \draw[flow] (0.05,-0.9) -- (3.2,-0.9) -- (3.2,-0.2) -- (g2.west |- 0,-0.2);
+  \node[anchor=west, text width=60mm] at (5.3,0.1) {\textbf{ValveOpen}: FIC4$n$ may drive OV4$n$.\\
+    Otherwise output 0 = 4 mA (closed), also in valve manual.};
+  % alarm
+  \node[anchor=east] at (0,-2.2) {oxygenation active};
+  \node[anchor=east] at (0,-3.0) {NOT ValvePermit};
+  \node[draw, minimum width=10mm, minimum height=14mm, fill=yellow!12] (g3) at (4.4,-2.6) {\&};
+  \draw[flow] (0.05,-2.2) -- (g3.west |- 0,-2.2);
+  \draw[flow] (0.05,-3.0) -- (g3.west |- 0,-3.0);
+  \node[anchor=west, text width=60mm] at (5.3,-2.6) {\textbf{PAL4$n$}: alarm ValvePressureLow\\(operator acknowledge)};
+\end{tikzpicture}\end{adjustbox}
+\caption{Valve permit I4 and alarm PAL4$n$ (\texttt{OxyControl}).}
+\label{fig:permit}
+\end{figure}
+\var{ValveOpenPressure} (3.0\,bar) is on the same scale as \var{PressureSetpoint} (4.0\,bar); if
+the transmitters turn out to read gauge pressure, both must be lowered together by 1\,bar\open{17}.
+
+\subsection{Drive state machine (DRIVECOM)}
+The PLC walks the ATV650 through the DRIVECOM (CiA 402) states by writing the command word CMD
+(8501) and reading the status word ETA (3201) every 100\,ms (block \var{OxyPumpATV650}).
+Speed reference LFR (8502) is written in 0.1\,Hz, limited to 20--50\,Hz. A fault is reset by an
+operator reset, which sends \texttt{0x0080} for 0.5\,s. The drive must have its command and
+reference channel set to the embedded Ethernet port (Fr1, Cd1).
+\begin{figure}[htbp]
+\centering
+\begin{adjustbox}{max width=\linewidth}\begin{tikzpicture}[x=1cm, y=1cm, font=\small]
+  \node[state] (sod) at (0,0) {Switch on disabled\\\footnotesize ETA \texttt{0x40}};
+  \node[state] (rts) at (4.8,0) {Ready to switch on\\\footnotesize ETA \texttt{0x21}};
+  \node[state] (son) at (9.6,0) {Switched on\\\footnotesize ETA \texttt{0x23}};
+  \node[state] (oe) at (9.6,-2.6) {Operation enabled\\\footnotesize ETA \texttt{0x27}: running};
+  \node[state] (qs) at (4.8,-2.6) {Quick stop active\\\footnotesize ETA \texttt{0x07}};
+  \node[state] (flt) at (0,-2.6) {Fault\\\footnotesize ETA \texttt{0x08} (mask \texttt{0x4F})};
+  \draw[flow] (sod) -- node[lab, above=2pt] {CMD \texttt{0x0006}} (rts);
+  \draw[flow] (rts) -- node[lab, above=2pt] {Run: \texttt{0x0007}} (son);
+  \draw[flow] ([xshift=-3mm]son.south) -- node[lab, left=2pt] {Run: \texttt{0x000F}} ([xshift=-3mm]oe.north);
+  \draw[flow] ([xshift=3mm]oe.north) -- node[lab, right=2pt] {stop: \texttt{0x0007} (ramp)} ([xshift=3mm]son.south);
+  \draw[flow] (qs) -- node[lab, left=2pt, text width=18mm] {\texttt{0x0006}} (rts);
+  \draw[flow] (flt) -- node[lab, left=2pt, text width=24mm] {reset \texttt{0x0080}} (sod);
+\end{tikzpicture}\end{adjustbox}
+\caption{DRIVECOM states as handled by \texttt{OxyPumpATV650} (status masked with \texttt{0x6F}). Any
+other state is answered with \texttt{0x0006}. Quick stop active raises the alarm EmergencyStop.}
+\label{fig:drivecom}
+\end{figure}
+
+Pump state for the logic: \emph{Unavailable} (no communication or fault), \emph{Available}
+(stopped, ready), \emph{Starting} (Run requested, below minimum speed), \emph{Running} (operation
+enabled at or above 19.5\,Hz), \emph{Stopping} (ramping down).
+
+% =============================================================================================
+\section{Functional requirements}
+\label{sec:freq}
+
+This section states the functional requirements in the order of [COO \S14.3.4a]. ``Shall''
+statements are requirements; ``PLC:'' says how the program of 2026-10-21 fulfils them.
+
+\subsection{Processes}
+\begin{enumerate}[label=F\arabic*, nosep]
+  \item The system shall hold the pen \Otwo{} at the operator setpoint by adding oxygen gas to the
+        side stream of each running inlet (OIC01, FY01, FIC4$n$).
+  \item Each line shall run its side-stream pump at constant pressure into the injector (PIC4$n$).
+  \item A line shall add oxygen only while its inlet pump runs under remote control, its side-stream
+        pump runs and the pressure after the pump is above the valve-open limit.
+  \item The total oxygen flow shall be shared equally between the lines in auto, up to each line's
+        maximum; lines in manual shall be accounted for with their measured flow.
+  \item The system shall measure and display pen \Otwo{} (mg/L, \% saturation), temperature and
+        salinity at six positions, three inside and three outside the pen.
+\end{enumerate}
+
+\subsection{Inputs and outputs}
+\label{sec:io}
+\begin{small}
+\begin{longtable}{@{}P{20mm}P{46mm}P{42mm}P{45mm}@{}}
+\caption{Inputs and outputs of the oxygen system [PID CAS-PID-900/901].}\label{tab:io}\\
+\toprule
+Tag & Signal & Node / channel & PLC variable \\
+\midrule
+\endfirsthead
+\toprule
+Tag & Signal & Node / channel & PLC variable \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\multicolumn{4}{@{}l}{\textit{Inputs}} \\
+PT4$n$ & pressure after pump, 4--20 mA & InletRIO$n$ -R1-106 ch3, word 2 & \var{OxySystem[i].Input.OxyPumpPressure} \\
+PT4($n$+3) & pressure after injector, 4--20 mA & InletRIO$n$ -R1-106 ch4, word 3 & \var{OxySystem[i].Input.OxynatorOutletPressure} \\
+XS41 / TSH41 & pump leakage / motor temp., DI & InletRIO1 -R1-104 ch8/9, word 5.7/5.8 (line 1 only) & \var{.Input.OxyPumpLeakDetedtion} / \var{.OxyPumpHighTemperature} \\
+FT41..43 & \Otwo{} flow, 4--20 mA & CommonRIO -R1-008 ch1--3, words 24--26 & \var{OxySystem[i].Input.OxygenFlow} \\
+PT40 & \Otwo{} supply pressure, 4--20 mA & CommonRIO -R1-008 ch4, word 27 & \var{Pen.Input.OxygenInjectionPressure} \\
+OT01..03, OT21..23 & Orbit 864, Modbus RTU & CommonRIO -R1-003 750-652, words 0--11 & \var{Pen.Input.Orbit864Sensor[0..5]} \\
+SC4$n$ & drive status ETA, RFR, LCR, THD, OPR, LFT & ATV650 DC$n$, Modbus TCP & \var{OxySystem[i].OxyPump.Input} \\
+-- & inlet permit (Framo REMOTE + heartbeat) & PCC$n$, OPC UA & \var{Inlet[i].InletPump.Status.EnableOxyControl} \\
+\multicolumn{4}{@{}l}{\textit{Outputs}} \\
+OV41..43 & valve opening, 4--20 mA & CommonRIO -R1-014 ch1/2, -R1-015 ch1, out words 20--22 & \var{OxySystem[i].OxyValve.Output.RawPosition} \\
+SC4$n$ & CMD, LFR & ATV650 DC$n$, Modbus TCP & \var{OxySystem[i].OxyPump.Output} \\
+\end{longtable}
+\end{small}
+
+\subsection{Start-up and shut-down}
+\begin{enumerate}[label=S\arabic*, nosep]
+  \item \textbf{PLC start} (power-up, download): all retained configuration is kept
+        (Section~\ref{sec:params}); lines start stopped; valves at 4\,mA. The operator starts each
+        line again. Orbit sensor selection for control is retained (default sensors 1--3).
+  \item \textbf{Pen start}: OIC01 is enabled with the pen start (\var{Pen.Command.Start}) once a line
+        is in auto, and starts bumplessly from the measured total flow.
+  \item \textbf{Line start}: Section~\ref{sec:seq}; [FD] calls the line start a group start and
+        requires auto restart after power return (table 2.2: auto-restart ``Yes'', sequence 3, after
+        the inlet pumps). PLC: the operator command is not retained over a power cut; whether the line
+        shall restart by itself is \TBD\open{23}.
+  \item \textbf{Line stop}: operator stop, inlet permit lost or pump stopped closes the valve at once
+        and stops the pump (in auto).
+  \item \textbf{Normex supply start/stop}: local at the panel (manual valves). No PLC-controlled master
+        shut-off valve exists in the present Normex scope\open{5}.
+\end{enumerate}
+
+\subsection{Fault identification and recovery}
+\begin{small}
+\begin{longtable}{@{}P{34mm}P{40mm}P{48mm}P{30mm}@{}}
+\caption{Faults, their detection and the system's response.}\label{tab:faults}\\
+\toprule
+Fault & Detection & Response (PLC 2026-10-21) & Recovery \\
+\midrule
+\endfirsthead
+\toprule
+Fault & Detection & Response (PLC 2026-10-21) & Recovery \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Drive fault & ETA state ``fault''; code in LFT & Pump Unavailable, line drops out of auto, valve closed, alarms DriveError + PumpCommonError & Operator reset (\texttt{0x0080}), then restart \\
+Drive communication lost & \var{DriveMaster.comOk} FALSE (socket timeout 5\,s) & Pump Unavailable, valve closed, DriveCommunicationError. The drive's own reaction is set by ETHL (factory: freewheel stop) & Automatic when the link returns; [FD] wants the pump to keep running at preset speed\open{19} \\
+Drive not in remote & ETA bit 9 = 0 & Alarm DriveNotInRemote; commands ignored by the drive & Set drive to remote \\
+Pump does not start / stop & not turning 10\,s after Run; turning 10\,s after stop & StartUpTimeout / StopTimeout & Operator ack \\
+Pressure after pump low & PT4$n$ $\leq$ 3.0\,bar or bad, while oxygenation active & Valve forced closed (4\,mA), alarm ValvePressureLow; PIC on preset speed if PT bad & Automatic when pressure returns; operator ack \\
+Line flow measurement bad & 750-455 diagnostic (wire break, under/over range) & Line leaves auto; valve holds last position; its flow counts as 0 in the sharing\open{15} & Automatic when good \\
+Pen \Otwo{} measurement lost & no selected Orbit sensor with good quality & OIC01 output frozen indefinitely\open{14}; lines keep their share & Automatic, bumpless \\
+One Orbit sensor fails & Modbus timeout / bad quality & Sensor drops out of the mean; CommFail alarm after delay & Automatic \\
+Inlet pump lost & inlet permit FALSE (not REMOTE or heartbeat lost) & Line stops: valve closed, oxy pump stopped; other lines take over the share at once & Operator restarts the line \\
+\Otwo{} supply lost & PT40 (displayed only) & \emph{None}: no alarm, no interlock\open{4}\textsuperscript{,}\open{10}; FIC opens valve fully, flow stays low & -- \\
+Water back into injector / supply & -- & Mechanical only (check valves)\open{6} & -- \\
+Emergency stop & not wired\open{22} & (Drive quick stop is alarmed as EmergencyStop) & -- \\
+\end{longtable}
+\end{small}
+
+\subsection{Communication}
+\begin{itemize}[nosep]
+  \item \textbf{RIO}: Modbus TCP, FC23 every 100\,ms; InletRIO$n$ read 26/write 21 words, CommonRIO read
+        41/write 25 words (to be checked against the couplers, [PID] A1/A8).
+  \item \textbf{Drive}: Modbus TCP, unit id 0 (\TBD\ for the real drive\open{19}), channel 0 FC23 every 100\,ms
+        (write 8501--8502, read 3201--3211), channel 1 FC3 every 1\,s (read 7121).
+  \item \textbf{Orbit 864}: Modbus RTU 9600\,8N1 over the 750-652, one sensor at a time, \Otwo{} block
+        every second round; stay-awake register written so the sensors do not sleep.
+  \item \textbf{Framo}: OPC UA; heartbeat timeout 10\,s.
+  \item \textbf{HMI}: OPC UA to \var{GVLMain}.
+\end{itemize}
+
+% =============================================================================================
+\section{Non-functional requirements}
+\label{sec:nfreq}
+
+\subsection{Control laws and start tuning}
+All three controllers are PI (\var{PIDController}, $T_d = 0$), with output limits and anti-windup.
+The values are start values from \var{ConfigValues} [DB], to be tuned at commissioning.
+\begin{center}
+\begin{small}
+\begin{tabularx}{\textwidth}{@{}P{20mm}P{26mm}P{26mm}P{26mm}L@{}}
+\toprule
+Loop & PV / SP & Output & $K_p$, $T_i$ & Basis \\
+\midrule
+OIC01 & pen \Otwo{} mg/L; SP 8.0\,mg/L\open{13} & total \Otwo{} 0..$\sum$ kg/h & 50 (kg/h)/(mg/L), 1800\,s & Pen time constant about 44\,min, gain about 0.024 mg/L per kg/h [DB] \\
+FIC4$n$ & \Otwo{} flow kg/h; SP from FY01 & valve 0--100\,\% & 0.3\,\%/(kg/h), 5\,s & Valve and meter lag about 0.2\,s; closed loop about 2\,s \\
+PIC4$n$ & PT4$n$ bar; SP 4.0 & speed 20--50\,Hz & 2\,Hz/bar, 5\,s & Pump affinity law (simulator) \\
+\bottomrule
+\end{tabularx}
+\end{small}
+\end{center}
+Deviation from [FD] table~13/14: [FD] has OIC01 output 0--100\,\%, three parameter sets (P 0.5/1/2,
+I 600\,s) by number of pumps, and FIC in l/min with P 0.5, I 600\,s. The PLC works in kg/h with one
+set; the reason is given in Section~\ref{sec:func} and [DB]\open{16}.
+
+\subsection{Timing and resolution}
+\begin{itemize}[nosep]
+  \item PLC task \var{Task}: cyclic, 20\,ms. Filters and the valve ramp use the task interval read
+        from the runtime.
+  \item RIO and drive I/O: 100\,ms; drive last fault: 1\,s. Orbit sensors: each sensor about every
+        few seconds (one RS-485 line); sensor response $T_{90} < 45$\,s [ORB].
+  \item 750-455 AI: 12-bit (2048 steps over 4--20\,mA): 0--10\,bar $\rightarrow$ about 5\,mbar,
+        0--150\,kg/h $\rightarrow$ about 0.07\,kg/h. 750-563 AO: 16-bit word.
+  \item Drive: speed 0.1\,Hz, current 0.01\,A as read by the PLC (unit to be confirmed for the
+        ATV650D15, [EAV] says ``refer to programming manual''), thermal state and power 1\,\%.
+  \item Orbit: \Otwo{} 0--60\,mg/L, resolution 0.01\,mg/L, accuracy $\pm0.1$\,mg/L (0--20 mg/L) [ORB].
+\end{itemize}
+
+\subsection{Alarms}
+\label{sec:alarms}
+Alarms use the common \var{AlarmManagement} block. ``auto'' alarms clear themselves when the
+condition is gone; ``ack'' alarms must also be acknowledged. Drive alarms are FALSE without
+communication, except the communication alarm. LFT keeps the last fault after a reset, so fault
+codes count only while the drive is in fault.
+\begin{small}
+\begin{longtable}{@{}P{38mm}P{80mm}P{10mm}P{22mm}@{}}
+\caption{Alarms of the oxygen system. Codes per [EAV] (ATV600 list); ``FD/AL'' = required by [FD]/[AL].}\label{tab:alarms}\\
+\toprule
+Alarm (\texttt{OxySystem[i].}) & Condition & Ack & Status \\
+\midrule
+\endfirsthead
+\toprule
+Alarm & Condition & Ack & Status \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\multicolumn{4}{@{}l}{\textit{Side-stream pump drive (\texttt{OxyPump.Alarm.*}), per line}} \\
+DriveCommunicationError & drive configured and Modbus TCP link not OK & auto & PLC \\
+DriveError & ETA state fault; code in \var{OxyPump.Input.LastFault} & auto & PLC \\
+DriveNotInRemote & ETA bit 9 = 0 (command from display terminal / forced local) & auto & PLC \\
+EmergencyStop & DRIVECOM ``quick stop active'' & auto & PLC \\
+DCUndervoltageError & ETA bit 4 = 0 (no mains to power part), or fault PHF (21) / USF (22) & auto & PLC \\
+MotorTemperatureHigh & fault OLF (17), TH2F (110), TH3F (112), TH4F (120), TH5F (122) & auto & PLC \\
+DriveTemperatureHigh & THD $\geq$ 100\,\% (\var{DriveThermalWarning_pct}), or fault OHF (16) / TJF (54) & auto & PLC \\
+DriveWarning & ETA bit 7 (drive warning) & auto & PLC \\
+PumpCommonError & any of the above except DriveWarning; [AL] ``Feil på OxyPumpe $n$'' & ack & PLC, FD/AL \\
+StartUpTimeout & Run commanded, not turning after \var{OxyStartupTime} 10\,s & ack & PLC \\
+StopTimeout & stop commanded, still turning after \var{OxyShutdownTime} 10\,s & ack & PLC \\
+\multicolumn{4}{@{}l}{\textit{Line}} \\
+ValvePressureLow (PAL4$n$) & oxygenation active but no valve permit: valve held closed & ack & PLC \\
+Sensor quality PT4$n$, PT4($n$+3), FT4$n$ & 750-455 diagnostic bad for \var{QualityDelay} & ack & PLC \\
+Low $\Delta p$ over injector & PT4($n$+3) -- PT4$n$ too small (limit from HMI) & -- & FD/AL, not in PLC\open{10} \\
+Pump leakage / temp. & XS4$n$ / TSH4$n$ & -- & not in PLC\open{24} \\
+\multicolumn{4}{@{}l}{\textit{Pen and supply}} \\
+OIC01 deviation & $|$PV -- SP$|$ $>$ limit while in auto, with delay (HMI) & -- & FD/AL, not in PLC\open{11} \\
+OT$nn$ low / high \Otwo{} & per sensor, limits and delay from HMI, only for active sensors & -- & FD/AL; L/H in DUT, not configured\open{12} \\
+\Otwo{} sensor disagreement & spread between OT01..03 $>$ limit & -- & FD/AL, not in PLC\open{12} \\
+\Otwo{} sensor fault & Orbit communication failure (CommFail) after delay & ack & PLC \\
+\Otwo{} high-high shut-off & supersaturation (\Otwo{} HH / TDGP) closes oxygenation & -- & FD (HOLD), not in PLC\open{9} \\
+PAL40 \Otwo{} not available & PT40 low & -- & FD/AL, not in PLC\open{4} \\
+\end{longtable}
+\end{small}
+
+\subsection{Parameters}
+\label{sec:params}
+Retained in \var{GVLRetain}; defaults from \var{PFC200_Sim} \var{ConfigValues} (index $i$ = line $-1$).
+\begin{small}
+\begin{longtable}{@{}P{62mm}P{30mm}P{62mm}@{}}
+\caption{Configuration parameters of the oxygen system.}\label{tab:params}\\
+\toprule
+Parameter & Default & Meaning \\
+\midrule
+\endfirsthead
+\toprule
+Parameter & Default & Meaning \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\var{PenConfig.OxySetpoint} & 8.0 mg/L & OIC01 setpoint (placeholder)\open{13} \\
+\var{PenConfig.OxyController} & $K_p$ 50, $T_i$ 1800 s, Min 0, Max 0 & OIC01; Max 0 = what the lines can deliver \\
+\var{Orbit864SensorConfig[k]} & slaves 1--6; EnableForAutoControl for 1--3 & sensor address, polling, selection for OIC01 \\
+\var{OxySystemConfig[i].OxyPump.MinSpeed_Hz / MaxSpeed_Hz} & 20 / 50 Hz & PIC output range\open{19} \\
+\var{.OxyPump.PresetSpeed_Hz} & 40 Hz & speed while starting, with bad PT, or PIC disabled \\
+\var{.OxyPump.RunDelay} & 30 s & pump running before oxygen may be added \\
+\var{.OxyPump.DriveThermalWarning_pct} & 100 \% & THD limit for DriveTemperatureHigh \\
+\var{.OxyStartupTime / .OxyShutdownTime} & 10 s / 10 s & start / stop timeout alarms \\
+\var{.PressureController} & Enabled, $K_p$ 2 Hz/bar, $T_i$ 5 s & PIC4$n$ \\
+\var{.PressureSetpoint} & 4.0 bar & PIC4$n$ setpoint (abs. assumed)\open{17}\textsuperscript{,}\open{18} \\
+\var{.ValveOpenPressure} & 3.0 bar & valve permit limit, same scale as setpoint \\
+\var{.FlowController} & Enabled, $K_p$ 0.3 \%/(kg/h), $T_i$ 5 s & FIC4$n$ \\
+\var{.FlowMax} & 104.2 kg/h & most \Otwo{} flow of one line\open{7} \\
+\var{.ValveRampTime} & 2 s & valve command 0--100 \% at most in this time \\
+\var{OxyPumpPressureConfig[i]} & 0--10 bar, $f_c$ 1 Hz & PT4$n$ scaling, filter, quality \\
+\var{OxynatorOutletPressureConfig[i]} & 0--10 bar, $f_c$ 1 Hz & PT4($n$+3) \\
+\var{OxygenFlowConfig[i]} & 0--150 kg/h, $f_c$ 1 Hz & FT4$n$\open{3} \\
+\var{InletRIOConfig[i].DriveIP / DrivePort / DriveUnitId} & sim 10.1.2.101 / 5131--5133 / 0 & drive address\open{19} \\
+\end{longtable}
+\end{small}
+
+\subsection{Instruments}
+% casfd's instrumenttable columns add up to 160 mm; with the default column separation the table
+% is wider than the text, so the separation is reduced for this table.
+\setlength{\tabcolsep}{1.4pt}
+\begin{instrumenttable}{Instruments and actuators of the oxygen system. TBD = not yet known.}
+PT40 & \Otwo{} supply pressure & Normex panel header & 4--20 mA, CommonRIO -R1-008 ch4 & \TBD{} (PLC default 0--10 bar) & 12 bit & display\open{4} \\
+FT41..43 & \Otwo{} mass flow per line (FM-01.$n$) & Normex panel & 4--20 mA, CommonRIO -R1-008 ch1--3 & 0--150 kg/h in PLC, \TBD & 12 bit; $\pm$1.5\,\% m.v. & FIC PV\open{3} \\
+OV41..43 & \Otwo{} control valve (MV-01.$n$) & Normex panel & 4--20 mA, CommonRIO -R1-014/015 & 0--100 \% & 16 bit & FIC out\open{2} \\
+PT41..43 & water pressure after side-stream pump & side-stream line & 4--20 mA, InletRIO$n$ ch3 & 0--10 bar (PLC), \TBD & 12 bit & PIC PV, permit \\
+PT44..46 & water pressure after injector & side-stream line & 4--20 mA, InletRIO$n$ ch4 & 0--10 bar (PLC), \TBD & 12 bit & display \\
+PT-01.1..3 & \Otwo{} pressure after valve & Normex panel & \TBD{} (not connected) & $-1$..+6 bar & -- & \TBD \\
+OT01..03 & \Otwo{}, temp., salinity, inside pen & pen, near outlet & Modbus RTU, 750-652 & 0--60 mg/L & 0.01 mg/L & OIC PV \\
+OT21..23 & \Otwo{}, temp., salinity, outside & 3/30/50 m from pen & Modbus RTU, 750-652 & 0--60 mg/L & 0.01 mg/L & reference \\
+SC41..43 & side-stream pump drive & DC$n$ & Modbus TCP & 20--50 Hz & 0.1 Hz & PIC out \\
+XS41, TSH41 & pump leakage, motor temp. & DC1 MiniCAS II & DI InletRIO1 5.7/5.8 & on/off & -- & not used\open{24} \\
+PT11, QT11 & TDGP, CO\textsubscript{2} (Solu-Blu) & pen near outlet & 4--20 mA, CommonRIO -R1-007 & \TBD & 12 bit & display; HH?\open{9} \\
+\end{instrumenttable}
+\setlength{\tabcolsep}{6pt}
+
+\subsection{Drive Modbus registers}
+Checked against the ATV600 communication parameter list [EAV] (logic address = Modbus register).
+\begin{center}
+\begin{small}
+\begin{tabularx}{\textwidth}{@{}P{12mm}P{12mm}P{34mm}P{12mm}P{22mm}L@{}}
+\toprule
+Code & Reg. & Name & R/W & Unit & PLC use \\
+\midrule
+CMD & 8501 & Command register & W & bits & DRIVECOM control word, FC23 every 100\,ms \\
+LFR & 8502 & Reference frequency & W & 0.1 Hz & speed setpoint \\
+ETA & 3201 & Status register & R & bits & state, fault, remote (bit 9), warning (bit 7), mains (bit 4) \\
+RFR & 3202 & Motor frequency & R & 0.1 Hz & actual speed, Running \\
+LCR & 3204 & Motor current & R & see [EAV] & current (PLC: 0.01 A) \\
+THD & 3209 & Drive thermal state & R & 1 \% & DriveTemperatureHigh \\
+OPR & 3211 & Motor power in \% & R & 1 \% & display \\
+LFT & 7121 & Last error occurred & R & enum & fault code, FC3 every 1\,s \\
+ETHL & 7021 & Ethernet error response & cfg & enum & set in drive: factory freewheel stop; options include fallback speed LFF (7080) and speed maintain\open{19} \\
+\bottomrule
+\end{tabularx}
+\end{small}
+\end{center}
+All register numbers and the fault codes used by \var{OxyPumpATV650} (16 OHF, 17 OLF, 21 PHF,
+22 USF, 54 TJF, 110/112/120/122 TH2F--TH5F, communication fault ETHF 150) match [EAV]. The program
+design [PD] still documents the ATV320 block with codes from the ATV320 list NVE41316 (including
+PTFL 49 and OTFL 50, which the ATV600 list does not have); the codes shall be re-checked on the
+real drive's firmware at commissioning and [PD] updated\open{21}.
+
+\subsection{HMI operator functions}
+The production HMI is not yet specified\open{25}; the present CAS HMI is a read-only overview of
+pen \Otwo, level and valve signals. The PLC offers the following operator functions in
+\var{GVLMain}; [FD] requires them on the HMI.
+\begin{small}
+\begin{longtable}{@{}P{48mm}P{60mm}P{46mm}@{}}
+\caption{Operator functions.}\label{tab:hmi}\\
+\toprule
+Function & PLC variable & [FD] \\
+\midrule
+\endfirsthead
+\toprule
+Function & PLC variable & [FD] \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Start / stop oxygen line $n$ & \var{OxySystem[i].Command.EnableOxyControl} & group start, only with inlet pump running \\
+Pump auto / manual, start, stop, speed, reset & \var{OxySystem[i].OxyPump.Command.Auto/Manual/Start/Stop/Setpoint/Reset} & manual start allowed \\
+Valve manual position & \var{OxySystem[i].OxyValve.Command.Manual/ManualSetpoint} & -- \\
+OIC01 setpoint & \var{PenConfig.OxySetpoint} & \% or mg/L?\open{13} \\
+OIC01 manual output & \var{OxyController.Command.Manual/ManualOutput} & -- \\
+Select sensors for control & \var{Orbit864SensorConfig[k].EnableForAutoControl} & selector; inactive sensors yellow \\
+Preset speed, run delay, tuning & \var{OxySystemConfig[i]}, \var{PenConfig} & preset speed from HMI \\
+Drive info panel & \var{OxyPump.Input}: ready, remote, running, power, warning, error, speed, current, LFT & table 12 \\
+Alarm limits (deviation, L/H, $\Delta p$) & not yet in PLC & tables 15, 17\open{11}\textsuperscript{,}\open{12} \\
+\end{longtable}
+\end{small}
+
+\subsection{Deviations from the Norwegian FD}
+\begin{small}
+\begin{longtable}{@{}P{8mm}P{58mm}P{58mm}P{28mm}@{}}
+\caption{Implemented behaviour that differs from [FD] rev~B.}\label{tab:dev}\\
+\toprule
+No. & [FD] & PLC 2026-10-21 & Action \\
+\midrule
+\endfirsthead
+\toprule
+No. & [FD] & PLC 2026-10-21 & Action \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+1 & OIC01 output 0--100\,\% to the valves, or cascade to FIC as an alternative & cascade: OIC01 total kg/h shared over FIC4$n$ & update FD\open{16} \\
+2 & three OIC parameter sets by number of oxy pumps & one set (total flow output makes the gain independent) & update FD \\
+3 & FIC SP in l/min, scaling 0--20, P 0.5, I 600\,s & kg/h, 0--150, $K_p$ 0.3, $T_i$ 5\,s & update FD; confirm unit\open{3} \\
+4 & PV = one selected sensor (OT03), switch to lowest on fault & mean of the selected good sensors & decide \\
+5 & valve: PWM solenoid ``via 4--20\,mA'' & proportional 4--20\,mA, 2\,s ramp in PLC & Normex\open{2} \\
+6 & \Otwo{} fault: freeze output (``HOLD'', sentence unfinished) & freeze indefinitely & decide\open{14} \\
+\end{longtable}
+\end{small}
+
+% =============================================================================================
+\section{Open issues and decisions}
+\label{sec:open}
+
+\textbf{Decisions.}
+\begin{description}[nosep, leftmargin=12mm, style=sameline]
+  \item[DEC1] 2026-10-21: oxygen supply and distribution panel from Normex.
+  \item[DEC2] Side-stream pump drive ATV650D15N4 on Modbus TCP (embedded Ethernet).
+\end{description}
+
+\textbf{Open issues.} Questions for Normex are marked (N).
+\begin{small}
+\begin{longtable}{@{}P{9mm}P{98mm}P{48mm}@{}}
+\toprule
+No. & Issue & Proposed action / owner \\
+\midrule
+\endfirsthead
+\toprule
+No. & Issue & Proposed action / owner \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+OI1 & (N) Supply type (LOX tank, generator, or customer supply line) and normal / minimum supply pressure (sketch: ``2.5 bar ?''; Linde sheet: 10 bar). & Normex to state; sets PT40 range and PAL40 limit. \\
+OI2 & (N) Control valve type: [FD] PWM solenoid, PLC proportional 4--20\,mA with 2\,s ramp, Normex sketch motorised valve MV-01.$n$. Signal, stroke time, fail position (closed on signal loss?) and position feedback. & Normex; adjust \var{ValveRampTime} and FIC tuning to the stroke time. \\
+OI3 & (N) Flow meter unit (kg/h vs Nl/min / Nm\textsuperscript{3}/h), range for \Otwo, signal (4--20\,mA non-isolated or Modbus RTU). PLC assumes 4--20\,mA = 0--150 kg/h. & Normex; update \var{OxygenFlowConfig}. \\
+OI4 & (N) Low supply pressure signal: which transmitter (PT40 / PI-01.4) and limit; PAL40 ``oxygen not available'' and a supply pressure interlock are not in the PLC (PT40 only displayed, misnamed \var{OxygenInjectionPressure}). & Add PAL40 and interlock; rename. \\
+OI5 & (N) PLC-controlled master shut-off valve: none in the Normex scope (pneumatic PV-01.$n$ removed). Needed for \Otwo{} HH shut-off and emergency stop? & Decide with Normex / HAZID. \\
+OI6 & (N) Non-return protection: HAZID ``oxygen pressure lost, water enters injector and \Otwo{} tank''. Check valve per line (Linde had CV1--3; Normex sketch unclear: OV-02.$n$). & Normex to confirm. \\
+OI7 & (N) Injector model and gas ratio: \var{FlowMax} 104.2 kg/h = CT10 at 15\,\% v/v; 34.7 kg/h at 5\,\%. Which applies in sea water at Heimdall? & Chucaotech / Normex; set \var{FlowMax}. \\
+OI8 & (N) Signal list and interface FD for the Normex panel (terminals, 24\,V supply, cable list). & Normex. \\
+OI9 & \Otwo{} high-high / supersaturation (TDGP) shut-off asked by [FD] (HOLD); not in the PLC. Needs limits and an actuator (OI5). & Decide limits; implement. \\
+OI10 & Injector low differential pressure alarm ([FD] table 15): \var{OxynatorOutletPressure} is read but unused. & Implement with HMI limit. \\
+OI11 & OIC01 deviation alarm ([FD] table 15): not implemented. & Implement. \\
+OI12 & \Otwo{} sensor disagreement alarm and per-sensor low/high alarms: not implemented (L/H fields exist in the Orbit DUT, not configured). & Implement; set limits. \\
+OI13 & \Otwo{} setpoint 8.0\,mg/L is a placeholder; [FD] asks \% or mg/L. [O2S] uses \% saturation: $\geq$80\,\%, 90\,\% at 16\degC. A \% setpoint needs temperature/salinity correction. & Customer / biology to decide. \\
+OI14 & Loss of pen \Otwo{} measurement: OIC01 holds its output indefinitely ([FD] sentence unfinished). Hold, fixed fallback flow, or time limit? & Decide; implement. \\
+OI15 & Loss of line flow measurement: valve holds last position, line flow counted as 0, so the other lines may over-dose. Hold, close, or fixed opening? & Decide; implement. \\
+OI16 & Units and tuning differ from [FD] (Table~\ref{tab:dev}); deliberate. & Accept; update [FD] to rev~C. \\
+OI17 & Pressure transmitters: make, range, absolute or gauge unknown ([SO] ``find sensors''). \var{PressureSetpoint} 4.0 and \var{ValveOpenPressure} 3.0 must change together. Transmitter before the pump wanted? & Select transmitters; set ranges. \\
+OI18 & Pump head vs. pressure setpoint: NX 3153 gives 10.2\,m at 5.05\,m\textsuperscript{3}/min, 18.3\,m shut-off at 50\,Hz; the simulator assumes 4.5\,bar rise. Required injector inlet pressure from Chucaotech? & Check suction pressure and injector requirement; reset SP. \\
+OI19 & ATV650: IP address and unit id, comm-loss behaviour (ETHL; [FD] expects running on at preset speed), 20--50\,Hz range and 40\,Hz preset vs. pump curve. & Set at commissioning; decide ETHL (LFF or RLS). \\
+OI20 & Drive cabinet 874.004 has no Ethernet drawn; RJ45 DIN socket proposed. & Electrical design. \\
+OI21 & Drive fault codes: PLC uses ATV600 codes (match [EAV]); [PD] still lists ATV320 (NVE41316). & Verify on the real drive; update [PD], [DB]. \\
+OI22 & Emergency stop not wired: \var{OxySystem[i].Input.EmergencyStop} never written; [FD] wants E-stop to stop PU4$n$ and close OV4$n$. & Wire (Framo E-stop or hardwired) ([PID] A3). \\
+OI23 & Inlet permit: PLC uses inlet pump REMOTE + live heartbeat; [FD] says ``inlet pump running''. Auto-restart of oxygen lines after power return ([FD] table 2.2). & Confirm REMOTE implies running; decide restart. \\
+OI24 & Pump leakage / temperature (XS, TSH) only on RIO1, not used in logic. & Add inputs on RIO2/3 and alarms ([PID] B8). \\
+OI25 & Production HMI not specified; operator functions of Table~\ref{tab:hmi}. & HMI design. \\
+OI26 & Oxygen capacity with one inlet pump out: two lines carry only about 560--730\,t [DB]; fallback is emergency oxygenation and stopped feeding. & Project / customer. \\
+OI27 & PT numbering [FD] (PT41/43/45 in, PT42/44/46 out) vs. drawings (PT41--43 after pump, PT44--46 after injector). & Update [FD]. \\
+\end{longtable}
+\end{small}
+
+\end{document}

@@ -1,0 +1,89 @@
+% casfd.sty -- shared layout for the CAS (Heimdall) system functional descriptions.
+% Structure after Cooling, Software Engineering for Real-Time Systems (2020), sec. 14.3:
+% block diagram description, functional diagram description, requirements specification.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{casfd}[2026/10/21 CAS functional description layout]
+
+\RequirePackage[left=2.2cm,right=2.2cm,top=2.3cm,bottom=2.3cm]{geometry}
+\RequirePackage[T1]{fontenc}
+\RequirePackage[utf8]{inputenc}
+\RequirePackage{lmodern}
+\RequirePackage{amsmath}
+\RequirePackage{booktabs}
+\RequirePackage{tabularx}
+\RequirePackage{longtable}
+\RequirePackage{array}
+\RequirePackage{xcolor}
+\RequirePackage{pdflscape}
+\RequirePackage{caption}
+\RequirePackage{enumitem}
+\RequirePackage{tikz}
+\RequirePackage{url}
+\RequirePackage[hidelinks]{hyperref}
+\usetikzlibrary{arrows.meta, positioning, calc, fit, backgrounds, shapes.geometric}
+
+\setlength{\parindent}{0mm}
+\setlength{\parskip}{2mm}
+\renewcommand{\arraystretch}{1.25}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% PLC variable and POU names, typewriter, breakable at dots (not in captions/section titles: use \texttt)
+\DeclareUrlCommand\var{\urlstyle{tt}}
+% Instrument / equipment tag (ISA-5.1, as on the P&ID set). Not \tag: amsmath owns that name.
+\newcommand{\itag}[1]{\textsf{\textbf{#1}}}
+% Open issue reference, numbered in the "Open issues" section: \open{3}
+\newcommand{\open}[1]{\textsuperscript{\textcolor{red}{\textbf{OI#1}}}}
+% Decision taken (date in the text)
+\newcommand{\decided}[1]{\textsuperscript{\textcolor{teal}{\textbf{DEC#1}}}}
+
+% Diagram styles (same as the program design, after Cooling Fig. 7.1/7.8)
+\tikzset{
+  sm/.style={draw, rectangle, fill=yellow!12, align=center, inner sep=4pt,
+             minimum height=12mm, font=\small},
+  ext/.style={draw, rectangle, fill=gray!12, align=center, inner sep=4pt,
+              minimum height=10mm, font=\small},
+  extoff/.style={ext, dashed, text=gray, draw=gray},
+  proc/.style={draw, rectangle, rounded corners=3pt, fill=blue!6, align=center, inner sep=4pt,
+               minimum height=10mm, font=\small},
+  inst/.style={draw, circle, minimum size=9mm, inner sep=0pt, font=\scriptsize\sffamily, align=center},
+  ctrl/.style={draw, circle, fill=yellow!12, minimum size=10mm, inner sep=0pt,
+               font=\scriptsize\sffamily\bfseries, align=center},
+  pipe/.style={very thick, -{Stealth[length=2.6mm]}},
+  sig/.style={-{Stealth[length=2mm]}, densely dashed},
+  flow/.style={-{Stealth[length=2.2mm]}, thick},
+  lab/.style={font=\scriptsize\ttfamily, align=center, fill=white, inner sep=1pt},
+  num/.style={font=\scriptsize\bfseries},
+  state/.style={draw, rectangle, rounded corners=2pt, fill=yellow!12, minimum width=24mm,
+                minimum height=9mm, align=center, font=\small},
+}
+
+% Instrument table (Cooling 14.3.4 b(ii)): tag, function, location, signal, range, resolution, use
+\newenvironment{instrumenttable}[1]{%
+  \begin{small}
+  \setlength{\tabcolsep}{3pt}%
+  \begin{longtable}{@{}P{16mm}P{35mm}P{22mm}P{25mm}P{20mm}P{17mm}P{13mm}@{}}
+  \caption{#1}\\
+  \toprule
+  Tag & Function & Location & Signal / interface & Range & Resolution & Use\\
+  \midrule
+  \endfirsthead
+  \toprule
+  Tag & Function & Location & Signal / interface & Range & Resolution & Use\\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+}{%
+  \end{longtable}
+  \end{small}
+}
+
+% Shared document header block: \casfdheader{System}{Document number}{Revision}
+\newcommand{\casfdheader}[3]{%
+  \title{CAS (Heimdall) -- system functional description\\[1mm]\Large #1}
+  \author{ScaleAQ Automation \quad Document #2, rev.~#3}
+  \date{\today}
+}
+
+\endinput
