@@ -9,7 +9,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \lhead{\small CAS (Heimdall) -- FD inlet system}
-\rhead{\small CAS-FD-10 rev.~A}
+\rhead{\small CAS-FD-10 rev.~A1}
 \cfoot{\small\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 \setlength{\headheight}{14pt}
@@ -20,7 +20,7 @@
 \renewcommand{\floatpagefraction}{0.8}
 \setcounter{totalnumber}{5}
 
-\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{A}
+\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{A1}
 
 % short helpers used only in this document
 \newcommand{\TBD}{\textcolor{red}{TBD}}
@@ -136,6 +136,9 @@ Rev. & Date & Change \\
 A & 2026-10-21 & First issue. Based on [FD] rev.~B, [FRAMO] rev.~B, [PID] rev.~A and the PLC branch in
   review (heartbeat, HOLD, per-pair PV and SafeOutput changes of 2026-10-15). Includes the review and
   simulator test of 2026-10-21. \\
+A1 & 2026-10-21 & Reset to the PCC: held until the state change is seen, warning \emph{Failed to reset}
+  after $2\times$\var{ResetExpectedTime}; HOLD$\to$REMOTE open issue reworded (the PLC follows the
+  PCC either way); OI24 HMI Reset button. \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -692,6 +695,7 @@ Framo link / heartbeat lost & no clear for 10~s & Alarm \emph{Communication loss
 Pump trip / fault & PCC alarm flags; state LOCKDOWN & Common alarm \emph{Pump $n$ failed}; pump leaves level control; the remaining pumps carry the level (level dips, then LIC01 raises the speed)\open{6}; permit off & Fix the fault, operator Reset\open{3}; restart the pump \\
 Start not acknowledged & Start sent, still AVAILABLE after 30~s & Alarm \emph{Start failed} & Operator; [FD] wants the next pump started (HOLD)\open{15} \\
 Stop not acknowledged & Stop sent, still in START, REMOTE or HOLD after 30~s & Alarm \emph{Stop failed} & Operator, locally at the PCC \\
+Reset not answered & Reset given in HOLD or LOCKDOWN, pump still in that state after $2\times$\var{ResetExpectedTime} (10~s) & Reset withdrawn; warning \emph{Failed to reset} (no acknowledge) & Check the PCC; give Reset again \\
 Speed deviation & $|n_\text{SP}-n|$ in REMOTE & not implemented\open{9} & -- \\
 Vacuum chamber overfill & LSH3$n$ & not implemented (5~s delay in [FD])\open{11} & -- \\
 Emergency stop & PCC \var{EmergencyStop} & Pump stops (STO); alarm; LOCKDOWN & Release E-stop, Reset\open{13} \\
@@ -719,7 +723,9 @@ I6 & No valid level pair: LIC01 to manual at SafeOutput. & [PID] -400 & \impl \\
 \begin{itemize}[nosep]
   \item \textbf{PLC $\leftrightarrow$ Framo PCC$n$:} OPC UA. The PLC is the client (CODESYS Data Sources
         \var{Framo_1..3}); each PCC is a server (TwinCAT TF6100). Signal list: Table~\ref{tab:opcua}.
-        Start, Stop and Reset are events acted on at the rising edge\open{4}.
+        Start, Stop and Reset are events acted on at the rising edge\open{4}. The PLC holds Reset TRUE
+        from the operator's command until it reads the pump out of HOLD or LOCKDOWN, at most
+        $2\times$\var{ResetExpectedTime}; then it withdraws Reset and warns \emph{Failed to reset}.
   \item \textbf{PLC $\leftrightarrow$ InletRIO $n$:} Modbus TCP, function code 23, every 100~ms.
   \item \textbf{HMI $\leftrightarrow$ PLC:} OPC UA (PLC is the server).
 \end{itemize}
@@ -831,6 +837,7 @@ Alarm & Condition & Class & Action & PLC \\
 Communication loss pump $n$ & PCC has not cleared HeartbeatToggle for 10~s & A & UNAVAILABLE; LIC01 frozen; O$_2$ line $n$ stops & \impl \\
 Start of pump $n$ failed & Start sent and still AVAILABLE after StartupTime (30~s) & A & none & \impl \\
 Stop of pump $n$ failed & Stop sent and still in START, REMOTE or HOLD after ShutdownTime (30~s) & A & none & \impl \\
+Failed to reset pump $n$ & Reset given in HOLD/LOCKDOWN, no state change within $2\times$ResetExpectedTime (10~s); clears when the pump leaves HOLD/LOCKDOWN or on a new Reset & W (auto-ack) & Reset withdrawn & \impl \\
 Pump $n$ failed (common) & any of DriveError, DriveCommunication, DriveNotInRemote, MotorTemperature, EmergencyStop, DCUndervoltageError, PumpStopped, UPSSupplyError, EmergencyRunMode & A & shown on info panel & \impl\open{10} \\
 Individual Framo alarms & each flag above, own alarm & A & logged & \impl \\
 Pump $n$ low / high power & LowPower / HighPower from PCC & N & none, notification only [FD] & wrongly also in common\open{10} \\
@@ -878,6 +885,7 @@ Parameter & Default & Unit & Meaning \\
 \var{InletConfig[i].HeartbeatInterval} & 1 & s & PLC sets the bit this long after the PCC cleared it \\
 \var{InletConfig[i].HeartbeatTimeout} & 10 (DUT 5) & s & link-loss detection \\
 \var{InletConfig[i].StartupTime} / \var{ShutdownTime} & 30 / 30 & s & start / stop failed alarms \\
+\var{InletConfig[i].ResetExpectedTime} & 5 & s & expected PCC response to Reset (OPC UA round trip $\approx$4.6~s); warning \emph{Failed to reset} after $2\times$ \\
 \var{InletRIOConfig[i]}: IP, Port & sim: 10.1.2.101, 5121--5123 & & coupler address (site plan \TBD) \\
 Data sources \var{Framo_1..3} & per project & & OPC UA endpoint of each PCC \\
 Not yet defined: deviation limit and delay, L/H level limits and delays, speed deviation limit, vacuum overfill delay (5~s), mode table SP & \TBD & & \open{8}\open{9}\open{11}\open{14} \\
@@ -956,7 +964,7 @@ Level setpoint & \var{Pen.Command.LevelSetpoint} & m; from the mode in future\op
 LIC01 auto / manual, manual output & \var{LevelController.Command.Manual}, \var{.Auto}, \var{.ManualOutput} & rpm \\
 Pump auto / manual & \var{Inlet[i].InletPump.Command.Auto}, \var{.Manual} & default auto \\
 Pump start / stop / speed in manual & \var{Inlet[i].InletPump.Command.Start}, \var{.Stop}, \var{.Setpoint} & speed used in REMOTE \\
-Reset pump (HOLD, LOCKDOWN) & \var{Inlet[i].InletPump.Command.Reset} & sent to the PCC \\
+Reset pump (HOLD, LOCKDOWN) & \var{Inlet[i].InletPump.Command.Reset} & pulse, accepted only in HOLD or LOCKDOWN; the PLC clears it and holds the PCC's Reset until it sees the state change. HMI button per pump\open{24} \\
 Enable/disable transmitter or pair & \var{...LevelInsidePen.Config.Enable}, \var{...PenOverHeight.Config.Enable} & takes a pair out of the PV \\
 Info panel per pump & \var{Inlet[i].InletPump.Input.*}, \var{.State} & [FD] Figur 3 \\
 Alarm list and acknowledgement & \var{*.Alarm.*}, \var{*.AlarmAck.*} & classes \TBD\open{21} \\
@@ -979,8 +987,11 @@ agreement with the supplier.
         connect, interval 1~s, timeout 10~s (DUT default 5~s). [FRAMO] rev.~B: HeartbeatToggle with
         HeartbeatInterval and HeartbeatElapsed. [FD]: INT counter 0--32767. Agree one with Framo, incl.\
         the PCC's own timeout and whether the PLC writes Interval.
-  \item \textbf{HOLD $\to$ REMOTE.} [FD] and the PLC require an operator Reset; [FRAMO] rev.~B returns
-        to REMOTE automatically when the heartbeat is back (and so does the simulator).
+  \item \textbf{HOLD $\to$ REMOTE.} [FD] requires an operator Reset; [FRAMO] rev.~B returns to REMOTE
+        automatically when the heartbeat is back. The PLC works either way: it follows the state the PCC
+        reports (LIC01 frozen while in HOLD, bumpless resume in REMOTE) and sends Reset only when the
+        operator gives it. Open with Framo: which behaviour the PCC implements, and whether the PCC's own
+        panel also has a local Reset.
   \item \textbf{LOCKDOWN exit and Reset.} [FD]: operator Reset after the fault is fixed. [FRAMO]:
         LOCKDOWN ends with ``sequence end'' to UNAVAILABLE, no Reset. What Reset does (all alarms? edge?)
         is not described (Framo review comment).
@@ -1032,6 +1043,9 @@ agreement with the supplier.
         speed (88~rpm assumed), HOLD safe speed and ramp rates: to be given by Framo.
   \item \textbf{Platform.} Task watchdogs disabled in the test application; IP plan and network
         drawing missing ([PID] C3).
+  \item \textbf{Operator Reset on the HMI.} A Reset button per inlet pump (enabled in HOLD and LOCKDOWN,
+        with confirmation) is in review for the test HMI (heimdall-cas-hmi); the production HMI needs the
+        same function.
 \end{enumerate}
 \end{small}
 
