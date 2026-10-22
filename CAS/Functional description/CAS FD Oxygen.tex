@@ -112,7 +112,7 @@ MX & mixer: here the \Otwo{} injector (oxygenator) & VSD & variable speed drive 
 Rev. & Date & Change \\
 \midrule
 A & 2026-10-21 & First issue. Written from [FD] rev~B, the P\&ID set and the PLC program of 2026-10-21. Reflects the choice of Normex as oxygen supplier\decided{1}. \\
-A1 & 2026-10-22 & RIO link loss: the line's pressure and flow values freeze with good quality (fault table, OI28). Inlet side: the inlet pumps' speed now follows the shared total of LIC01 and the PLC chooses the number of inlet pumps (CAS-FD-10 rev~B); a line stops when its inlet pump is stopped by the pump count or rotation and starts again when its pump is back in REMOTE (the line start is not reset; fault table corrected). \\
+A1 & 2026-10-22 & RIO link loss: the line's pressure and flow values freeze with good quality (fault table, OI28). Inlet side: the inlet pumps' speed now follows the shared total of LIC01 and the PLC chooses the number of inlet pumps (CAS-FD-10 rev~B); a line stops when its inlet pump is stopped by the pump count or rotation and starts again when its pump is back in REMOTE. Oxygenation is switched for the whole pen (Pen Oxygen Start / Stop) and each line has a retained Enable, replacing the per-line \var{Command.EnableOxyControl}; valve auto / manual as pulses. \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -449,11 +449,15 @@ point is 10.2\,m (about 1\,bar) at 50\,Hz\open{18}.
 
 \subsection{Line start and stop sequence}
 \label{sec:seq}
-Each line has a group start ([FD] \S3.2.4). Figure~\ref{fig:seq} shows the sequence.
+Oxygenation is started and stopped for the whole pen (Oxygen Start / Stop, CAS-FD-10 rev~B; replaces
+[FD]'s group start per line); each line takes part when it is enabled. Figure~\ref{fig:seq} shows the
+sequence.
 \begin{enumerate}[nosep]
-  \item The operator starts the line (\var{OxySystem[i].Command.EnableOxyControl} = TRUE).
-  \item The line is \emph{started} when that command is set AND the inlet pump of the same line is
-        in REMOTE with a live heartbeat (\var{Inlet[i].InletPump.Status.EnableOxyControl}, interlock
+  \item The operator gives Oxygen Start (\var{Pen.Command.OxygenStart}, accepted while the pen is Starting or
+        Running; \var{Pen.Status.OxygenOn}). Pen Stop or Oxygen Stop turns it off.
+  \item The line is \emph{started} when oxygenation is on AND the line is enabled (\var{OxyConfig[i].Enable},
+        retained) AND the inlet pump of the same line is
+        in REMOTE with a live heartbeat (\var{Inlet[i].InletPump.Status.OxyPermit}, interlock
         I5) AND no emergency stop\open{22}\textsuperscript{,}\open{23}.
   \item In pump auto the oxy pump is started; it runs at the preset speed until it reaches
         the minimum speed, then PIC4$n$ takes over.
@@ -477,7 +481,7 @@ also without the inlet permit; oxygenation still needs the line to be started.
   \node[st] (s2) at (12.4,0) {Pump running\\\footnotesize PIC4$n$ active, valve closed};
   \node[st] (s3) at (12.4,-3.2) {Oxygenation active\\\footnotesize FIC4$n$ in auto};
   \node[st] (s4) at (6.2,-3.2) {Valve held closed\\\footnotesize alarm ValvePressureLow};
-  \draw[flow] (s0) -- node[lab, above=3pt] {EnableOxyControl\\AND inlet permit} (s1);
+  \draw[flow] (s0) -- node[lab, above=3pt] {OxygenOn AND Enable\\AND inlet permit} (s1);
   \draw[flow] (s1) -- node[lab, above=3pt] {speed $\geq$\\MinSpeed $-$ 0.5 Hz} (s2);
   \draw[flow] (s2) -- node[lab, right=3pt] {running for\\RunDelay 30 s} (s3);
   \draw[flow] ([yshift=2mm]s3.west) -- node[lab, above=3pt] {no valve permit} ([yshift=2mm]s4.east);
@@ -596,7 +600,7 @@ FT41..43 & \Otwo{} flow, 4--20 mA & CommonRIO -R1-008 ch1--3, words 24--26 & \va
 PT40 & \Otwo{} supply pressure, 4--20 mA & CommonRIO -R1-008 ch4, word 27 & \var{Pen.Input.OxygenInjectionPressure} \\
 OT01..03, OT21..23 & Orbit 864, Modbus RTU & CommonRIO -R1-003 750-652, words 0--11 & \var{Pen.Input.Orbit864Sensor[0..5]} \\
 SC4$n$ & drive status ETA, RFR, LCR, THD, OPR, LFT & ATV650 DC$n$, Modbus TCP & \var{OxySystem[i].OxyPump.Input} \\
--- & inlet permit (Framo REMOTE + heartbeat) & PCC$n$, OPC UA & \var{Inlet[i].InletPump.Status.EnableOxyControl} \\
+-- & inlet permit (Framo REMOTE + heartbeat) & PCC$n$, OPC UA & \var{Inlet[i].InletPump.Status.OxyPermit} \\
 \multicolumn{4}{@{}l}{\textit{Outputs}} \\
 OV41..43 & valve opening, 4--20 mA & CommonRIO -R1-014 ch1/2, -R1-015 ch1, out words 20--22 & \var{OxySystem[i].OxyValve.Output.RawPosition} \\
 SC4$n$ & CMD, LFR & ATV650 DC$n$, Modbus TCP & \var{OxySystem[i].OxyPump.Output} \\
@@ -606,14 +610,13 @@ SC4$n$ & CMD, LFR & ATV650 DC$n$, Modbus TCP & \var{OxySystem[i].OxyPump.Output}
 \subsection{Start-up and shut-down}
 \begin{enumerate}[label=S\arabic*, nosep]
   \item \textbf{PLC start} (power-up, download): all retained configuration is kept
-        (Section~\ref{sec:params}); lines start stopped; valves at 4\,mA. The operator starts each
-        line again. Orbit sensor selection for control is retained (default sensors 1--3).
+        (Section~\ref{sec:params}); oxygenation starts off; valves at 4\,mA. The operator gives Oxygen
+        Start again. Orbit sensor selection for control is retained (default sensors 1--3).
   \item \textbf{Pen start}: OIC01 is enabled with the pen start (\var{Pen.Command.Start}) once a line
         is in auto, and starts bumplessly from the measured total flow.
-  \item \textbf{Line start}: Section~\ref{sec:seq}; [FD] calls the line start a group start and
-        requires auto restart after power return (table 2.2: auto-restart ``Yes'', sequence 3, after
-        the inlet pumps). PLC: the operator command is not retained over a power cut; whether the line
-        shall restart by itself is \TBD\open{23}.
+  \item \textbf{Line start}: Section~\ref{sec:seq}; [FD] requires auto restart after power return
+        (table 2.2: auto-restart ``Yes'', sequence 3, after the inlet pumps). PLC: \var{Pen.Status.OxygenOn}
+        is not retained over a power cut; whether oxygenation shall restart by itself is \TBD\open{23}.
   \item \textbf{Line stop}: operator stop, inlet permit lost or pump stopped closes the valve at once
         and stops the pump (in auto).
   \item \textbf{Normex supply start/stop}: local at the panel (manual valves). No PLC-controlled master
@@ -642,8 +645,8 @@ Pressure after pump low & PT4$n$ $\leq$ 3.0\,bar or bad, while oxygenation activ
 Line flow measurement bad & 750-455 diagnostic (wire break, under/over range) & Line leaves auto; valve holds last position; its flow counts as 0 in the sharing\open{15} & Automatic when good \\
 Pen \Otwo{} measurement lost & no selected Orbit sensor with good quality & OIC01 output frozen indefinitely\open{14}; lines keep their share & Automatic, bumpless \\
 One Orbit sensor fails & Modbus timeout / bad quality & Sensor drops out of the mean; CommFail alarm after delay & Automatic \\
-Inlet pump lost & inlet permit FALSE (not REMOTE or heartbeat lost) & Line stops: valve closed, oxy pump stopped; other lines take over the share at once & Automatic: the line start (\var{Command.EnableOxyControl}) is not reset, so the line starts again when its inlet pump is back in REMOTE \\
-Inlet pump stopped by the pump count or rotation & inlet permit FALSE & As inlet pump lost. A line whose inlet pump is started by the pump count or rotation starts when that pump reaches REMOTE, if its line start is on & Automatic; keep the line start on for every line that may run\open{23} \\
+Inlet pump lost & inlet permit FALSE (not REMOTE or heartbeat lost) & Line stops: valve closed, oxy pump stopped; other lines take over the share at once & Automatic: while oxygenation is on and the line enabled, the line starts again when its inlet pump is back in REMOTE \\
+Inlet pump stopped by the pump count or rotation & inlet permit FALSE & As inlet pump lost. A line whose inlet pump is started by the pump count or rotation starts when that pump reaches REMOTE, if it is enabled & Automatic while oxygenation is on\open{23} \\
 RIO link lost (InletRIO$n$ or CommonRIO) & Modbus TCP \var{CommOK} FALSE; alarm RIO comm.\ error & \emph{None yet}: PT4$n$, PT4($n$+3) (InletRIO$n$) and FT4$n$, PT40 (CommonRIO) keep their last value and good quality, so PIC4$n$, the valve permit and FIC4$n$ run on frozen values\open{28} & -- \\
 \Otwo{} supply lost & PT40 (displayed only) & \emph{None}: no alarm, no interlock\open{4}\textsuperscript{,}\open{10}; FIC opens valve fully, flow stays low & -- \\
 Water back into injector / supply & -- & Mechanical only (check valves)\open{6} & -- \\
@@ -846,9 +849,10 @@ Function & PLC variable & [FD] \\
 \endhead
 \bottomrule
 \endfoot
-Start / stop oxygen line $n$ & \var{OxySystem[i].Command.EnableOxyControl} & group start, only with inlet pump running \\
+Oxygen Start / Stop (pen) & \var{Pen.Command.OxygenStart}, \var{.OxygenStop}; \var{Pen.Status.OxygenOn} & pulses; enabled lines follow their inlet pumps \\
+Enable / disable oxygen line $n$ & \var{OxyConfig[i].Enable} & retained \\
 Pump auto / manual, start, stop, speed, reset & \var{OxySystem[i].OxyPump.Command.Auto/Manual/Start/Stop/Setpoint/Reset} & manual start allowed \\
-Valve manual position & \var{OxySystem[i].OxyValve.Command.Manual/ManualSetpoint} & -- \\
+Valve auto / manual, manual position & \var{OxySystem[i].OxyValve.Command.Manual/Auto} (pulses; mode in \var{.Status.Manual}), \var{.ManualSetpoint} & -- \\
 OIC01 setpoint & \var{PenConfig.OxySetpoint} & \% or mg/L?\open{13} \\
 OIC01 manual output & \var{OxyController.Command.Manual/ManualOutput} & -- \\
 Select sensors for control & \var{Orbit864SensorConfig[k].EnableForAutoControl} & selector; inactive sensors yellow \\

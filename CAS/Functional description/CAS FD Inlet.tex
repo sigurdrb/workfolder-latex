@@ -145,7 +145,9 @@ B & 2026-10-22 & LIC01's output is the \emph{total} speed of the pumps in level 
   InletRIO link loss drops that inlet's pair (DEC6, OI17 closed). Level deviation alarms high/low (DEC8,
   OI8 in part). Automatic pump count and rotation by run time with \var{PumpCycleTime}
   (Section~\ref{sec:count}, DEC7, OI15 in part). Speed deviation alarm (OI9); LowPower / HighPower out of the
-  common alarm (OI10 closed). Simulator tests of the sharing, the pump count and the rotation are pending. \\
+  common alarm (OI10 closed). Operator commands restructured: pen state machine with Ready and pulses
+  only, controller modes as pulses with a status, internal commands apart (Section~\ref{sec:seq}). Simulator
+  tests of the sharing, the pump count, the rotation and the pen states are pending. \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -498,6 +500,24 @@ frozen.
 Figure~\ref{fig:seq} shows the sequence that the operator's Pen Start and Pen Stop commands run.
 Pumps in manual are left out of it; the operator starts and stops them one by one.
 
+\textbf{Pen states} ([COO]~\S7.2.3; \var{Pen.Status.State}): \emph{Stopped} $\to$ \emph{Starting} on Start
+$\to$ \emph{Running} when a pump in level control is in REMOTE (LIC01 takes over) $\to$ \emph{Stopping} on Stop
+$\to$ \emph{Stopped} when no pump in auto runs. Starting falls back to Stopped if no pump starts at all.
+Start is accepted only in Stopped and when \var{Pen.Status.Ready}: an enabled pump in auto is AVAILABLE
+(\var{PumpReady}) and a level pair is valid. Oxygenation is switched for the whole pen with Oxygen Start /
+Stop (accepted while Starting or Running; Stop turns it off).
+
+\textbf{Command rules.} Every operator command is a pulse that the PLC clears in the same scan; one it
+refuses (wrong state, not ready) sets \var{Pen.Status.CommandRejected}. Modes are statuses: LIC01, OIC01,
+the pumps, the oxygen valves and the outlet go to manual and back with \var{Command.Manual} /
+\var{Command.Auto} pulses and show \var{Status.Manual}. Enable / disable of a pump or oxygen line is
+retained configuration (\var{InletConfig[i].InletPump.Enable}, \var{OxyConfig[i].Enable}). Commands the
+PLC code gives itself are in \var{InternalCommand} (supervisor $\to$ pump: \var{AutoStart} /
+\var{AutoStop}; pump $\to$ PCC: Start, Stop, Reset, speed, heartbeat), never in \var{Command}.
+
+\textbf{Fresh site} (configuration set, pumps stopped; after a download pumps, lines and controllers are
+in auto): acknowledge the start-up alarms, check \emph{Ready}, Pen Start, then Oxygen Start.
+
 \begin{figure}[htbp]
 \centering
 \resizebox{0.82\linewidth}{!}{%
@@ -707,7 +727,7 @@ Operator commands and parameters & HMI, OPC UA & Table~\ref{tab:hmi} \\
 \subsection{Outputs}
 \begin{itemize}[nosep]
   \item Per pump, to PCC$n$ over OPC UA: Start, Stop, Reset, SpeedSetpoint [rpm], HeartbeatToggle (set).
-  \item To the oxygen system: \var{Inlet[i].InletPump.Status.EnableOxyControl} (permit I1).
+  \item To the oxygen system: \var{Inlet[i].InletPump.Status.OxyPermit} (permit I1).
   \item To the HMI: states, PV, setpoint, LIC01 output and mode, alarms.
 \end{itemize}
 The inlet system has no hard-wired outputs; the PLC has no command path to the pumps other than
@@ -1031,11 +1051,12 @@ PressureCompressedAir, LevelSwitchLSL01, LevelSwitchLSH02, StatusV001, StatusV00
 \toprule
 Function & PLC variable & Note \\
 \midrule
-Pen Start / Pen Stop & \var{Pen.Command.Start}, \var{.Stop} & pulse; starts/stops all pumps in auto \\
+Pen Start / Pen Stop & \var{Pen.Command.Start}, \var{.Stop}; shows \var{Pen.Status.State}, \var{.Ready}, \var{.CommandRejected} & pulses; Start only when Ready; starts the enabled pumps in auto \\
+Oxygen Start / Stop & \var{Pen.Command.OxygenStart}, \var{.OxygenStop}; shows \var{Pen.Status.OxygenOn} & pulses; enabled lines follow their inlet pumps \\
 Pump count and rotation & \var{InletConfig[i].InletPump.Enable}; shows \var{PenInletSupervisor.PumpsWanted}, \var{.PumpRotationActive} & take a pump out of the count without manual \\
 Level setpoint & \var{Pen.Command.LevelSetpoint} & m; from the mode in future\open{14} \\
-LIC01 auto / manual, manual output & \var{LevelController.Command.Manual}, \var{.Auto}, \var{.ManualOutput} & rpm \\
-Pump auto / manual & \var{Inlet[i].InletPump.Command.Auto}, \var{.Manual} & default auto \\
+LIC01 auto / manual, manual output & \var{LevelController.Command.Manual}, \var{.Auto} (pulses; mode in \var{.Status.Manual}), \var{.ManualOutput} & rpm per pump \\
+Pump auto / manual & \var{Inlet[i].InletPump.Command.Auto}, \var{.Manual} (pulses; mode in \var{.Status.Manual}) & default auto \\
 Pump start / stop / speed in manual & \var{Inlet[i].InletPump.Command.Start}, \var{.Stop}, \var{.Setpoint} & speed used in REMOTE \\
 Reset pump (HOLD, LOCKDOWN) & \var{Inlet[i].InletPump.Command.Reset} & pulse, accepted only in HOLD or LOCKDOWN; the PLC clears it and holds the PCC's Reset until it sees the state change. HMI button per pump\open{24} \\
 Enable/disable transmitter or pair & \var{...LevelInsidePen.Config.Enable}, \var{...PenOverHeight.Config.Enable} & takes a pair out of the PV \\
