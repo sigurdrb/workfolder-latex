@@ -145,7 +145,8 @@ B & 2026-10-22 & LIC01's output is the \emph{total} speed of the pumps in level 
   InletRIO link loss drops that inlet's pair (DEC6, OI17 closed). Level deviation alarms high/low (DEC8,
   OI8 in part). Automatic pump count and rotation by run time with \var{PumpCycleTime}
   (Section~\ref{sec:count}, DEC7, OI15 in part). Speed deviation alarm (OI9); LowPower / HighPower out of the
-  common alarm (OI10 closed). Operator commands restructured: pen state machine with Ready and pulses
+  common alarm (OI10 closed). Live test 2026-10-22 of the start, sharing, pump count and rotation
+  (Section~\ref{sec:nfreq}). Operator commands restructured: pen state machine with Ready and pulses
   only, controller modes as pulses with a status, internal commands apart (Section~\ref{sec:seq}). Simulator
   tests of the sharing, the pump count, the rotation and the pen states are pending. \\
 \bottomrule
@@ -854,8 +855,25 @@ Margins (worst case O-35, 3 pumps) & PM 76$^\circ$, GM 13.2 dB, $1/\omega_c$ = 1
 \textbf{Baseline} (2026-10-22, same rig): pump 3 out $\Rightarrow$ level 6.0 $\to$ 3.0~cm, about 4~min back;
 pump 3 restart $\Rightarrow$ 9.1~cm, mostly during its START (its own preset speed while the others still
 ran fast). \textbf{Change} (DEC5): the output is the total speed, shared by the pumps in REMOTE, so a
-trip or a start is compensated in the same cycle. Retest pending. An I-PD form would avoid the setpoint
-kick on mode changes.
+trip or a start is compensated in the same cycle. An I-PD form would avoid the setpoint kick on mode
+changes.
+
+\textbf{Live test} (2026-10-22, PFC200 10.1.2.41 on \var{main} after Reset Origin, CAS plant simulator
+10.1.2.150, O-35):
+\begin{itemize}[nosep]
+  \item Pen Start from a drained pen ($-3.4$~cm): Starting $\to$ Running when the pumps reached REMOTE;
+        LIC01 tracked the summed speed (260~rpm) and handed over at 85.5~rpm per pump (bumpless); level
+        peak 6.6~cm (0.6~cm overshoot), settled at 6.1~cm in about 2.5~min with three pumps at 74~rpm.
+  \item Pump stopped by the pump count (test values \var{PumpTargetSpeed} 115~rpm, delay 60~s): the pump
+        with the most running days stopped, the other two took its share in the same cycle; level dip
+        6.0 $\to$ 5.2~cm, back to 6.3~cm; two pumps at about 112~rpm, no flapping.
+  \item Rotation (test value \var{PumpCycleTime} 2~min): the standby started first and the old pump
+        stopped once the new one was in REMOTE; level 5.1--7.1~cm during each handover (register
+        IN-31). With a short cycle the rotations follow each other, as every running pump has passed it.
+  \item Commands: O$_2$ Start with the pen Stopped was refused (\var{CommandRejected}); all pulses were
+        cleared by the PLC in the same scan.
+  \item Not yet tested: pump trip, level and speed deviation alarms, RIO link loss with the new code.
+\end{itemize}
 
 \textbf{Small setpoints.} O-60 and S-75 use a 0.5~cm setpoint, against about 1~mm resolution of the
 over-height, $\pm$6~mm combined transmitter uncertainty and waves up to $H_s$ = 2~m. Whether this is
@@ -1121,7 +1139,8 @@ agreement with the supplier.
         stop and start by the share against \var{PumpTargetSpeed} / \var{PumpAddSpeed}, rotation by run
         time after \var{PumpCycleTime}, next pump when a start fails. Still open: [FD]'s warning when a
         pump has been idle too long; thresholds, delays and cycle time to be confirmed with Framo (start
-        and stop wear, minimum run time); \var{NumberOfInletsToRun} unused.
+        and stop wear, minimum run time); the level swing of about $\pm$1~cm during a rotation handover
+        (live test 2026-10-22, register IN-31); \var{NumberOfInletsToRun} unused.
   \item \textbf{Auto-restart and start order.} [FD] Tabell 2--3: restart after power failure in a
         sequence (2a/2b/2c). PLC: pen start latch not retained; Pen Start sends Start to all pumps at
         once.

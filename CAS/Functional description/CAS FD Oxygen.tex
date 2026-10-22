@@ -112,7 +112,10 @@ MX & mixer: here the \Otwo{} injector (oxygenator) & VSD & variable speed drive 
 Rev. & Date & Change \\
 \midrule
 A & 2026-10-21 & First issue. Written from [FD] rev~B, the P\&ID set and the PLC program of 2026-10-21. Reflects the choice of Normex as oxygen supplier\decided{1}. \\
-A1 & 2026-10-22 & RIO link loss: the line's pressure and flow values freeze with good quality (fault table, OI28). Inlet side: the inlet pumps' speed now follows the shared total of LIC01 and the PLC chooses the number of inlet pumps (CAS-FD-10 rev~B); a line stops when its inlet pump is stopped by the pump count or rotation and starts again when its pump is back in REMOTE. Oxygenation is switched for the whole pen (Pen Oxygen Start / Stop) and each line has a retained Enable, replacing the per-line \var{Command.EnableOxyControl}; valve auto / manual as pulses. \\
+A1 & 2026-10-22 & RIO link loss: the line's pressure and flow values freeze with good quality (fault table, OI28). Inlet side: the inlet pumps' speed now follows the shared total of LIC01 and the PLC chooses the number of inlet pumps (CAS-FD-10 rev~B); a line stops when its inlet pump is stopped by the pump count or rotation and starts again when its pump is back in REMOTE. Oxygenation is switched for the whole pen (Pen Oxygen Start / Stop) and each line has a retained Enable, replacing the per-line \var{Command.EnableOxyControl}; valve auto / manual as pulses. Live test
+  2026-10-22: the O$_2$ valve outputs to the 750-563 (CommonRIO words 20--22) were mapped from an unused
+  struct and stayed at 4\,mA; corrected to \var{OxySystem[i].OxyValve} (register OX-29), retest pending.
+  No upstream shut-off valves (OI5 closed, budget). \\
 \bottomrule
 \end{tabularx}
 \end{small}
