@@ -12,7 +12,7 @@
 \newcommand{\TBD}{\textcolor{red}{TBD}}
 \setlength{\emergencystretch}{2em}
 
-\casfdheader{Oxygen system}{CAS-FD-20}{A}
+\casfdheader{Oxygen system}{CAS-FD-20}{A1}
 
 \begin{document}
 \maketitle
@@ -112,6 +112,7 @@ MX & mixer: here the \Otwo{} injector (oxygenator) & VSD & variable speed drive 
 Rev. & Date & Change \\
 \midrule
 A & 2026-10-21 & First issue. Written from [FD] rev~B, the P\&ID set and the PLC program of 2026-10-21. Reflects the choice of Normex as oxygen supplier\decided{1}. \\
+A1 & 2026-10-22 & RIO link loss: the line's pressure and flow values freeze with good quality (fault table, OI28). Inlet side: the inlet pumps' speed now follows the shared total of LIC01 and the PLC chooses the number of inlet pumps (CAS-FD-10 rev~B); a line stops when its inlet pump is stopped by the pump count or rotation and starts again when its pump is back in REMOTE (the line start is not reset; fault table corrected). \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -641,7 +642,9 @@ Pressure after pump low & PT4$n$ $\leq$ 3.0\,bar or bad, while oxygenation activ
 Line flow measurement bad & 750-455 diagnostic (wire break, under/over range) & Line leaves auto; valve holds last position; its flow counts as 0 in the sharing\open{15} & Automatic when good \\
 Pen \Otwo{} measurement lost & no selected Orbit sensor with good quality & OIC01 output frozen indefinitely\open{14}; lines keep their share & Automatic, bumpless \\
 One Orbit sensor fails & Modbus timeout / bad quality & Sensor drops out of the mean; CommFail alarm after delay & Automatic \\
-Inlet pump lost & inlet permit FALSE (not REMOTE or heartbeat lost) & Line stops: valve closed, oxy pump stopped; other lines take over the share at once & Operator restarts the line \\
+Inlet pump lost & inlet permit FALSE (not REMOTE or heartbeat lost) & Line stops: valve closed, oxy pump stopped; other lines take over the share at once & Automatic: the line start (\var{Command.EnableOxyControl}) is not reset, so the line starts again when its inlet pump is back in REMOTE \\
+Inlet pump stopped by the pump count or rotation & inlet permit FALSE & As inlet pump lost. A line whose inlet pump is started by the pump count or rotation starts when that pump reaches REMOTE, if its line start is on & Automatic; keep the line start on for every line that may run\open{23} \\
+RIO link lost (InletRIO$n$ or CommonRIO) & Modbus TCP \var{CommOK} FALSE; alarm RIO comm.\ error & \emph{None yet}: PT4$n$, PT4($n$+3) (InletRIO$n$) and FT4$n$, PT40 (CommonRIO) keep their last value and good quality, so PIC4$n$, the valve permit and FIC4$n$ run on frozen values\open{28} & -- \\
 \Otwo{} supply lost & PT40 (displayed only) & \emph{None}: no alarm, no interlock\open{4}\textsuperscript{,}\open{10}; FIC opens valve fully, flow stays low & -- \\
 Water back into injector / supply & -- & Mechanical only (check valves)\open{6} & -- \\
 Emergency stop & not wired\open{22} & (Drive quick stop is alarmed as EmergencyStop) & -- \\
@@ -928,6 +931,7 @@ OI24 & Pump leakage / temperature (XS, TSH) only on RIO1, not used in logic. & A
 OI25 & Production HMI not specified; operator functions of Table~\ref{tab:hmi}. & HMI design. \\
 OI26 & Oxygen capacity with one inlet pump out: two lines carry only about 560--730\,t [DB]; fallback is emergency oxygenation and stopped feeding. & Project / customer. \\
 OI27 & PT numbering [FD] (PT41/43/45 in, PT42/44/46 out) vs. drawings (PT41--43 after pump, PT44--46 after injector). & Update [FD]. \\
+OI28 & RIO link loss freezes the line's analog values with good quality (register OX-28; the inlet level pairs got this fix in CAS-FD-10 rev~B). & Mark the RIO's sensors bad while \var{CommOK} is FALSE; line leaves auto, valve per OI15. \\
 \end{longtable}
 \end{small}
 

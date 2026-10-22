@@ -9,7 +9,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \lhead{\small CAS (Heimdall) -- FD inlet system}
-\rhead{\small CAS-FD-10 rev.~A1}
+\rhead{\small CAS-FD-10 rev.~B}
 \cfoot{\small\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 \setlength{\headheight}{14pt}
@@ -20,7 +20,7 @@
 \renewcommand{\floatpagefraction}{0.8}
 \setcounter{totalnumber}{5}
 
-\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{A1}
+\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{B}
 
 % short helpers used only in this document
 \newcommand{\TBD}{\textcolor{red}{TBD}}
@@ -34,7 +34,8 @@
 \begin{abstract}
 \noindent How the inlet system of the CAS (Heimdall) closed fish pen works and how the control system
 controls it. Three Framo inlet pumps fill the pen with sea water; the Heimdall PLC holds the water inside
-the pen a few centimetres above the sea outside (the \emph{over-height}) with one common pump speed. The
+the pen a few centimetres above the sea outside (the \emph{over-height}) with one common pump speed, and
+chooses how many pumps run. The
 document covers every instrument and actuator, the control principle, sequences, the pump state machine,
 interlocks, alarms and faults. Undecided points are marked \open{n} and listed in Section~\ref{sec:open}.
 \end{abstract}
@@ -60,7 +61,7 @@ non-functional requirements. It is written for
         at the boundary.
 \end{itemize}
 [FD] (Norwegian) is authoritative on the \emph{intent}. This document gives the intent in English,
-shows what the PLC program [PLC] implements today (branch in review, 2026-10-21) and where they differ.
+shows what the PLC program [PLC] implements today (main, 2026-10-22) and where they differ.
 
 \subsection{Scope}
 \textbf{In scope:} the water intake from the three intakes to the pen (Framo inlet pumps PM-31/32/33,
@@ -93,8 +94,8 @@ ID & Document & Revision / date \\
 {[DES]} & CAS design basis (System Modelling), generated from design\_basis.toml & v2.3.12 \\
 {[PDS]} & CAS program design (dataflow of the level loop, start command path) & 2026-10-15 \\
 {[PLC]} & Heimdall PLC program (CODESYS, application PFC200\_Sim): FB.Inlet.InletControl,
-  InletSupervisor, InletSensors, FB.Pen.PenControl, PRG.FramoDataProcessing, GVL ConfigValues & branch in
-  review, 2026-10-21 \\
+  InletSupervisor, InletSensors, FB.Pen.PenControl, PRG.FramoDataProcessing, GVL ConfigValues & main,
+  2026-10-22 \\
 {[EL]} & Electrical drawings 15169-792.001 (PLC/RIO1 cabinet), 792.002 (RIO2/3 cabinet),
   874.001 (Framo pump cabinet) & 792.001 rev.~1, 792.002 rev.~0 \\
 {[COO]} & J.~Cooling, \emph{Software Engineering for Real-Time Systems}, 2020, \S14.3 System
@@ -139,6 +140,12 @@ A & 2026-10-21 & First issue. Based on [FD] rev.~B, [FRAMO] rev.~B, [PID] rev.~A
 A1 & 2026-10-21 & Reset to the PCC: held until the state change is seen, warning \emph{Failed to reset}
   after $2\times$\var{ResetExpectedTime}; HOLD$\to$REMOTE open issue reworded (the PLC follows the
   PCC either way); OI24 HMI Reset button. \\
+B & 2026-10-22 & LIC01's output is the \emph{total} speed of the pumps in level control, shared by the pumps
+  in REMOTE (Section~\ref{sec:lic}, DEC5; $K_p$ 1350 total rpm/m, one parameter set; OI5, OI6 closed).
+  InletRIO link loss drops that inlet's pair (DEC6, OI17 closed). Level deviation alarms high/low (DEC8,
+  OI8 in part). Automatic pump count and rotation by run time with \var{PumpCycleTime}
+  (Section~\ref{sec:count}, DEC7, OI15 in part). Simulator tests of the sharing, the pump count and the
+  rotation are pending. \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -331,8 +338,8 @@ in the Heimdall PLC, grey = function in the Framo controller.
   \node[font=\scriptsize, fill=white] at (7.6,6.2) {speed SP over OPC UA (also to PM-32, PM-33)};
 \end{tikzpicture}}
 \caption{Simplified process and instrument diagram, inlet 1 ([PID] CAS-PID-100 and -400). LDY0$n$
-forms the over-height of pair $n$, LY01 the mean of the valid pairs, LIC01 the common speed setpoint
-SY3$n$ of all pumps in level control.}
+forms the over-height of pair $n$, LY01 the mean of the valid pairs, LIC01 the total speed, shared as the
+common speed setpoint SY3$n$ of the pumps in REMOTE.}
 \label{fig:proc}
 \end{figure}
 
@@ -393,10 +400,10 @@ conditions from F1--F5 to F7, and the operator's setpoint, LIC01 auto/manual and
 \midrule
 F1 & Level measurement & Scales LT0$i$ and LT2$i$, checks their health, forms $\Delta H_i$ and filters it. & \var{FB.Inlet.InletSensors}, \var{AnalogSensor} \\
 F2 & Process value & Mean of the valid $\Delta H_i$; LevelControlOK. & \var{FB.Pen.PenControl} \\
-F3 & Level control & LIC01 with tracking, hold, resume and safe output. & \var{InletSupervisor.LevelControl} \\
+F3 & Level control & LIC01 (total speed) with tracking, hold, resume and safe output; share per pump in REMOTE; deviation alarms. & \var{InletSupervisor.LevelControl} \\
 F4 & Pump control & Auto/manual, start/stop latch, speed setpoint per state, start/stop timeouts, oxygen permit. & \var{InletControl.InletPumpControl} \\
 F5 & Framo interface & Writes commands, reads state, alarms and values; heartbeat supervision. & \var{PRG.FramoDataProcessing}, \var{InletControl.Heartbeat} \\
-F6 & Pen sequence & Pen Start/Stop latch, auto start/stop of the pumps in auto. & \var{InletSupervisor} \\
+F6 & Pen sequence & Pen Start/Stop latch, auto start/stop of the pumps in auto, automatic pump count and rotation. & \var{InletSupervisor}, \var{.PumpCount} \\
 F7 & Alarm handling & Alarm state and acknowledgement per alarm. & \var{AlarmManagement} instances \\
 \bottomrule
 \end{tabularx}
@@ -404,9 +411,19 @@ F7 & Alarm handling & Alarm state and acknowledgement per alarm. & \var{AlarmMan
 
 \subsection{Level control loop LIC01}
 \label{sec:lic}
-\textbf{Principle.} One PI controller, LIC01, holds the over-height at the setpoint. Its output is
-\emph{one} speed setpoint in rpm, sent to every pump that is in automatic and in REMOTE; all those
-pumps therefore run at the same speed [FD]~\S3.2.2. Figure~\ref{fig:lic} is the control scheme.
+\textbf{Principle.} One PI controller, LIC01, holds the over-height at the setpoint. Its output $T$ is
+the \emph{total} speed of the pumps in level control (sum of rpm, DEC5). The pumps in automatic and in
+REMOTE share it equally, so all of them run at the same speed [FD]~\S3.2.2:
+\[
+n_\text{SP} = \mathrm{limit}_{40}^{130}\Big(\frac{T - \sum_{j\notin R} n_j}{|R|}\Big)
+\]
+where $R$ is the set of pumps in level control that are in REMOTE and $n_j$ the actual speed of the
+others in level control (starting or stopping, on the PCC's own speed). Inflow goes with the total, so
+the loop gain does not depend on the number of pumps (one parameter set instead of [FD] Tabell~8), and a
+change in the pump count is made up in the same cycle instead of through the integral: a pump that trips
+leaves the sum and the others take over its share; a starting pump adds its speed while it ramps up and
+the others give way. The share (\var{PenInletSupervisor.AutoSpeedSetpoint}) is frozen while LIC01 is
+frozen (HOLD). Figure~\ref{fig:lic} is the control scheme.
 
 \textbf{Process value.} At each inlet $i$ the PLC computes the over-height of the pair from the
 scaled, unfiltered readings and filters it with a 2nd-order Butterworth low-pass (cut-off
@@ -425,12 +442,19 @@ while both are healthy, and it restarts cleanly when a pair returns [DES]~\S7.
 0.06~m = O-35). [FD] wants it selected from the operating mode, with a manual override; today the
 operator enters it\open{14}.
 
-\textbf{Output.} Speed setpoint 40--130~rpm (the pump's speed range). While LIC01 is in manual its
-output is taken, in this order of priority, from: (1) the operator's manual output; (2)
-\var{SafeOutput} (60~rpm) when no valid pair is left\decided{3}; (3) the output frozen when the heartbeat
-to a pump in level control was lost; (4) the mean actual speed of the pumps in level control for one
-cycle after the freeze (resume); (5) the mean actual speed of the starting pumps (tracking).
-Manual$\to$auto is bumpless.
+\textbf{Output.} Total speed, limited to $N\times$(40--130)~rpm with $N$ the number of pumps in level
+control. The per-pump values (limits, \var{SafeOutput}, the operator's manual output) stay in rpm per pump
+and are scaled by $N$. While LIC01 is in manual its output is taken, in this order of priority, from:
+(1) the operator's manual output $\times N$; (2) \var{SafeOutput} (60~rpm) $\times N$ when no valid pair is
+left\decided{3}; (3) the output frozen when the heartbeat to a pump in level control was lost; (4) the
+summed actual speed of the pumps in level control for one cycle after the freeze (resume); (5) the summed
+actual speed of the starting pumps (tracking). Manual$\to$auto is bumpless.
+
+\textbf{Level deviation} (DEC8). With LIC01 in auto, alarm \emph{Level deviation high} (\emph{low}) when
+$\Delta H_\text{avg}$ stays more than \var{LevelDeviationLimit} (0.02~m) above (below) the setpoint for
+\var{LevelDeviationDelay} (5~min): the pumps cannot hold the level, at maximum speed or at minimum
+speed with no pump left to stop. Not raised during start-up, in manual, at \var{SafeOutput} or while
+frozen.
 
 \begin{figure}[htbp]
 \centering
@@ -442,9 +466,9 @@ Manual$\to$auto is bumpless.
   \node[anchor=east, align=right, font=\scriptsize] (sp) at (0.5,0) {SP $\Delta H$\\(m, per mode)};
   \draw[->] (sp) -- (sum);
   \node[sm, minimum height=10mm] (pi) at (3.6,0) {LIC01 PI\\\scriptsize $K_p(e+\frac{1}{T_i}\!\int\! e\,dt)$};
-  \node[sm, minimum height=10mm] (lim) at (6.2,0) {limit\\\scriptsize 40--130 rpm};
+  \node[sm, minimum height=10mm] (lim) at (6.2,0) {limit\\\scriptsize $N\times$40--130 rpm};
   \node[draw, fill=white, minimum width=14mm, minimum height=10mm, align=center, font=\scriptsize] (sw) at (8.4,0) {AUTO\\/ MAN};
-  \node[sm, minimum height=10mm, text width=24mm] (dist) at (11.0,0) {same SP to each\\pump in auto\\and REMOTE};
+  \node[sm, minimum height=10mm, text width=24mm] (dist) at (11.0,0) {share of total to\\each pump in auto\\and REMOTE};
   \node[ext, minimum height=10mm, text width=22mm] (fr) at (14.0,0) {Framo PCC\\+ VSD, $T_p\approx10$\,s\open{22}};
   \node[proc, minimum height=10mm, text width=22mm] (pen) at (17.0,0) {Pen: inflow $\propto N n$,\\outflow $\propto\!\sqrt{\Delta H}$};
   \draw[->] (sum) -- (pi); \draw[->] (pi) -- (lim); \draw[->] (lim) -- (sw); \draw[->] (sw) -- (dist);
@@ -460,8 +484,8 @@ Manual$\to$auto is bumpless.
   \draw[->] (avg) -| (sum);
   % manual sources
   \node[draw, dashed, fill=gray!5, align=left, font=\scriptsize, text width=58mm] (man) at (7.4,2.2) {Manual output, by priority:\\
-    1 operator \var{ManualOutput}\\2 \var{SafeOutput} 60 rpm (no valid pair)\\3 frozen output (heartbeat lost / HOLD)\\
-    4 resume: mean actual speed (1 cycle)\\5 tracking: mean speed of starting pumps};
+    1 operator \var{ManualOutput} $\times N$\\2 \var{SafeOutput} 60 rpm $\times N$ (no valid pair)\\3 frozen output (heartbeat lost / HOLD)\\
+    4 resume: summed actual speed (1 cycle)\\5 tracking: summed speed of starting pumps};
   \draw[->] (man.south -| sw.north) -- (sw.north);
   \draw[->, densely dotted] (avg.south) -- ++(0,-0.5) node[below, font=\scriptsize] {LevelControlOK};
 \end{tikzpicture}}
@@ -485,8 +509,8 @@ Pumps in manual are left out of it; the operator starts and stops them one by on
   \node[st, below=of s0] (s1) {Each pump in auto gets AutoStart (all at once\open{16}). LIC01 is enabled.};
   \node[dec, below=of s1] (s2) {AVAILABLE and\\link OK?};
   \node[st, below=of s2] (s3) {PLC sends \textbf{Start} to the PCC. Alarm \emph{Start failed} if the pump is still AVAILABLE after 30 s.};
-  \node[st, below=of s3] (s4) {\textbf{START} (Framo): XV3$n$A opens, ejector evacuates air until LSL3$n$, pump ramps to its preset speed. LIC01 \emph{tracks} the mean actual speed of the starting pumps.};
-  \node[st, below=of s4] (s5) {\textbf{REMOTE}: first pump in REMOTE $\Rightarrow$ LIC01 to auto, bumpless. All pumps in REMOTE get the LIC01 output. Oxygenation permit I1 for that line.};
+  \node[st, below=of s3] (s4) {\textbf{START} (Framo): XV3$n$A opens, ejector evacuates air until LSL3$n$, pump ramps to its preset speed. LIC01 \emph{tracks} the summed actual speed of the starting pumps.};
+  \node[st, below=of s4] (s5) {\textbf{REMOTE}: first pump in REMOTE $\Rightarrow$ LIC01 to auto, bumpless. The pumps in REMOTE share LIC01's total. Oxygenation permit I1 for that line. Then the pump count (Section~\ref{sec:count}) stops the pumps that are not needed.};
   \draw[->] (s0) -- (s1); \draw[->] (s1) -- (s2); \draw[->] (s2) -- node[right, font=\scriptsize] {yes} (s3);
   \draw[->] (s3) -- (s4); \draw[->] (s4) -- (s5);
   \draw[->] (s2.west) -- ++(-5mm,0) node[left, font=\scriptsize, align=right] {no: wait,\\Start not sent};
@@ -502,6 +526,39 @@ Pumps in manual are left out of it; the operator starts and stops them one by on
 \caption{Pen start (left) and stop (right) sequence [FD]~\S3.2.1, [PLC] InletSupervisor/InletControl.}
 \label{fig:seq}
 \end{figure}
+
+\subsection{Pump count and rotation}
+\label{sec:count}
+While the pen runs, the PLC chooses how many pumps run and which (DEC7). The goal is to run the
+pumps near their operating speed rather than many pumps slowly. The PLC acts only on pumps that are
+\emph{candidates}: in automatic, not UNAVAILABLE or LOCKDOWN, and enabled for it with the retained flag
+\var{InletConfig[i].InletPump.Enable}. Pumps in auto without Enable follow Pen Start / Pen Stop only;
+pumps in manual are left alone. The logic is in \var{InletSupervisor.PumpCount}.
+\begin{itemize}[nosep]
+  \item \textbf{Pen Start} starts every candidate (start all, then reduce). A pump that becomes a
+        candidate while the pen runs (back to auto, reset from LOCKDOWN, enabled) is started too.
+  \item The count logic acts only with LIC01 in auto and every pump where it is wanted (in REMOTE or
+        AVAILABLE, none starting or stopping).
+  \item \textbf{Stop a pump} when the others would run at or below \var{PumpTargetSpeed}:
+        $T/(N-1) \le$ 85~rpm for \var{PumpRemoveDelay} (15~min). The pump with the most running days
+        (\var{MotorRunningDays}) stops.
+  \item \textbf{Start a pump} when the share is at or above \var{PumpAddSpeed}: $n_\text{SP} \ge$
+        115~rpm for \var{PumpAddDelay} (2~min), and a candidate is AVAILABLE. The one with the fewest
+        running days starts. Starting is the safe direction and therefore faster than stopping.
+  \item \var{PumpAddSpeed} above \var{PumpTargetSpeed} gives the hysteresis: 2 pumps at 115~rpm
+        $\to$ 3 at 77~rpm; 3 at 50~rpm $\to$ 2 at 75~rpm; neither falls back at once.
+  \item \textbf{Rotation.} When a running candidate has been in REMOTE for \var{PumpCycleTime} (24~h)
+        and a candidate is AVAILABLE, the standby with the fewest running days starts first; the
+        pump that has run its cycle stops once the standby is in REMOTE (make before break). The sharing
+        keeps the total speed through the change. If the standby does not start, the running pump carries on.
+  \item \textbf{Start failed.} A candidate still AVAILABLE \var{StartupTime} + 10~s after its start is left
+        out of the count (alarm \emph{Start failed}); the logic starts another one if the share stays
+        high. It is taken back when it is no longer a candidate (operator: manual, disable) or the pen
+        stops.
+\end{itemize}
+The HMI shows the number of pumps the PLC wants (\var{PenInletSupervisor.PumpsWanted}) and a rotation
+in progress (\var{PumpRotationActive}). [FD]'s warning for a pump idle too long and the number of pumps
+per operating mode are not implemented\open{15}.
 
 \subsection{Framo pump state machine}
 \label{sec:sm}
@@ -552,8 +609,8 @@ State & Speed setpoint sent & Start & In LIC01 & Notes \\
 \midrule
 UNAVAILABLE & 0 & no & no & Also shown while the link (heartbeat) is down. \\
 AVAILABLE & actual speed & yes & no & Setpoint follows the actual speed so the take-over is bumpless [FD] Tabell~5. \\
-START & actual speed & yes & yes & LIC01 tracks the mean speed of the starting pumps. \\
-REMOTE & LIC01 output (auto) or operator setpoint (manual) & yes & yes & The only state in which the PLC sets the speed. Oxygenation permit I1 with a live link. \\
+START & actual speed & yes & yes & LIC01 tracks the summed speed of the starting pumps; its speed is subtracted from the total. \\
+REMOTE & share of LIC01's total (auto) or operator setpoint (manual) & yes & yes & The only state in which the PLC sets the speed. Oxygenation permit I1 with a live link. \\
 HOLD & actual speed & yes & no & PCC runs its preset safe speed; LIC01 frozen; oxygenation stops. \\
 STOP & 0 & no & yes & \\
 LOCKDOWN & 0 & no & no & Needs Reset after the fault is cleared\open{3}. \\
@@ -601,8 +658,9 @@ baseline must be agreed with Framo\open{1}.
 \subsection{Operating modes}
 The operating modes (Table~\ref{tab:modes}) are selected on the outlet function. A mode sets the
 damper opening and, per [FD], the level setpoint of LIC01 and the number of pumps (2 or 3). In [PLC]
-the outlet has the mode table with damper positions, but neither the level setpoint nor the number of
-pumps is taken from the mode yet\open{14}\open{15}.
+the outlet has the mode table with damper positions; the level setpoint is not taken from the mode
+yet\open{14}. The number of pumps follows from the flow needed (Section~\ref{sec:count}) instead of from
+the mode.
 
 % =====================================================================================================
 \section{Functional requirements}
@@ -613,9 +671,11 @@ pumps is taken from the mode yet\open{14}\open{15}.
   \item The system shall pump sea water into the pen with up to three Framo inlet pumps; normally 2 or
         3 run, depending on the operating mode.
   \item The system shall hold the over-height $\Delta H_\text{avg}$ at the setpoint by setting one common
-        speed for all pumps in level control (LIC01).
+        speed for all pumps in REMOTE in level control, their share of LIC01's total speed.
   \item The system shall start and stop the pumps in automatic from one Pen Start / Pen Stop command,
         and let the operator start, stop and set the speed of a pump in manual.
+  \item While the pen runs, the system shall run only as many pumps as the flow needs, near their
+        operating speed, and rotate the running pumps by run time (Section~\ref{sec:count}).
   \item The system shall supervise the link to each Framo controller and react to its loss (HOLD).
   \item The system shall give each oxygen line its permit only while its inlet pump runs in REMOTE
         with a live link (interlock I1).
@@ -663,7 +723,8 @@ heartbeat once, so no Start is sent on stale data.
 \textbf{Normal start} and \textbf{normal stop}: Figure~\ref{fig:seq}.
 
 \textbf{Pump start while others run.} A pump started (in auto or manual) while another pump is
-already in REMOTE does not interrupt automatic control; it joins LIC01 when it reaches REMOTE.
+already in REMOTE does not interrupt automatic control: while it starts its speed counts in LIC01's
+total and the pumps in REMOTE give way; it reaches REMOTE at about its share.
 
 \textbf{Emergency stop.} Each PCC has a local E-stop pushbutton acting on the drive's Safe Torque Off;
 [EL] 874.001 notes that multiple E-stop actuators are connected in series. Whether the E-stops stop all
@@ -689,17 +750,18 @@ Fault & Detection & Automatic response & Recovery \\
 One level transmitter bad & 750-455 status bits $\neq$ 00 (wire break, over-range) for 1~s & Quality alarm; its \emph{pair} drops out of the PV; LIC01 continues on the remaining pairs & Automatic when healthy; the filter restarts at the current value (no dip) \\
 Transmitter disabled by operator & Config.Enable FALSE & Pair drops out & Operator enables it \\
 All pairs lost & no valid pair & Alarm \emph{Level measurement lost} (LAL01); LIC01 to manual at \var{SafeOutput} 60~rpm (interlock I6) & Back to auto bumplessly when a pair is valid \\
-InletRIO $n$ link lost & Modbus TCP \var{CommOK} FALSE & Alarm \emph{InletRIO comm.\ error}; level words keep the last value and the pair stays valid\open{17} & Automatic \\
+InletRIO $n$ link lost & Modbus TCP \var{CommOK} FALSE & Alarm \emph{InletRIO comm.\ error}; both transmitters of inlet $n$ count as bad, so its pair drops out of the PV (DEC6) & Automatic \\
 24 V field breaker XF05 tripped & InletRIO word 4.0 & Alarm; both transmitters of that inlet read bad $\Rightarrow$ pair drops out & Reset XF05 (HMI, DO 0.0) \\
 Framo link / heartbeat lost & no clear for 10~s & Alarm \emph{Communication loss}; PLC shows UNAVAILABLE; LIC01 output frozen if the pump was in level control; oxygenation permit off. PCC: HOLD at preset speed & Link back: PCC still in HOLD $\Rightarrow$ operator Reset\open{2}; when REMOTE, LIC01 resumes from the actual speed \\
-Pump trip / fault & PCC alarm flags; state LOCKDOWN & Common alarm \emph{Pump $n$ failed}; pump leaves level control; the remaining pumps carry the level (level dips, then LIC01 raises the speed)\open{6}; permit off & Fix the fault, operator Reset\open{3}; restart the pump \\
-Start not acknowledged & Start sent, still AVAILABLE after 30~s & Alarm \emph{Start failed} & Operator; [FD] wants the next pump started (HOLD)\open{15} \\
+Pump trip / fault & PCC alarm flags; state LOCKDOWN & Common alarm \emph{Pump $n$ failed}; pump leaves level control; the remaining pumps take over its share in the same cycle (DEC5); if their share stays $\ge$ \var{PumpAddSpeed}, a standby candidate is started; permit off & Fix the fault, operator Reset\open{3}; as a candidate it is started again while the pen runs \\
+Start not acknowledged & Start sent, still AVAILABLE after 30~s & Alarm \emph{Start failed}; a candidate is left out of the pump count and another one is started if the share stays high (Section~\ref{sec:count}) & Operator \\
 Stop not acknowledged & Stop sent, still in START, REMOTE or HOLD after 30~s & Alarm \emph{Stop failed} & Operator, locally at the PCC \\
 Reset not answered & Reset given in HOLD or LOCKDOWN, pump still in that state after $2\times$\var{ResetExpectedTime} (10~s) & Reset withdrawn; warning \emph{Failed to reset} (no acknowledge) & Check the PCC; give Reset again \\
 Speed deviation & $|n_\text{SP}-n|$ in REMOTE & not implemented\open{9} & -- \\
 Vacuum chamber overfill & LSH3$n$ & not implemented (5~s delay in [FD])\open{11} & -- \\
 Emergency stop & PCC \var{EmergencyStop} & Pump stops (STO); alarm; LOCKDOWN & Release E-stop, Reset\open{13} \\
 LIC01 at its limit & \var{LimitsActive} & Alarm; integral held (anti-windup of \var{Util.PID}) & Automatic \\
+Level not held & $|\Delta H_\text{avg}-\mathrm{SP}| >$ the limit for the delay, LIC01 in auto & Alarm \emph{Level deviation high / low} & Operator; automatic when back within the limit \\
 \end{longtable}
 \end{small}
 
@@ -737,9 +799,10 @@ I6 & No valid level pair: LIC01 to manual at SafeOutput. & [PID] -400 & \impl \\
 \subsection{Control law and tuning}
 LIC01 is a PI controller (CODESYS \var{Util.PID} wrapped in \var{PIDController}):
 \[
-n_\text{SP}(t) = K_p\Big(e(t) + \frac{1}{T_i}\int e\,dt\Big) + Y_\text{offset}, \qquad e = \mathrm{SP} - \Delta H_\text{avg},
+T(t) = K_p\Big(e(t) + \frac{1}{T_i}\int e\,dt\Big) + Y_\text{offset}, \qquad e = \mathrm{SP} - \Delta H_\text{avg},
 \]
-limited to 40--130~rpm; the integral is held while the output is at a limit. Manual$\to$auto resets
+the total speed of the pumps in level control, limited to $N\times$(40--130)~rpm and shared as in
+Section~\ref{sec:lic}; the integral is held while the output is at a limit. Manual$\to$auto resets
 the PID with $Y_\text{offset} = Y_\text{prev} - K_p e$ (bumpless).
 
 \begin{table}[htbp]
@@ -750,17 +813,17 @@ the PID with $Y_\text{offset} = Y_\text{prev} - K_p e$ (bumpless).
 \toprule
 Parameter & [PLC] & [FD] Tabell 8 & Comment \\
 \midrule
-$K_p$ & 450 rpm/m & P = 0.5 / 1 / 2 for 1 / 2 / 3 pumps & 450 rpm/m $\approx$ [FD] P = 1 (90 rpm over 0.20 m). One set for all pump counts\open{5} \\
+$K_p$ & 1350 total rpm/m & P = 0.5 / 1 / 2 for 1 / 2 / 3 pumps & = the former 450 rpm/m per pump with 3 pumps ($\approx$ [FD] P = 1: 90 rpm over 0.20 m). With the total output one set holds for every pump count (DEC5) \\
 $T_i$ & 60 s & 600 s & 600 s gives a closed loop of about 16 min [DES]; 60 s tested\decided{4} \\
 $T_d$ & 0 & -- & PI \\
-Output & 40--130 rpm & 40--130 rpm & \\
+Output & $N\times$40--130 rpm (total) & 40--130 rpm & per pump 40--130 rpm \\
 PV scaling & m & 0--20 cm & \\
 Margins (worst case O-35, 3 pumps) & PM 76$^\circ$, GM 13.2 dB, $1/\omega_c$ = 100 s & -- & [DES] \S7, dead time 2.5$\theta$ \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\textbf{Simulator tests} (PFC200 against CasRioSim/CasFramoSim, O-35, 3 pumps, $K_p$ 450, $T_i$ 60~s):
+\textbf{Simulator tests} (PFC200 against CasRioSim/CasFramoSim, O-35, 3 pumps, $K_p$ 450 per pump, $T_i$ 60~s, before the sharing):
 \begin{itemize}[nosep]
   \item start-up: pumps reach REMOTE at about 87~rpm, take-over bumpless;
   \item setpoint step +2~cm: settles in about 100~s, no overshoot;
@@ -768,10 +831,11 @@ Margins (worst case O-35, 3 pumps) & PM 76$^\circ$, GM 13.2 dB, $1/\omega_c$ = 1
         is no feed-forward on the number of pumps, and the integral winds up against 130~rpm while two
         pumps carry the load.
 \end{itemize}
-\textbf{Proposal}\open{6}: on a change of the pump count $N$, scale the output by $N_\text{old}/N_\text{new}$
-(feed-forward, e.g.\ $N/(N-1)$ on a trip), with anti-windup reset to the scaled value, and schedule $K_p
-\propto 1/N$ (the process gain grows with $N$ [DES]). An I-PD form would avoid the setpoint kick on mode
-changes.
+\textbf{Baseline} (2026-10-22, same rig): pump 3 out $\Rightarrow$ level 6.0 $\to$ 3.0~cm, about 4~min back;
+pump 3 restart $\Rightarrow$ 9.1~cm, mostly during its START (its own preset speed while the others still
+ran fast). \textbf{Change} (DEC5): the output is the total speed, shared by the pumps in REMOTE, so a
+trip or a start is compensated in the same cycle. Retest pending. An I-PD form would avoid the setpoint
+kick on mode changes.
 
 \textbf{Small setpoints.} O-60 and S-75 use a 0.5~cm setpoint, against about 1~mm resolution of the
 over-height, $\pm$6~mm combined transmitter uncertainty and waves up to $H_s$ = 2~m. Whether this is
@@ -844,20 +908,21 @@ Pump $n$ low / high power & LowPower / HighPower from PCC & N & none, notificati
 Speed deviation pump $n$ & $|n_\text{SP}-n| >$ \TBD{} rpm for \TBD{} s, in REMOTE & W & none & \notimpl\open{9} \\
 Vacuum overfill line $n$ & LSH3$n$ for 5~s (configurable) & A & none & \notimpl\open{11} \\
 Emergency stop activated & EmergencyStop from PCC (hard-wired \TBD) & A & pump stops & via Framo\open{13} \\
-Level control deviation & $|\mathrm{PV}-\mathrm{SP}| >$ \TBD{} for \TBD{} s, LIC01 in auto & W & none & \notimpl\open{8} \\
+Level deviation high / low & $\Delta H_\text{avg}$ more than \var{LevelDeviationLimit} (0.02~m) above / below SP for \var{LevelDeviationDelay} (5~min), LIC01 in auto (\var{Pen.Alarm.LevelDeviationHigh}, \var{.LevelDeviationLow}) & A & none & \impl \\
 Low level in pen & $\Delta H_\text{avg} <$ \TBD{} for \TBD{} s & A & none & \notimpl\open{8} \\
 High level in pen & $\Delta H_\text{avg} >$ \TBD{} for \TBD{} s & A & none & \notimpl\open{8} \\
 Level transmitter fault (LT01--03, LT21--23) & 750-455 status bits $\neq$ 00 for 1~s & W & pair drops out of PV & generic quality alarm\open{8} \\
 Level measurement lost (LAL01) & no valid pair (pen) & A & LIC01 at SafeOutput & \impl \\
 LIC01 output at limit / overflow & \var{LimitsActive}, \var{Overflow} (pen) & W & none & \impl \\
-InletRIO $n$ communication error & Modbus \var{CommOK} FALSE & A & see \open{17} & \impl \\
+InletRIO $n$ communication error & Modbus \var{CommOK} FALSE & A & pair $n$ drops out of the PV & \impl \\
 InletRIO $n$ field power & XF05 tripped & A & LTs of inlet $n$ lost & \impl \\
 \end{longtable}
 \end{small}
 
 \subsection{Parameters}
 All parameters are written from the HMI and retained: \var{Main.UpdateRetain} keeps them in step
-with \var{GVLRetain}. Defaults from \var{ConfigValues} apply on a fresh download.
+with \var{GVLRetain}. Defaults from \var{ConfigValues} apply on a fresh download (rev~B added fields to
+\var{PenConfigDUT}: download with Reset Origin).
 
 \begin{small}
 \begin{longtable}{@{}P{58mm}P{24mm}P{10mm}P{55mm}@{}}
@@ -872,11 +937,17 @@ Parameter & Default & Unit & Meaning \\
 \endhead
 \bottomrule
 \endfoot
-\var{PenConfig.LevelController.Kp} & 450 & rpm/m & LIC01 gain \\
+\var{PenConfig.LevelController.Kp} & 1350 & rpm/m & LIC01 gain on the total speed \\
 \var{PenConfig.LevelController.Ti} & 60 & s & integral time (new value takes effect at the next start or manual$\to$auto) \\
 \var{PenConfig.LevelController.Td} & 0 & s & derivative time \\
-\var{PenConfig.LevelController.MinOutput} / \var{MaxOutput} & 40 / 130 & rpm & output limits \\
-\var{PenConfig.LevelController.SafeOutput} & 60 & rpm & speed with no valid level pair \\
+\var{PenConfig.LevelController.MinOutput} / \var{MaxOutput} & 40 / 130 & rpm & speed range per pump (LIC01: $\times N$) \\
+\var{PenConfig.LevelController.SafeOutput} & 60 & rpm & speed per pump with no valid level pair \\
+\var{PenConfig.LevelDeviationLimit} / \var{LevelDeviationDelay} & 0.02 / 5 & m / min & level deviation alarms; limit 0 = off \\
+\var{PenConfig.PumpTargetSpeed} & 85 & rpm & stop a pump when the others would run at or below this; 0 = never \\
+\var{PenConfig.PumpAddSpeed} & 115 & rpm & start a pump when the share is at or above this; above \var{PumpTargetSpeed}; 0 = never \\
+\var{PenConfig.PumpRemoveDelay} / \var{PumpAddDelay} & 15 / 2 & min & how long the stop / start condition must hold \\
+\var{PenConfig.PumpCycleTime} & 24 & h & time in REMOTE before a standby takes over; 0 = no rotation \\
+\var{InletConfig[i].InletPump.Enable} & TRUE & & pump $i$ takes part in the pump count and rotation \\
 \var{Pen.Command.LevelSetpoint} & 0.06 & m & over-height setpoint (O-35) \\
 \var{LevelInsideConfig[i]}: Enable, MinValue, MaxValue & TRUE, 0, 2.0 & m & LT0$i$ in use and range \\
 \var{LevelInsideConfig[i]}: FilterFc, QualityEnabled & 0.05, TRUE & Hz & display filter; quality alarm \\
@@ -886,9 +957,9 @@ Parameter & Default & Unit & Meaning \\
 \var{InletConfig[i].HeartbeatTimeout} & 10 (DUT 5) & s & link-loss detection \\
 \var{InletConfig[i].StartupTime} / \var{ShutdownTime} & 30 / 30 & s & start / stop failed alarms \\
 \var{InletConfig[i].ResetExpectedTime} & 5 & s & expected PCC response to Reset (OPC UA round trip $\approx$4.6~s); warning \emph{Failed to reset} after $2\times$ \\
-\var{InletRIOConfig[i]}: IP, Port & sim: 10.1.2.101, 5121--5123 & & coupler address (site plan \TBD) \\
+\var{InletRIOConfig[i]}: IP, Port & sim: 10.1.2.150, 5121--5123 & & coupler address (site plan \TBD) \\
 Data sources \var{Framo_1..3} & per project & & OPC UA endpoint of each PCC \\
-Not yet defined: deviation limit and delay, L/H level limits and delays, speed deviation limit, vacuum overfill delay (5~s), mode table SP & \TBD & & \open{8}\open{9}\open{11}\open{14} \\
+Not yet defined: L/H level limits and delays, speed deviation limit, vacuum overfill delay (5~s), mode table SP & \TBD & & \open{8}\open{9}\open{11}\open{14} \\
 \end{longtable}
 \end{small}
 
@@ -938,7 +1009,7 @@ Signal (Data Source name) & Type & Dir. & Use in PLC & Remark \\
 \endfoot
 MotorVelocity (+ ValueRange Low/High) & AnalogValue & R & tracking, bumpless transfer, speed indication & range written by Framo?\open{19} \\
 MotorFrequency, MotorCurrent, MotorPower, MotorVoltage, MotorTorque, PowerConsumptionCounter, DCLinkVoltage, VSDHeatSinkTemperature, VSDOperatingDays & AnalogValue & R & info panel & [FRAMO]: PowerConsumtionCounter \\
-MotorRunningDays & AnalogValue & R & info panel; run-time order of pumps (\var{SortSequence}) & order not yet used\open{15} \\
+MotorRunningDays & AnalogValue & R & info panel; run-time order of pumps (\var{SortSequence}) for the pump count and rotation & \\
 DriveError, DriveCommunication, DriveNotInRemote, MotorTemperature, EmergencyStop, DCUnderVoltageError, PumpStopped, UPSSupplyError, EmergencyRunMode & Alarm & R & own alarm each; common alarm & \\
 LowPower, HighPower & Alarm & R & notification & \open{10} \\
 PumpStateUnavailable, \ldots Available, Start, Stop, Remote, Hold, Lockdown & Event & R & \var{InletPump.State} (first TRUE flag) & \\
@@ -960,6 +1031,7 @@ PressureCompressedAir, LevelSwitchLSL01, LevelSwitchLSH02, StatusV001, StatusV00
 Function & PLC variable & Note \\
 \midrule
 Pen Start / Pen Stop & \var{Pen.Command.Start}, \var{.Stop} & pulse; starts/stops all pumps in auto \\
+Pump count and rotation & \var{InletConfig[i].InletPump.Enable}; shows \var{PenInletSupervisor.PumpsWanted}, \var{.PumpRotationActive} & take a pump out of the count without manual \\
 Level setpoint & \var{Pen.Command.LevelSetpoint} & m; from the mode in future\open{14} \\
 LIC01 auto / manual, manual output & \var{LevelController.Command.Manual}, \var{.Auto}, \var{.ManualOutput} & rpm \\
 Pump auto / manual & \var{Inlet[i].InletPump.Command.Auto}, \var{.Manual} & default auto \\
@@ -998,15 +1070,16 @@ agreement with the supplier.
   \item \textbf{Stop and command semantics.} [FRAMO] rev.~B accepts Stop only in REMOTE (not in START or
         HOLD). The PLC sends Stop in any state and raises Stop failed for START, REMOTE and HOLD. Are Start/Stop/Reset
         edge- or level-triggered?
-  \item \textbf{LIC01 parameter sets.} [FD]: three sets by number of pumps (P 0.5/1/2, I 600~s); PLC: one
-        set ($K_p$ 450 rpm/m, $T_i$ 60~s). [DES]: the gain should fall with more pumps, not rise. Decide.
-  \item \textbf{Pump-count transients.} Losing 1 of 3 pumps dips the level 3.4~cm; rejoining overshoots
-        2.7~cm. Proposal: $N_\text{old}/N_\text{new}$ feed-forward, anti-windup reset, gain scheduling
-        $K_p \propto 1/N$; consider I-PD against setpoint kick.
+  \item \textbf{LIC01 parameter sets.} \emph{Closed in rev~B} by DEC5: with the total output the loop gain
+        does not depend on the pump count; one set ($K_p$ 1350 total rpm/m, $T_i$ 60~s). [FD] Tabell~8 to
+        be updated.
+  \item \textbf{Pump-count transients.} \emph{Closed in rev~B} by DEC5 (sharing of the total); to be
+        confirmed in the simulator. I-PD against setpoint kick still to consider.
   \item \textbf{0.5~cm setpoint (O-60, S-75).} Controllable with $\approx$1~mm resolution, $\pm$6~mm
         uncertainty and waves? Decide the setpoint, filter and acceptance criterion.
-  \item \textbf{Pen level alarms.} Deviation, low and high level alarms of [FD] Tabell 9 / [AL] are not
-        in the PLC; limits and delays TBD. The per-transmitter fault exists only as the generic
+  \item \textbf{Pen level alarms.} Deviation alarms high / low implemented (DEC8; 0.02~m, 5~min, to be
+        confirmed). Low and high level alarms of [FD] Tabell 9 / [AL] are not in the PLC; limits and
+        delays TBD. The per-transmitter fault exists only as the generic
         quality alarm; map it to the [AL] text per tag.
   \item \textbf{Speed deviation alarm} (in REMOTE) of [FD] Tabell 7 not implemented; limit and delay TBD.
   \item \textbf{LowPower / HighPower} are included in \var{PumpCommonError}; [FD]: notification only.
@@ -1021,15 +1094,16 @@ agreement with the supplier.
         [FD] alarm ``Nødstopp aktivert'' is HOLD.
   \item \textbf{Setpoint from operating mode.} [FD]: LIC01 setpoint chosen from the mode, with manual
         override. PLC: operator-entered setpoint only; the outlet mode table has damper positions only.
-  \item \textbf{Number of pumps and rotation.} [FD] (HOLD): stop a pump when LIC01 stays at minimum,
-        start one when it stays high, start the next if a start fails, warn when a pump has been idle
-        too long, rotate by run time. PLC: \var{SortSequence} orders by run time but is not used;
-        \var{NumberOfInletsToRun} unused.
+  \item \textbf{Number of pumps and rotation.} Implemented in rev~B (DEC7, Section~\ref{sec:count}):
+        stop and start by the share against \var{PumpTargetSpeed} / \var{PumpAddSpeed}, rotation by run
+        time after \var{PumpCycleTime}, next pump when a start fails. Still open: [FD]'s warning when a
+        pump has been idle too long; thresholds, delays and cycle time to be confirmed with Framo (start
+        and stop wear, minimum run time); \var{NumberOfInletsToRun} unused.
   \item \textbf{Auto-restart and start order.} [FD] Tabell 2--3: restart after power failure in a
         sequence (2a/2b/2c). PLC: pen start latch not retained; Pen Start sends Start to all pumps at
         once.
-  \item \textbf{InletRIO link loss.} The last level words are kept and the pair stays valid, so LIC01
-        controls on a frozen PV. Proposal: treat a pair as invalid while its RIO has no communication.
+  \item \textbf{InletRIO link loss.} \emph{Closed in rev~B} by DEC6: the pair is invalid while its RIO
+        has no communication (tested in the simulator 2026-10-22).
   \item \textbf{Level transmitters.} Signal direction (4~mA = lowest level?) to be read in the sensors;
         inside model VEGAPULS C21 ([DES]) vs C22 ([PID] loop sheet); outside type and 2~m full scale
         assumed.
@@ -1059,6 +1133,16 @@ agreement with the supplier.
         manual at SafeOutput (60~rpm), bumpless return.
   \item 2026-10-13: LIC01 start value $T_i$ = 60~s instead of 600~s, from the design basis and the
         simulator test; to be confirmed at commissioning.
+  \item 2026-10-22: LIC01's output is the total speed of the pumps in level control; the pumps in REMOTE
+        share it after the actual speed of the others in level control. $K_p$ 450 per pump $\to$ 1350
+        total; per-pump limits, \var{SafeOutput} and manual output scaled by $N$ (IN-05, IN-07).
+  \item 2026-10-22: InletRIO $n$ link lost $\Rightarrow$ both transmitters of inlet $n$ bad, its pair
+        drops out of the PV (IN-19).
+  \item 2026-10-22: automatic pump count and rotation (Section~\ref{sec:count}): candidates = Enable, auto,
+        not UNAVAILABLE / LOCKDOWN; start all at Pen Start, then reduce; settings retained in
+        \var{PenConfig} (IN-15).
+  \item 2026-10-22: level deviation alarms high / low with LIC01 in auto, limit and delay retained in
+        \var{PenConfig} (IN-09).
 \end{enumerate}
 \end{small}
 
