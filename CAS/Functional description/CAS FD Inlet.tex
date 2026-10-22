@@ -144,8 +144,8 @@ B & 2026-10-22 & LIC01's output is the \emph{total} speed of the pumps in level 
   in REMOTE (Section~\ref{sec:lic}, DEC5; $K_p$ 1350 total rpm/m, one parameter set; OI5, OI6 closed).
   InletRIO link loss drops that inlet's pair (DEC6, OI17 closed). Level deviation alarms high/low (DEC8,
   OI8 in part). Automatic pump count and rotation by run time with \var{PumpCycleTime}
-  (Section~\ref{sec:count}, DEC7, OI15 in part). Simulator tests of the sharing, the pump count and the
-  rotation are pending. \\
+  (Section~\ref{sec:count}, DEC7, OI15 in part). Speed deviation alarm (OI9); LowPower / HighPower out of the
+  common alarm (OI10 closed). Simulator tests of the sharing, the pump count and the rotation are pending. \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -757,7 +757,7 @@ Pump trip / fault & PCC alarm flags; state LOCKDOWN & Common alarm \emph{Pump $n
 Start not acknowledged & Start sent, still AVAILABLE after 30~s & Alarm \emph{Start failed}; a candidate is left out of the pump count and another one is started if the share stays high (Section~\ref{sec:count}) & Operator \\
 Stop not acknowledged & Stop sent, still in START, REMOTE or HOLD after 30~s & Alarm \emph{Stop failed} & Operator, locally at the PCC \\
 Reset not answered & Reset given in HOLD or LOCKDOWN, pump still in that state after $2\times$\var{ResetExpectedTime} (10~s) & Reset withdrawn; warning \emph{Failed to reset} (no acknowledge) & Check the PCC; give Reset again \\
-Speed deviation & $|n_\text{SP}-n|$ in REMOTE & not implemented\open{9} & -- \\
+Speed deviation & $|n_\text{SP}-n| >$ \var{SpeedDeviationLimit} (10~rpm) for \var{SpeedDeviationDelay} (30~s), in REMOTE & Alarm \emph{Speed deviation} & Operator; automatic when the pump follows again \\
 Vacuum chamber overfill & LSH3$n$ & not implemented (5~s delay in [FD])\open{11} & -- \\
 Emergency stop & PCC \var{EmergencyStop} & Pump stops (STO); alarm; LOCKDOWN & Release E-stop, Reset\open{13} \\
 LIC01 at its limit & \var{LimitsActive} & Alarm; integral held (anti-windup of \var{Util.PID}) & Automatic \\
@@ -904,8 +904,8 @@ Stop of pump $n$ failed & Stop sent and still in START, REMOTE or HOLD after Shu
 Failed to reset pump $n$ & Reset given in HOLD/LOCKDOWN, no state change within $2\times$ResetExpectedTime (10~s); clears when the pump leaves HOLD/LOCKDOWN or on a new Reset & W (auto-ack) & Reset withdrawn & \impl \\
 Pump $n$ failed (common) & any of DriveError, DriveCommunication, DriveNotInRemote, MotorTemperature, EmergencyStop, DCUndervoltageError, PumpStopped, UPSSupplyError, EmergencyRunMode & A & shown on info panel & \impl\open{10} \\
 Individual Framo alarms & each flag above, own alarm & A & logged & \impl \\
-Pump $n$ low / high power & LowPower / HighPower from PCC & N & none, notification only [FD] & wrongly also in common\open{10} \\
-Speed deviation pump $n$ & $|n_\text{SP}-n| >$ \TBD{} rpm for \TBD{} s, in REMOTE & W & none & \notimpl\open{9} \\
+Pump $n$ low / high power & LowPower / HighPower from PCC; not in the common alarm & N (auto-ack) & none, notification only [FD] & \impl \\
+Speed deviation pump $n$ & $|n_\text{SP}-n| >$ \var{SpeedDeviationLimit} (10~rpm) for \var{SpeedDeviationDelay} (30~s), in REMOTE (\var{Inlet[i].InletPump.Alarm.SpeedDeviation}) & W & none & \impl \\
 Vacuum overfill line $n$ & LSH3$n$ for 5~s (configurable) & A & none & \notimpl\open{11} \\
 Emergency stop activated & EmergencyStop from PCC (hard-wired \TBD) & A & pump stops & via Framo\open{13} \\
 Level deviation high / low & $\Delta H_\text{avg}$ more than \var{LevelDeviationLimit} (0.02~m) above / below SP for \var{LevelDeviationDelay} (5~min), LIC01 in auto (\var{Pen.Alarm.LevelDeviationHigh}, \var{.LevelDeviationLow}) & A & none & \impl \\
@@ -956,6 +956,7 @@ Parameter & Default & Unit & Meaning \\
 \var{InletConfig[i].HeartbeatInterval} & 1 & s & PLC sets the bit this long after the PCC cleared it \\
 \var{InletConfig[i].HeartbeatTimeout} & 10 (DUT 5) & s & link-loss detection \\
 \var{InletConfig[i].StartupTime} / \var{ShutdownTime} & 30 / 30 & s & start / stop failed alarms \\
+\var{InletConfig[i].SpeedDeviationLimit} / \var{SpeedDeviationDelay} & 10 / 30 & rpm / s & speed deviation alarm in REMOTE; limit 0 = off \\
 \var{InletConfig[i].ResetExpectedTime} & 5 & s & expected PCC response to Reset (OPC UA round trip $\approx$4.6~s); warning \emph{Failed to reset} after $2\times$ \\
 \var{InletRIOConfig[i]}: IP, Port & sim: 10.1.2.150, 5121--5123 & & coupler address (site plan \TBD) \\
 Data sources \var{Framo_1..3} & per project & & OPC UA endpoint of each PCC \\
@@ -1011,7 +1012,7 @@ MotorVelocity (+ ValueRange Low/High) & AnalogValue & R & tracking, bumpless tra
 MotorFrequency, MotorCurrent, MotorPower, MotorVoltage, MotorTorque, PowerConsumptionCounter, DCLinkVoltage, VSDHeatSinkTemperature, VSDOperatingDays & AnalogValue & R & info panel & [FRAMO]: PowerConsumtionCounter \\
 MotorRunningDays & AnalogValue & R & info panel; run-time order of pumps (\var{SortSequence}) for the pump count and rotation & \\
 DriveError, DriveCommunication, DriveNotInRemote, MotorTemperature, EmergencyStop, DCUnderVoltageError, PumpStopped, UPSSupplyError, EmergencyRunMode & Alarm & R & own alarm each; common alarm & \\
-LowPower, HighPower & Alarm & R & notification & \open{10} \\
+LowPower, HighPower & Alarm & R & notification (auto-ack), not in the common alarm & \\
 PumpStateUnavailable, \ldots Available, Start, Stop, Remote, Hold, Lockdown & Event & R & \var{InletPump.State} (first TRUE flag) & \\
 Start, Stop, Reset & Event & W & commands, rising edge & \open{3}\open{4} \\
 SpeedSetpoint & AnalogValue & W & LIC01 output in REMOTE, else actual speed or 0 & [FRAMO], [FD]: Velocity\-Setpoint\open{19} \\
@@ -1081,9 +1082,10 @@ agreement with the supplier.
         confirmed). Low and high level alarms of [FD] Tabell 9 / [AL] are not in the PLC; limits and
         delays TBD. The per-transmitter fault exists only as the generic
         quality alarm; map it to the [AL] text per tag.
-  \item \textbf{Speed deviation alarm} (in REMOTE) of [FD] Tabell 7 not implemented; limit and delay TBD.
-  \item \textbf{LowPower / HighPower} are included in \var{PumpCommonError}; [FD]: notification only.
-        Remove them from the common alarm.
+  \item \textbf{Speed deviation alarm} (in REMOTE) of [FD] Tabell 7: implemented in rev~B (10~rpm, 30~s, to be
+        confirmed against Framo's speed response).
+  \item \textbf{LowPower / HighPower.} \emph{Closed in rev~B}: removed from \var{PumpCommonError}; their own
+        alarms are notifications without acknowledge, as [FD].
   \item \textbf{Vacuum system.} Alarms not implemented (\var{VacuumSystemAlarmDUT} is empty; LSH overfill
         with 5~s delay). The vacuum signals are not in [FRAMO] or [FIL]. Tag mapping to confirm: Framo
         LSL01/LSH02/V001/V002 vs [PID] LSL3$n$/LSH3$n$/XV3$n$A/B vs [FD] LSL31/LSH32/XV31/XV32.
