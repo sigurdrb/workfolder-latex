@@ -82,8 +82,8 @@
        2080 pulses full stroke) on 750-638 counters -R1-004/005; PT(2n$-$1) open side and PT(2n) close side
        on 750-455 -R1-009/010, end position by high pressure (FB.Outlet.OutletControl).\\[0.8mm]
     3. HPU pump PU61/M61: direct-on-line starter, PLC start = DO word 24.9, reset = 24.10, starter fault =
-       DI word 40.0. \textcolor{pidcheck}{Drawing 792.001 R1: these channels are spare (-R1-020 ch2/3) and DI
-       -R1-017 is all spare; with six 750-455 modules on CommonRIO the DI word is 44, not 40.}\\[0.8mm]
+       DI word 44.0 (-R1-017 ch1). \textcolor{pidcheck}{Drawing 792.001 R1: these channels are spare (-R1-020 ch2/3,
+       -R1-017 ch1), open point A2.}\\[0.8mm]
     4. \textcolor{pidcheck}{LSL61 + TSH61 (tank level / temperature, in series): FD wants a DI; no input on the
        drawings and Outlet.Input.HydraulicOilTankFault is not mapped in the PLC. XV65 shut-off valve was removed
        from drawing R1, but its cable is still in the cable list; cable list also has PT69--PT612.}\\[1.5mm]

@@ -30,8 +30,8 @@
       -R1-009 455 ch1--4 & PT61 / PT62 / PT63 / PT64 cyl.\ 1--2 open / close & -XX01 17--24 & PLC-PEN01-PT61..64-KX01 & 28--31 & Outlet.Cylinder[0/1].Input.PressureOpen / Close & \ok{} (no range in PLC) \\
       -R1-010 455 ch1--4 & PT65 / PT66 / PT67 / PT68 cyl.\ 3--4 open / close & -XX01 25--32 & PLC-PEN01-PT65..68-KX01 & 32--35 & Outlet.Cylinder[2/3].Input.PressureOpen / Close & \ok{} (no range in PLC) \\
       -R1-011 455 ch1--4 & spare (cable list: PT69--PT612?) & -XX01 33--40 & PLC-PEN01-PT69..612-KX01 & 36--39 & -- & \chk{cables without drawing} \\
-      -R1-012 455 ch1--4 & spare & -XX01 41--48 & -- & \textcolor{pidcheck}{40--43} & \textcolor{pidcheck}{not in the PLC} & \nok{PLC counts 5x 750-455; read 41 words, needs 45} \\
-      -R1-017 1405 ch1 & spare & -XX03 1/2 & -- & \textcolor{pidcheck}{44.0} & PLC: Outlet.HydraulicPump.Input.StarterFault at 40.0 & \nok{PLC reads word 40 (= -R1-012 ch1)} \\
+      -R1-012 455 ch1--4 & spare & -XX01 41--48 & -- & 40--43 & -- & \ok{} (A1 resolved rev B) \\
+      -R1-017 1405 ch1 & spare & -XX03 1/2 & -- & 44.0 & Outlet.HydraulicPump.Input.StarterFault & \nok{used by the PLC, spare on drawing (A2)} \\
       -R1-017 1405 ch2--16 & spare & -XX03 3--32 & -- & 44.1--44.15 & -- & \ok \\
       -R1-014 563 ch1 & OV41 oxygen valve line 1 & -XX02 1/2 & PLC-PEN01-OV41-KX01 & out 20 & OxySystem[0].OxyValve.Output.RawPosition & \ok \\
       -R1-014 563 ch2 & OV42 oxygen valve line 2 & -XX02 3/4 & PLC-PEN01-OV42-KX01 & out 21 & OxySystem[1].OxyValve.Output.RawPosition & \ok \\
@@ -51,8 +51,8 @@
   \node[anchor=north west, align=left, font=\sffamily\tiny, text width=150mm] at (0,52) {%
     \textbf{Process image check (750-362, complex and analog modules first, digital packed after).}
     Drawing rev 1: inputs 0--11 (652), 12--19 (2x 638), 20--43 (6x 455), 44 (1405) = 45 words; outputs 0--11, 12--19, 20--23 (2x 563),
-    24 (2x 1515) = 25 words. PLC: read 41 words with DI at word 40, write 25 words.
-    \textcolor{pidcheck}{Either remove one 750-455 (-R1-012) or change the PLC to read 45 words with the DI at word 44.}};
+    24 (2x 1515) = 25 words. PLC: read 45 words with DI at word 44, write 25 words -- matches (A1 resolved in rev B; until rev A the PLC
+    read 41 words with the DI at word 40).};
 }
 
 % =====================================================================================================  InletRIO

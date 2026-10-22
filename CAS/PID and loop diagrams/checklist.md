@@ -51,3 +51,4 @@ Build: `pdflatex` twice (the sheets use `remember picture`) in this folder. MiKT
 | Rev | Date | Change |
 |---|---|---|
 | A | 2026-10-16 | First issue. PLC branch inletControl; drawings 792.001 rev 1, 792.002 rev 0; FD rev B. |
+| B | 2026-10-16 | Cosmetic: pump and check valve symbols, Linde PV1--3 as control valves, no overlapping line markings, network sheet renamed CAS-LAY-700. A1 resolved: PLC CommonRIO reads 45 words, DI at word 44 (simulator 2.3.14, heimdall-cas-simulation #11). |

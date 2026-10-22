@@ -25,7 +25,7 @@
   }
   \node[note, anchor=west] at (40,163) {CommonRIO (PLC FB.RIO.CommonRIO, sim 10.1.2.48:502): 750-652 Orbit RS-485 | 2x 750-638 cylinder counters |
     6x 750-455 AI | 2x 750-563 AO | 750-1405 DI | 2x 750-1515 DO};
-  \node[note, anchor=west, text=pidcheck] at (40,158) {Drawing: six 750-455 (-R1-007..012, two spare). PLC: five (words 20--39), DI at word 40 -- with six the DI is word 44.};
+  \node[note, anchor=west] at (40,158) {Six 750-455 (-R1-007..012, two spare) at words 20--43, DI -R1-017 at word 44 -- drawing and PLC agree (rev B).};
   % InletRIO1 rack (R1-100 ... R1-106)
   \node[draw, line width=0.6pt, fill=modcx, minimum width=26mm, minimum height=8mm, align=center,
         font=\sffamily\fontsize{4.2}{4.6}\selectfont, rotate=90] (r1) at (46,125) {-R1-100 750-362 coupler};
@@ -87,7 +87,7 @@
   \node[anchor=north west, align=left, font=\sffamily\tiny, text width=70mm] at (322,240) {%
     \textbf{Notes}\\[1mm]
     1. The PFC200 has no local I/O. All field I/O is on 750-362 Modbus TCP couplers polled by the PLC program:
-       CommonRIO FC23 read 41 / write 25 words (WagoAppPlcModbus), InletRIO n FC23 read 26 / write 21
+       CommonRIO FC23 read 45 / write 25 words (WagoAppPlcModbus), InletRIO n FC23 read 26 / write 21
        words every 100 ms (SCL.sModbusMasterTCP). The 750-652 behind CommonRIO carries Modbus RTU in the
        coupler's process image (words 0--11).\\[0.8mm]
     2. Naming: the drawings' "RIO1" is the inlet-1 coupler -R1-100 (PLC InletRIO[0]); the PLC's CommonRIO is

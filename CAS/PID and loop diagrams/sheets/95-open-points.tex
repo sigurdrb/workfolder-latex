@@ -7,9 +7,9 @@
       \toprule
       \textbf{No.} & \textbf{Cl.} & \textbf{Finding} & \textbf{Sources} & \textbf{Proposed action} \\
       \midrule
-      A1 & A & CommonRIO has six 750-455 on drawing 792.001 rev 1 (-R1-007..012); the PLC reads 41 words with five, so its DI word 40 is
-              really -R1-012 ch1 and the DI module (word 44) is not read. & 792.001 sh.07, 13--18; FB.RIO.CommonRIO & Decide: remove -R1-012, or read 45 words with DI at 44 (CAS-PID-900). \\
-      A2 & A & Hydraulic pump start / reset (DO 24.9 / 24.10) and starter fault (DI 40.0) are on channels the drawing shows as spare. & 792.001 sh.22, 25; FB.RIO.CommonRIO & Wire them, or move them to the channels the drawing assigns. \\
+      \textcolor{pidnote}{A1} & \textcolor{pidnote}{A} & \textcolor{pidnote}{\textbf{Resolved rev B.} CommonRIO has six 750-455 (-R1-007..012) as on drawing 792.001 rev 1; the PLC
+              now reads 45 words with the DI module at word 44 (FB.RIO.CommonRIO), simulator 2.3.14 likewise.} & \textcolor{pidnote}{792.001 sh.07, 13--18; FB.RIO.CommonRIO; heimdall-cas-simulation \#11} & \textcolor{pidnote}{--} \\
+      A2 & A & Hydraulic pump start / reset (DO 24.9 / 24.10) and starter fault (DI 44.0) are on channels the drawing shows as spare. & 792.001 sh.22, 25; FB.RIO.CommonRIO & Wire them, or move them to the channels the drawing assigns. \\
       A3 & A & Emergency stop is not wired to any input; GVLMain.EmergencyStop and OxySystem[i].Input.EmergencyStop are never written.
               FD / action list: Framo E-stop shall stop PU4n and close OV4n. & AL 16--17; FD 3.2.4; PLC & Use Framo\_n.EmergencyStop (OPC UA) per line, or a hardwired loop (Framo XSTO / X2). \\
       A4 & A & Orbit 864 EnableForControl defaults to FALSE and is not retained: after a restart OIC01 has no PV until set online. & PLC Orbit864ItemConfigDUT; ConfigValues & Retain it (Orbit864SensorConfig) with OT01--03 = TRUE. \\
