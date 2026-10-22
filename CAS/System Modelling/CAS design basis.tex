@@ -458,7 +458,7 @@ schedule would lower $K_c$ with more pumps; [FD] raises it.
         reports the pump UNAVAILABLE and sends no start), LIC01 freezes its output. It stays frozen
         while the link is down and, once back, while the pump is in HOLD. When the pump is in
         REMOTE again, LIC01 runs one cycle on the mean actual speed of the pumps in level control
-        and returns to auto bumplessly. The pump's \texttt{Status.EnableOxyControl} is TRUE only
+        and returns to auto bumplessly. The pump's \texttt{Status.OxyPermit} is TRUE only
         with a live link in REMOTE: the permissive for oxygenation on that line.
 \end{itemize}
 \textbf{Test on 13 October 2026} (PFC200 against CasRioSim and CasFramoSim, three pumps, O-35
@@ -496,8 +496,9 @@ limited to what the lines can deliver, $\sum_{A}\dot m_{\text{max},i} + \sum_{M}
 m_{\text{meas},j}$, so the integral does not wind up beyond reach. It starts bumplessly from the
 measured total flow, and freezes while no O$_2$ sensor for control is good ([FD] §3.2.4).
 
-\textbf{Per line} (\texttt{OxyControl}): the line starts on the operator's group start only while
-its inlet pump runs in REMOTE with a live link (\texttt{InletPump.Status.EnableOxyControl}); the oxy
+\textbf{Per line} (\texttt{OxyControl}): the line starts while oxygenation is on for the pen and the
+line is enabled, only while its inlet pump runs in REMOTE with a live link
+(\texttt{InletPump.Status.OxyPermit}); the oxy
 pump then starts in auto. PIC41--43 sets the pump speed (20--50\,Hz) for 4.0\,bar absolute after the
 pump; while starting, in pump manual or with a bad pressure, the pump runs at its preset speed
 (40\,Hz). After the pump has run \texttt{RunDelay} (30\,s), oxygen may be added: FIC41--43 sets the

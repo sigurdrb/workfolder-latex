@@ -85,7 +85,7 @@
     5. XS41 / TSH41: Flygt MiniCAS II leakage / thermal relay in DC1, dry contacts to InletRIO1 DI 5.7 / 5.8.
        \textcolor{pidcheck}{Read but not used by any PLC logic; RIO2/3 have no such inputs on the drawings.}\\[1.5mm]
     \textbf{Interlocks}\\[1mm]
-    I5. Line start: operator EnableOxyControl AND permit I1 from inlet 1 AND NOT emergency stop
+    I5. Line start: Pen Oxygen Start (OxygenOn) AND line 1 enabled AND permit I1 from inlet 1 AND NOT emergency stop
         $\rightarrow$ oxy pump starts in auto. \textcolor{pidcheck}{EmergencyStop is not wired to any input.}\\[0.8mm]
     I4. Valve permit: pump running for RunDelay (30 s) after line start AND PT41 good AND PT41 $>$ 3.0 bar
         (ValveOpenPressure); otherwise OV41 is forced closed (4 mA), also in valve manual. Oxygenation active

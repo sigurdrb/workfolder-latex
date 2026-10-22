@@ -434,10 +434,13 @@ the order.
 \toprule
 Command & Type & Effect \\
 \midrule
-\var{Pen.Command.Start} & pulse & Latches \var{PenStart} in \var{InletSupervisor}; every pump in auto
-  gets \var{Inlet[i].Command.AutoStartInletPump}. Reset by the PLC when a pump runs. \\
-\var{Pen.Command.Stop} & pulse & Clears \var{PenStart}; every pump in auto gets
-  \var{AutoStopInletPump}. \\
+\var{Pen.Command.Start} & pulse & Pen state Stopped $\to$ Starting when \var{Pen.Status.Ready}
+  (\var{InletSupervisor}); the enabled pumps in auto get \var{Inlet[i].InletPump.InternalCommand.AutoStart}
+  (pump count, rotation). Cleared by the PLC in the same scan; refused: \var{Pen.Status.CommandRejected}. \\
+\var{Pen.Command.Stop} & pulse & Starting / Running $\to$ Stopping; pumps in auto get
+  \var{InternalCommand.AutoStop}; oxygenation off. \\
+\var{Pen.Command.OxygenStart}, \var{.OxygenStop} & pulse & \var{Pen.Status.OxygenOn}: enabled oxygen lines
+  (\var{OxyConfig[i].Enable}) follow their inlet pumps. \\
 \var{Pen.Command.LevelSetpoint} & value [m] & Setpoint of LIC01 (overheight inside the pen).
   [FD] gives it in cm. \\
 \var{Inlet[i].InletPump.Command.Manual} / \var{.Auto} & pulse & Sets / clears
@@ -468,7 +471,7 @@ pump state back. Table~\ref{tab:startflow} names the variables.
   \node[sm, below=16mm of s2, text width=29mm] (f) {\textbf{F}\\FramoData-\\Processing\\\footnotesize state decoding};
 
   \draw[flow] (hmi) -- node[lab, above] {Pen.Command.\\Start / Stop} (s1);
-  \draw[flow] (s1) -- node[lab, above] {Inlet[i].Command.\\AutoStartInletPump\\AutoStopInletPump} (s2);
+  \draw[flow] (s1) -- node[lab, above] {InletPump.InternalCommand.\\AutoStart\\AutoStop} (s2);
   \draw[flow] (s2) -- node[lab, above] {InletPump.\\InternalCommand.\\Start / Stop / Reset} (s3);
   \draw[flow] (s3) -- node[lab, right] {Framo\_n.Start.Active\\Framo\_n.Stop.Active\\Framo\_n.Reset.Active} (fr);
   \draw[fb] (fr) -- node[lab, below] {Framo\_n.PumpState*.Active} (f);
@@ -490,10 +493,11 @@ SM & Code unit & Reads & Operation and writes \\
 \midrule
 S1 & \var{InletSupervisor} (body) & \var{Pen.Command.Start}, \var{Pen.Command.Stop},
   \var{Inlet[i].InletPump.Status.Manual} &
-  \code{PenStart := (PenStart OR Start) AND NOT Stop}. For each pump not in manual:
-  \code{Inlet[i].Command.AutoStartInletPump := PenStart},
-  \code{AutoStopInletPump := NOT PenStart}. \\
-S2 & \var{InletControl[i].InletPumpControl} & \var{AutoStartInletPump}, \var{AutoStopInletPump}
+  Pen state machine (\var{Pen.Status.State}); \code{PenStart} = Starting or Running. \var{PumpCount} sets
+  \code{Inlet[i].InletPump.InternalCommand.AutoStart := Wanted[i]}, \code{AutoStop := NOT Wanted[i]} for the
+  candidates (enabled, auto, not UNAVAILABLE / LOCKDOWN); other pumps in auto: no AutoStart,
+  \code{AutoStop := NOT PenStart}. \\
+S2 & \var{InletControl[i].InletPumpControl} & \var{InternalCommand.AutoStart}, \var{.AutoStop}
   (auto) or \var{InletPump.Command.Start/Stop} (manual); \var{InletPump.State} &
   \var{StartPump} latches the start until a stop; \var{StopRequest} = stop command.
   \code{InletPump.Output.Start := StartPump AND StartAvailable}. The body copies to
@@ -734,7 +738,7 @@ O1 in \var{PenControl}, O2--O3 in \var{InletSupervisor}, O4--O9 in \var{OxyContr
   \node[sm] (o8) at (14.6,-4.0) {\textbf{O8}\\OxyPumpATV320\\\footnotesize DRIVECOM};
   \node[ext, text width=22mm] (atv) at (19.6,-4.0) {ATV320\\\footnotesize Modbus TCP\\\footnotesize PU041--43};
   \node[sm] (o9) at (14.6,-7.6) {\textbf{O9}\\OxyControl[i]\\\footnotesize line start,\\\footnotesize RunDelay};
-  \node[ext, text width=26mm] (inl) at (9.6,-7.6) {InletControl[i]\\\footnotesize Status.EnableOxyControl};
+  \node[ext, text width=26mm] (inl) at (9.6,-7.6) {InletControl[i]\\\footnotesize Status.OxyPermit};
   \node[ext, text width=20mm] (hmi) at (4.6,-9.6) {Operator\\(HMI)};
 
   % flows row A
@@ -754,7 +758,7 @@ O1 in \var{PenControl}, O2--O3 in \var{InletSupervisor}, O4--O9 in \var{OxyContr
   \draw[flow] (o7) -- node[lab, above] {speed\\{[Hz]}} (o8);
   \draw[flow] ([yshift=2mm]o8.east) -- node[lab, above] {CMD, LFR} ([yshift=2mm]atv.west);
   \draw[fb] ([yshift=-2mm]atv.west) -- node[lab, below] {ETA, RFR} ([yshift=-2mm]o8.east);
-  \draw[flow] (hmi.east) -| node[lab, pos=0.25, below] {OxySystem[i].Command.EnableOxyControl (group start)} ([xshift=-6mm]o9.south);
+  \draw[flow] (hmi.east) -| node[lab, pos=0.25, below] {Pen.Status.OxygenOn + OxyConfig[i].Enable} ([xshift=-6mm]o9.south);
   \draw[flow] (inl) -- node[lab, above] {InletPermit} (o9);
   \draw[fb] ([xshift=-7mm]o8.south) -- node[lab, left] {OxyPump.State} ([xshift=-7mm]o9.north);
   \draw[flow] ([xshift=7mm]o9.north) -- node[lab, right] {Run} ([xshift=7mm]o8.south);
@@ -832,8 +836,9 @@ O8 & \var{OxyControl[i].Drive} (\var{OxyPumpATV320}); transport \var{IO_Processi
   table~\ref{tab:oxyalarms}). &
   \var{OxyPump.Input.*}, \var{OxyPump.State}, \var{OxyPump.Status.CommunicationOK} \\
 O9 & \var{OxyControl[i]} body, \var{.OxyPumpControl} &
-  \var{Command.EnableOxyControl}, \var{InletPermit}, \var{OxyPump.State}, \var{.Status.Manual} &
-  Line started = operator's group start AND the inlet pump in REMOTE with a live link (D3). Auto:
+  \var{OxygenOn}, \var{Config.Enable}, \var{InletPermit}, \var{OxyPump.State}, \var{.Status.Manual} &
+  Line started = oxygenation on (Pen Oxygen Start) AND line enabled AND the inlet pump in REMOTE with a
+  live link (D3). Auto:
   the oxy pump runs while the line is started; manual: \var{OxyPump.Command.Start/Stop}.
   Oxygenation active after the pump has run \var{Config.OxyPump.RunDelay}. &
   Run, \var{Status.OxygenationActive} \\
@@ -871,9 +876,11 @@ Variable & Default & Meaning \\
 \end{tabularx}
 \end{table}
 
-Commands: \var{OxySystem[i].Command.EnableOxyControl} starts and stops line $i$ (group start);
+Commands: \var{Pen.Command.OxygenStart} / \var{OxygenStop} switch oxygenation for the pen; line $i$
+takes part when \var{OxyConfig[i].Enable} (retained);
 \var{OxySystem[i].OxyPump.Command.Manual/Auto/Start/Stop/Reset/Setpoint} run the oxy pump by hand;
-\var{OxySystem[i].OxyValve.Command.Manual/ManualSetpoint} hold the valve by hand (the line then
+\var{OxySystem[i].OxyValve.Command.Manual/Auto} (pulses, mode in \var{.Status.Manual}) and
+\var{.ManualSetpoint} hold the valve by hand (the line then
 counts as manual in O3); \var{OxyController.Command.Manual/ManualOutput} hold OIC01's total flow.
 
 \subsection*{Oxy pump alarms}
@@ -943,7 +950,7 @@ D3 & \textbf{HOLD.} [FD Tabell~5]: on heartbeat loss the LIC01 output shall free
   level control is lost, LIC01 is frozen at its output; it stays frozen while the link is down and,
   once back, while the pump is in HOLD (the operator resets it). When the pump is in REMOTE again (or
   no longer running), LIC01 runs one cycle on the mean actual speed of the pumps in level control and
-  returns to auto bumplessly. \var{InletControl} sets \var{Status.EnableOxyControl} only with a live
+  returns to auto bumplessly. \var{InletControl} sets \var{Status.OxyPermit} only with a live
   link and the pump in REMOTE: the permissive for the oxygen system on that line. \\
 D4 & \textbf{Process value.} [FD \S3.2.2]: mean of the per-inlet $\Delta H_i$ of the active
   pairs. Code was: mean of all good inside minus mean of all good outside transmitters. &
