@@ -152,7 +152,8 @@ B & 2026-10-22 & LIC01's output is the \emph{total} speed of the pumps in level 
 B1 & 2026-10-23 & LIC01 operator auto/manual bumpless both ways (IN-32): auto$\to$manual starts the manual
   output at the current output per pump (before, it jumped to the last \var{ManualOutput}, 40~rpm if
   never set); manual$\to$auto sets the setpoint to the PV and restarts with a cleared integral. Util.PID
-  \var{RESET} / \var{Y\_OFFSET} use and the tuning-only-at-reset rule described (Section~\ref{sec:lic}). \\
+  \var{RESET} / \var{Y\_OFFSET} use and the tuning-only-at-reset rule described (Section~\ref{sec:lic});
+  the manual output is limited to the output range in \var{PIDController}. \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -842,7 +843,10 @@ Section~\ref{sec:lic}; while the output is at a limit Util.PID adapts the integr
 $T_i$) with $Y_\text{offset} = Y_\text{prev} - K_p e$, so the first automatic output is $Y_\text{prev}$
 (bumpless); on the operator's manual$\to$auto the setpoint is first set to the PV, so $e = 0$ and
 $Y_\text{offset} = Y_\text{prev}$. Auto$\to$manual (\var{LevelController.Status.Manual} rising) sets
-\var{LevelController.Command.ManualOutput} $= Y_\text{prev}/N$. Util.PID applies new $K_p$, $T_i$ only
+\var{LevelController.Command.ManualOutput} $= Y_\text{prev}/N$. In manual Util.PID sets
+$Y = Y_\text{manual}$ without its limits; \var{PIDController} therefore limits the manual output to
+\var{OutputMin}..\var{OutputMax} (all four controllers), so manual never drives LIC01 below
+$N\times40$~rpm. Util.PID applies new $K_p$, $T_i$ only
 at a reset: after changing the tuning in auto, give \emph{Auto} once (restart from the current output).
 
 \begin{table}[htbp]
