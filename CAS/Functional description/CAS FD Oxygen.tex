@@ -116,6 +116,9 @@ A1 & 2026-10-22 & RIO link loss: the line's pressure and flow values freeze with
   2026-10-22: the O$_2$ valve outputs to the 750-563 (CommonRIO words 20--22) were mapped from an unused
   struct and stayed at 4\,mA; corrected to \var{OxySystem[i].OxyValve} (register OX-29), retest pending.
   No upstream shut-off valves (OI5 closed, budget). \\
+A2 & 2026-10-23 & OIC01 operator auto/manual bumpless both ways (register OX-30): auto$\to$manual starts the
+  manual output at the current output, manual$\to$auto sets the \Otwo{} setpoint to the PV and restarts
+  with a cleared integral. \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -407,7 +410,13 @@ of lines running; one parameter set is enough (the three sets of [FD] table~13 a
   \item \textbf{Bumpless start}: on the first enabled cycle the output starts at the measured
         total flow.
   \item \textbf{Manual}: the operator can set the total flow by hand
-        (\var{OxyController.Command.Manual}, \var{.ManualOutput}).
+        (\var{OxyController.Command.Manual}, \var{.ManualOutput}). Bumpless both ways, as LIC01
+        (CAS-FD-10 rev~B1), while the pen is started and lines are in auto: auto$\to$manual sets the
+        manual output to the current total flow output, so the \Otwo{} flow does not jump (before, it
+        went to the last \var{ManualOutput}, 0 if never set); manual$\to$auto sets the \Otwo{} setpoint
+        (\var{PenConfig.OxySetpoint}) to the pen \Otwo{} (PV), if the measurement is valid, and restarts
+        the PID from the manual output with a cleared integral (\var{RESET}, \var{Y\_OFFSET}). The
+        operator then moves the setpoint to where it should be.
   \item \textbf{Bad \Otwo{} measurement}: the output is frozen at its last value (interlock I7
         on CAS-PID-400) for as long as the measurement is bad\open{14}.
 \end{itemize}
