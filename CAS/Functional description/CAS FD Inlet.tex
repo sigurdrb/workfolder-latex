@@ -154,7 +154,8 @@ B1 & 2026-10-23 & LIC01 operator auto/manual bumpless both ways (IN-32): auto$\t
   never set); manual$\to$auto sets the setpoint to the PV and restarts with a cleared integral. Util.PID
   \var{RESET} / \var{Y\_OFFSET} use and the tuning-only-at-reset rule described (Section~\ref{sec:lic});
   the manual output is limited to the output range in \var{PIDController}. Resume after HOLD counts the pump
-  just back in REMOTE (IN-33; before, the restart total missed it and all pumps fell to about 49~rpm). \\
+  just back in REMOTE, and a pump joining level control straight in REMOTE triggers a resume (IN-33;
+  before, its speed was missing from the total and all pumps fell to 45--49~rpm). \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -459,7 +460,11 @@ left\decided{3}; (3) the output frozen when the heartbeat to a pump in level con
 summed actual speed of the pumps in level control for one cycle after the freeze (resume), counting a
 pump that is back in REMOTE in that same cycle; (5) the summed actual speed of the starting pumps
 (tracking). A pump in auto that is in REMOTE counts for level control (sharing, limits) from the cycle it
-takes a setpoint, also when it comes straight from HOLD.
+takes a setpoint, also when it comes straight from HOLD. A pump that joins level control straight in REMOTE
+(Reset from HOLD, not through START) triggers the same resume, so its speed is in LIC01's total and the
+others do not give way (IN-33). Seen live: when the link to a pump in HOLD comes back, the freeze can end
+before the Reset (the state reads other than HOLD for a cycle); LIC01 then runs on the other pumps until
+the Reset, which this resume makes bumpless.
 
 \textbf{Operator auto/manual, bumpless both ways} (while the pen is started and pumps are in level control):
 \begin{itemize}
