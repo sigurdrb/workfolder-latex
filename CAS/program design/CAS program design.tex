@@ -209,7 +209,13 @@ called. Figure~\ref{fig:exec} is the execution sequence in the outline form of [
   \node[draw, fill=yellow!8, align=left, font=\small\ttfamily, inner sep=6pt, text width=78mm] (t1) {%
   \textbf{\normalfont Task \texttt{Task}} (cyclic)\\[1mm]
   Main\\
-  \quad InletSupervisor \hfill SM 7, 8, S1\\
+  \quad InletSupervisor\\
+  \quad\quad InletPumpSet \hfill SM 7\\
+  \quad\quad Accounting, SortSequence\\
+  \quad\quad PenLevelControl \hfill SM 8\\
+  \quad\quad PumpCount\\
+  \quad\quad PenOxygenControl \hfill O2, O3\\
+  \quad\quad PenSequence \hfill S1\\
   \quad FOR i := 0 TO 2:\\
   \quad\quad InletControl[i] \hfill SM 9, 10, S2\\
   \quad\quad\quad InletSensors \hfill SM 2, 3, 4\\
@@ -243,6 +249,13 @@ setpoint is then handed to \var{FramoDataProcessing} in the next run of
 \var{OPC_Processing}, and the OPC UA client sends it with its own publishing interval. Together
 with the 60~ms Modbus poll this is some tenths of a second, small next to the 2~s dead time of the
 level loop [DES \S7].
+
+\textbf{Inside \var{InletSupervisor}} (since 2026-10-23) each SM is its own function block, wired only
+through inputs and outputs in a fixed order [COO \S4.2, Fig.~7.10]. \var{InletPumpSet} (SM~7) works out
+once, from this cycle's pump states, which pumps count in LIC01's total and which the PLC sets; the others
+read that by value. \var{PenSequence} (S1) runs last, so it sees what level control and the pump count did
+in this cycle; they act on its new pen state one cycle (20~ms) later. LIC01 and OIC01 each have their own
+\var{ControllerMode} instance for the operator's bumpless auto/manual.
 
 % ---------------------------------------------------------------------------------------------
 \section{Starting an inlet pump}
@@ -464,7 +477,7 @@ pump state back. Table~\ref{tab:startflow} names the variables.
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[node distance=9mm and 22mm]
   \node[ext] (hmi) {Operator\\(HMI)};
-  \node[sm, right=of hmi, text width=27mm] (s1) {\textbf{S1}\\InletSupervisor\\\footnotesize start/stop latch};
+  \node[sm, right=of hmi, text width=27mm] (s1) {\textbf{S1}\\PenSequence,\\PumpCount};
   \node[sm, right=of s1, text width=29mm] (s2) {\textbf{S2}\\InletControl[i]\\\footnotesize .InletPumpControl};
   \node[sm, right=of s2, text width=27mm] (s3) {\textbf{S3}\\FramoData-\\Processing};
   \node[ext, below=16mm of s3] (fr) {Framo local\\controller $n$};
@@ -491,7 +504,7 @@ pump state back. Table~\ref{tab:startflow} names the variables.
 \toprule
 SM & Code unit & Reads & Operation and writes \\
 \midrule
-S1 & \var{InletSupervisor} (body) & \var{Pen.Command.Start}, \var{Pen.Command.Stop},
+S1 & \var{PenSequence}, \var{PumpCount} (in \var{InletSupervisor}) & \var{Pen.Command.Start}, \var{Pen.Command.Stop},
   \var{Inlet[i].InletPump.Status.Manual} &
   Pen state machine (\var{Pen.Status.State}); \code{PenStart} = Starting or Running. \var{PumpCount} sets
   \code{Inlet[i].InletPump.InternalCommand.AutoStart := Wanted[i]}, \code{AutoStop := NOT Wanted[i]} for the
@@ -546,8 +559,8 @@ what it does with them and the variables it writes.
        {PenOverHeight.Config: Enable, FilterFc};
 
   % Row B: control, right to left
-  \node[sm] (s7) at (19.6,-3.7) {\textbf{7}\\InletSupervisor\\\footnotesize start-up tracking};
-  \node[sm] (s8) at (24.6,-6.4) {\textbf{8}\\InletSupervisor\\\footnotesize .LevelControl\\\footnotesize LIC01};
+  \node[sm] (s7) at (19.6,-3.7) {\textbf{7}\\InletPumpSet\\\footnotesize pumps counted};
+  \node[sm] (s8) at (24.6,-6.4) {\textbf{8}\\PenLevelControl\\\footnotesize LIC01};
   \node[sm] (s9) at (19.6,-6.4) {\textbf{9}\\InletControl[i]\\\footnotesize manual/auto};
   \node[sm] (s10) at (14.6,-6.4) {\textbf{10}\\InletControl[i]\\\footnotesize .InletPumpControl};
   \node[sm] (s11) at (9.6,-6.4) {\textbf{11}\\FramoData-\\Processing};
@@ -655,23 +668,19 @@ SM & Code unit (task) & Reads & Operation & Writes \\
   Process value of LIC01, and \code{LevelControlOK := NOT BadQuality}. Alarm
   \var{Pen.Alarm.LevelMeasurementLost} while no pair is valid. &
   \var{Pen.Status.OverHeight} [m], \var{Pen.Status.LevelControlOK} \\
-7 & \var{InletSupervisor} body (Task) &
-  \var{Inlet[i].InletPump.State}, \var{.Status.EnableLevelControl},
-  \var{.Input.MotorVelocity} &
-  Start-up tracking [FD \S3.2.1]: if a pump in level control is in START and none is in REMOTE,
-  \code{LevelTracking := TRUE} and \var{LevelTrackSpeed} = mean actual speed of the starting
-  pumps. Heartbeat loss [FD Tabell~5]: \code{LevelHold} while a pump that was in level control
-  has no link or is in HOLD (output frozen at \var{LevelHoldOutput}); then \code{LevelResume} for
-  one LIC01 cycle on the mean actual speed of the pumps in level control. &
-  \var{LevelTracking}, \var{LevelTrackSpeed}, \var{LevelHold}, \var{LevelResume} [rpm] (local) \\
-8 & \var{InletSupervisor.LevelControl} (\var{PIDController}) $\to$ \var{Util.PID} (Task) &
+7 & \var{InletPumpSet} (Task) &
+  \var{Inlet[i].InletPump.State}, \var{.Status.Manual}, \var{.Status.CommunicationOK},
+  \var{.Input.MotorVelocity}, \var{InletConfig[i].InletPump.Enable} &
+  Counted: in auto and START, REMOTE, HOLD or STOP, or link lost while counted (last speed).
+  Controlled: counted, REMOTE, link OK. &
+  \code{Pumps}, \code{ControlledPumps}, \code{SumSpeed}, \code{FixedSpeed} [rpm], \code{PumpReady} \\
+8 & \var{PenLevelControl}: \var{ControllerMode}, \var{PIDController} $\to$ \var{Util.PID} (Task) &
   SP \var{Pen.Command.LevelSetpoint}, PV \var{Pen.Status.OverHeight},
   \var{Pen.Status.LevelControlOK}, \var{PenConfig.LevelController.*},
   \var{LevelController.Command.*}, SM~7 &
-  Enabled when \var{PenStart} and at least one pump in level control. Manual when the operator
-  says so, when the level is lost (\code{NOT LevelControlOK}), on heartbeat loss (hold, resume) or
-  while tracking; the manual output is, in that order, the operator's, \var{SafeOutput} (limited
-  to Min/MaxOutput), the frozen output, the resume speed or \var{LevelTrackSpeed}.
+  Mode (\var{LevelControlMode}), by priority: Idle (pen stopped or no pump counted), Manual
+  (operator), SafeOutput (\code{NOT LevelControlOK}), Tracking (no pump controlled: output = SM~7
+  \code{SumSpeed}), Auto. Output = total; share = (total $-$ \code{FixedSpeed}) / \code{ControlledPumps}.
   PI: $Y = K_p\,(e + \tfrac{1}{T_i}\int e\,dt + T_d\,\dot e) + Y_\text{offset}$, limited to
   \var{MinOutput..MaxOutput}. Manual$\to$auto: \var{RESET} with
   $Y_\text{offset} = Y_\text{prev} - K_p e$ (bumpless). &
@@ -714,7 +723,7 @@ The oxygen system follows the cascade of [FD \S3.2.4]: OIC01 on the pen O$_2$ ov
 (FIC) per line, with the oxy pump of each line on a pressure loop (PIC). OIC01's output is the
 \emph{total} O$_2$ flow to the pen, shared between the lines in auto (SM~O3). Figure~\ref{fig:oxyffd}
 is the functional flow diagram, Table~\ref{tab:oxyflow} the dataflow. All SMs run in \var{Task}:
-O1 in \var{PenControl}, O2--O3 in \var{InletSupervisor}, O4--O9 in \var{OxyControl[i]}, O10 in
+O1 in \var{PenControl}, O2--O3 in \var{PenOxygenControl} (called by \var{InletSupervisor}), O4--O9 in \var{OxyControl[i]}, O10 in
 \var{IO_Processing}.
 
 \begin{center}
@@ -723,8 +732,8 @@ O1 in \var{PenControl}, O2--O3 in \var{InletSupervisor}, O4--O9 in \var{OxyContr
   % Row A: O2 measurement and OIC01
   \node[ext, text width=22mm] (ot) at (0,0) {Orbit 864\\\footnotesize 750-652, RTU};
   \node[sm] (o1) at (4.6,0) {\textbf{O1}\\PenControl\\\footnotesize mean O$_2$ [mg/L]};
-  \node[sm] (o2) at (9.6,0) {\textbf{O2}\\InletSupervisor\\\footnotesize OIC01 (PI)};
-  \node[sm] (o3) at (14.6,0) {\textbf{O3}\\InletSupervisor\\\footnotesize share};
+  \node[sm] (o2) at (9.6,0) {\textbf{O2}\\PenOxygenControl\\\footnotesize OIC01 (PI)};
+  \node[sm] (o3) at (14.6,0) {\textbf{O3}\\PenOxygenControl\\\footnotesize share};
   \node[sm] (o4) at (19.6,0) {\textbf{O4}\\OxyControl[i]\\\footnotesize FIC};
   \node[sm] (o5) at (24.6,0) {\textbf{O5}\\AnalogValve\\\footnotesize interlock};
   \node[ext, text width=22mm] (crio) at (29.2,0) {CommonRIO\\\footnotesize 750-563 words 20--22\\\footnotesize OV41--43};
@@ -788,14 +797,14 @@ O1 & \var{PenControl.Sensors}, body &
   \var{Pen.Input.Orbit864Sensor[0..5].OxygenConcentration} &
   Mean of the sensors marked for control and in good quality; bad when none is good. &
   \var{Pen.Status.PenOxygenLevel} [mg/L], \var{Pen.Status.OxyControlOK} \\
-O2 & \var{InletSupervisor.OxyControl} (\var{PIDController}) &
+O2 & \var{PenOxygenControl}: \var{ControllerMode}, \var{PIDController} &
   SP \var{PenConfig.OxySetpoint}, PV O1, \var{PenConfig.OxyController}, the lines' status &
   PI to the total O$_2$ flow [kg/h]. Enabled with \var{PenStart} and at least one line in auto.
   Limited to what the lines in auto can deliver plus the manual lines' flow. Manual: operator;
   frozen while \code{NOT OxyControlOK}; first enabled cycle from the measured total flow
   (bumpless). &
   \var{OxyController.Output.OUT} [kg/h] \\
-O3 & \var{InletSupervisor} &
+O3 & \var{PenOxygenControl} &
   O2, \var{OxySystem[i].Status.InAuto}, \var{.OxyFlow}, \var{OxyConfig[i].FlowMax} &
   Share: (total $-$ measured flow of the active lines not in auto) / number of lines in auto,
   each limited to its \var{FlowMax}. A lost line or a moved manual line is made up at once. &

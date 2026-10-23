@@ -75,7 +75,7 @@ Code & Document & Used for \\
 {[FD]} & P-15169-CAS-FD-01 Funksjonsbeskrivelse CAS rev~B (Norwegian), \S3.2.4 Oksygentilførsel, tables 12--15, 17 & Required functions \\
 {[AL]} & P-15169-CAS-FD-02 Alarmliste CAS Heimdall rev~A & Required alarms \\
 {[PID]} & CAS P\&ID and loop diagrams (workfolder-latex), sheets CAS-PID-200, -300, -400, CAS-LAY-700, CAS-LD-802..804, CAS-PID-900/901, -950 & Tags, I/O, open points \\
-{[PLC]} & Heimdall PLC project (CODESYS export of 2026-10-21): \texttt{FB.OxySystem.OxyControl}, \texttt{OxyPumpATV650}, \texttt{OxySensors}, \texttt{FB.Inlet.InletSupervisor}, \texttt{FB.Pen.PenControl}, \texttt{FB.RIO.InletRIO}, DUT \texttt{System.OxySystem}, \texttt{PFC200\_Sim} \texttt{ConfigValues} & Implemented behaviour, defaults \\
+{[PLC]} & Heimdall PLC project (CODESYS export of 2026-10-21): \texttt{FB.OxySystem.OxyControl}, \texttt{OxyPumpATV650}, \texttt{OxySensors}, \texttt{FB.Inlet.PenOxygenControl} (OIC01 and the line shares, called by \texttt{InletSupervisor}), \texttt{FB.Components.ControllerMode}, \texttt{FB.Pen.PenControl}, \texttt{FB.RIO.InletRIO}, DUT \texttt{System.OxySystem}, \texttt{PFC200\_Sim} \texttt{ConfigValues} & Implemented behaviour, defaults \\
 {[PD]} & CAS program design (workfolder-latex), oxygen dataflow O1--O10 & Software structure \\
 {[DB]} & CAS design basis (workfolder-latex) and CasDesignBasis v2.3.12 & Process model, tuning \\
 {[O2S]} & Beregningsark dimensjonering ved bortfall av pumper eller strøm, 17.03.26 & \Otwo{} demand, saturation targets \\
@@ -118,7 +118,8 @@ A1 & 2026-10-22 & RIO link loss: the line's pressure and flow values freeze with
   No upstream shut-off valves (OI5 closed, budget). \\
 A2 & 2026-10-23 & OIC01 operator auto/manual bumpless both ways (register OX-30): auto$\to$manual starts the
   manual output at the current output, manual$\to$auto sets the \Otwo{} setpoint to the PV and restarts
-  with a cleared integral. \\
+  with a cleared integral. OIC01 moved from \var{InletSupervisor} to its own FB \var{PenOxygenControl}
+  (same behaviour); the pen state reaches it one cycle after the operator's command. \\
 \bottomrule
 \end{tabularx}
 \end{small}
