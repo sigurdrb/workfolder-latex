@@ -149,8 +149,10 @@ B & 2026-10-22 & LIC01's output is the \emph{total} speed of the pumps in level 
   (Section~\ref{sec:nfreq}). Operator commands restructured: pen state machine with Ready and pulses
   only, controller modes as pulses with a status, internal commands apart (Section~\ref{sec:seq}). Simulator
   tests of the sharing, the pump count, the rotation and the pen states are pending. \\
-B1 & 2026-10-23 & LIC01 auto$\to$manual bumpless: the manual output starts at the current output per pump
-  (IN-32; before, it jumped to the last \var{ManualOutput}, 40~rpm if never set). \\
+B1 & 2026-10-23 & LIC01 operator auto/manual bumpless both ways (IN-32): auto$\to$manual starts the manual
+  output at the current output per pump (before, it jumped to the last \var{ManualOutput}, 40~rpm if
+  never set); manual$\to$auto sets the setpoint to the PV and restarts with a cleared integral. Util.PID
+  \var{RESET} / \var{Y\_OFFSET} use and the tuning-only-at-reset rule described (Section~\ref{sec:lic}). \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -453,9 +455,17 @@ and are scaled by $N$. While LIC01 is in manual its output is taken, in this ord
 (1) the operator's manual output $\times N$; (2) \var{SafeOutput} (60~rpm) $\times N$ when no valid pair is
 left\decided{3}; (3) the output frozen when the heartbeat to a pump in level control was lost; (4) the
 summed actual speed of the pumps in level control for one cycle after the freeze (resume); (5) the summed
-actual speed of the starting pumps (tracking). Both transfers are bumpless: auto$\to$manual by the
-operator sets the manual output to LIC01's current output per pump (total$/N$, within 40--130~rpm), so
-the pumps keep their speed; manual$\to$auto continues from the manual output.
+actual speed of the starting pumps (tracking).
+
+\textbf{Operator auto/manual, bumpless both ways} (while the pen is started and pumps are in level control):
+\begin{itemize}
+  \item Auto$\to$manual: the manual output is set to LIC01's current output per pump (total$/N$, within
+        40--130~rpm), so the pumps keep their speed.
+  \item Manual$\to$auto: the setpoint is set to the current over-height (PV), if a level pair is valid, and
+        LIC01 restarts from the manual output with a cleared integral. It starts with no error and no step;
+        the operator then moves the setpoint to where it should be.
+\end{itemize}
+With the pen stopped a mode change leaves the setpoint and the manual output as they are.
 
 \textbf{Level deviation} (DEC8). With LIC01 in auto, alarm \emph{Level deviation high} (\emph{low}) when
 $\Delta H_\text{avg}$ stays more than \var{LevelDeviationLimit} (0.02~m) above (below) the setpoint for
@@ -827,10 +837,13 @@ LIC01 is a PI controller (CODESYS \var{Util.PID} wrapped in \var{PIDController})
 T(t) = K_p\Big(e(t) + \frac{1}{T_i}\int e\,dt\Big) + Y_\text{offset}, \qquad e = \mathrm{SP} - \Delta H_\text{avg},
 \]
 the total speed of the pumps in level control, limited to $N\times$(40--130)~rpm and shared as in
-Section~\ref{sec:lic}; the integral is held while the output is at a limit. Manual$\to$auto resets
-the PID with $Y_\text{offset} = Y_\text{prev} - K_p e$ (bumpless). Auto$\to$manual
-(\var{LevelController.Status.Manual} rising) sets \var{LevelController.Command.ManualOutput} $=
-Y_\text{prev}/N$ (bumpless).
+Section~\ref{sec:lic}; while the output is at a limit Util.PID adapts the integral to the limited output
+(anti-windup). Manual$\to$auto gives \var{RESET} for one cycle (clears the integral and applies $K_p$,
+$T_i$) with $Y_\text{offset} = Y_\text{prev} - K_p e$, so the first automatic output is $Y_\text{prev}$
+(bumpless); on the operator's manual$\to$auto the setpoint is first set to the PV, so $e = 0$ and
+$Y_\text{offset} = Y_\text{prev}$. Auto$\to$manual (\var{LevelController.Status.Manual} rising) sets
+\var{LevelController.Command.ManualOutput} $= Y_\text{prev}/N$. Util.PID applies new $K_p$, $T_i$ only
+at a reset: after changing the tuning in auto, give \emph{Auto} once (restart from the current output).
 
 \begin{table}[htbp]
 \centering\small
