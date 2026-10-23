@@ -708,6 +708,29 @@ per pump a drive fault (OCF, OHF, OLF, USF), a high thermal state, a warning or 
 
 \input{generated/params_oxypump.tex}
 
+\textbf{Waves (CasRioSim 2.4.8).} The simulator UI sets a sea state, 0 (no waves) to 5; sea state 3
+is the design, the 50-year condition $H_s = 2.0$\,m, $T_p = 4.5$\,s of [DB] tab.~19. $H_s$ is the
+mean height of the highest third of the waves, for a narrow-band sea $4\sigma_\eta$ of the surface
+elevation. Outside the pen the sea is a long-crested JONSWAP spectrum scaled to exactly
+$H_s = 4\sigma_\eta$. The bag is flexible PVC (Biobrane Aqua 2050, [DB] tab.~7); in the
+prototype tests it blocked the outside waves partly, and inside were smaller waves that crossed and
+reflected. The simulator models the inside as the sloshing modes of a cylinder of diameter $D$ and
+depth $D_o$ (periods 3.6--8\,s), forced by the sea at the wall and scaled to
+$H_{s,\text{in}} = 0.3\,H_s$ at the design state. Both transmitters of a pair hang on the floater,
+which heaves with the sea: the heave cancels in the over-height but not in each reading, so a
+reading can leave the 0--2\,m span. The table gives $4\sigma$ of the inside surface, the two
+readings and the over-height before the PLC's level filter. All wave parameters are assumptions
+until the pen's own measurements are in:
+\begin{center}
+\input{generated/sea_states.tex}
+\end{center}
+
+\input{generated/params_waves.tex}
+
+\textbf{Fish (CasRioSim 2.4.8).} The UI also sets the number of fish and the O$_2$ consumption of
+one fish; the default is the design, $B/W$ fish at $rW$ each (\CASFishCount{} fish,
+\CASFishOtwo\,mg/h), which gives $R_0$.
+
 \section{Design checks}\label{sec:checks}
 
 \subsection{Oxygen capacity}
