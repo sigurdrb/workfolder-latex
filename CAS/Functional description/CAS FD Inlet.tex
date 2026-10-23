@@ -153,7 +153,8 @@ B1 & 2026-10-23 & LIC01 operator auto/manual bumpless both ways (IN-32): auto$\t
   output at the current output per pump (before, it jumped to the last \var{ManualOutput}, 40~rpm if
   never set); manual$\to$auto sets the setpoint to the PV and restarts with a cleared integral. Util.PID
   \var{RESET} / \var{Y\_OFFSET} use and the tuning-only-at-reset rule described (Section~\ref{sec:lic});
-  the manual output is limited to the output range in \var{PIDController}. \\
+  the manual output is limited to the output range in \var{PIDController}. Resume after HOLD counts the pump
+  just back in REMOTE (IN-33; before, the restart total missed it and all pumps fell to about 49~rpm). \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -455,8 +456,10 @@ control. The per-pump values (limits, \var{SafeOutput}, the operator's manual ou
 and are scaled by $N$. While LIC01 is in manual its output is taken, in this order of priority, from:
 (1) the operator's manual output $\times N$; (2) \var{SafeOutput} (60~rpm) $\times N$ when no valid pair is
 left\decided{3}; (3) the output frozen when the heartbeat to a pump in level control was lost; (4) the
-summed actual speed of the pumps in level control for one cycle after the freeze (resume); (5) the summed
-actual speed of the starting pumps (tracking).
+summed actual speed of the pumps in level control for one cycle after the freeze (resume), counting a
+pump that is back in REMOTE in that same cycle; (5) the summed actual speed of the starting pumps
+(tracking). A pump in auto that is in REMOTE counts for level control (sharing, limits) from the cycle it
+takes a setpoint, also when it comes straight from HOLD.
 
 \textbf{Operator auto/manual, bumpless both ways} (while the pen is started and pumps are in level control):
 \begin{itemize}
