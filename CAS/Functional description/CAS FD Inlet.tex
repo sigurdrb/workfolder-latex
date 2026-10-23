@@ -9,7 +9,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \lhead{\small CAS (Heimdall) -- FD inlet system}
-\rhead{\small CAS-FD-10 rev.~B}
+\rhead{\small CAS-FD-10 rev.~B1}
 \cfoot{\small\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 \setlength{\headheight}{14pt}
@@ -149,6 +149,8 @@ B & 2026-10-22 & LIC01's output is the \emph{total} speed of the pumps in level 
   (Section~\ref{sec:nfreq}). Operator commands restructured: pen state machine with Ready and pulses
   only, controller modes as pulses with a status, internal commands apart (Section~\ref{sec:seq}). Simulator
   tests of the sharing, the pump count, the rotation and the pen states are pending. \\
+B1 & 2026-10-23 & LIC01 auto$\to$manual bumpless: the manual output starts at the current output per pump
+  (IN-32; before, it jumped to the last \var{ManualOutput}, 40~rpm if never set). \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -451,7 +453,9 @@ and are scaled by $N$. While LIC01 is in manual its output is taken, in this ord
 (1) the operator's manual output $\times N$; (2) \var{SafeOutput} (60~rpm) $\times N$ when no valid pair is
 left\decided{3}; (3) the output frozen when the heartbeat to a pump in level control was lost; (4) the
 summed actual speed of the pumps in level control for one cycle after the freeze (resume); (5) the summed
-actual speed of the starting pumps (tracking). Manual$\to$auto is bumpless.
+actual speed of the starting pumps (tracking). Both transfers are bumpless: auto$\to$manual by the
+operator sets the manual output to LIC01's current output per pump (total$/N$, within 40--130~rpm), so
+the pumps keep their speed; manual$\to$auto continues from the manual output.
 
 \textbf{Level deviation} (DEC8). With LIC01 in auto, alarm \emph{Level deviation high} (\emph{low}) when
 $\Delta H_\text{avg}$ stays more than \var{LevelDeviationLimit} (0.02~m) above (below) the setpoint for
@@ -824,7 +828,9 @@ T(t) = K_p\Big(e(t) + \frac{1}{T_i}\int e\,dt\Big) + Y_\text{offset}, \qquad e =
 \]
 the total speed of the pumps in level control, limited to $N\times$(40--130)~rpm and shared as in
 Section~\ref{sec:lic}; the integral is held while the output is at a limit. Manual$\to$auto resets
-the PID with $Y_\text{offset} = Y_\text{prev} - K_p e$ (bumpless).
+the PID with $Y_\text{offset} = Y_\text{prev} - K_p e$ (bumpless). Auto$\to$manual
+(\var{LevelController.Status.Manual} rising) sets \var{LevelController.Command.ManualOutput} $=
+Y_\text{prev}/N$ (bumpless).
 
 \begin{table}[htbp]
 \centering\small
