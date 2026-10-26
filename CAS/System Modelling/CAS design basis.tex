@@ -174,6 +174,31 @@ the damper opening $k_d/k_{d,\text{full}}$, and the level time constant $1/a_h$
 \input{generated/modes.tex}
 \end{center}
 
+\subsection{Outlet damper characteristic}\label{sec:damper}
+[DB] gives the outlet system diameter ($D_\text{out}=5.5$\,m, tab.~14) but no damper data, and
+[FD] tab.~10 leaves the opening per mode empty. The model therefore takes the outlet as a fixed
+loss in series with the damper, both on the reference area $A_\text{out}=\pi D_\text{out}^2/4$:
+\begin{align}
+  q_\text{out} &= A_\text{out}\sqrt{\frac{2g\,(\Delta h+h_\rho)}{K_f + K_d(z)}}, \qquad
+  K_d(z) = \left(\frac{1}{C_c z}-1\right)^2,
+\end{align}
+so that $k_d(z) = k_{d,\text{full}}\,f(z)$ with $f(z)=\sqrt{K_\text{full}/(K_f+K_d(z))}$ and
+$K_\text{full} = 2gA_\text{out}^2/k_{d,\text{full}}^2 = K_f + K_d(1)$. The damper is an opening of
+area $zA_\text{out}$ (area linear in the cylinder position) with a sharp-edged contraction $C_c$;
+$K_f$ is the rest of the outlet: fish screen, sludge collector, grommet and exit. With
+$k_{d,\text{full}}$ from O-45 this gives $K_\text{full}\approx 11.6$ (velocity
+0.40\,m/s at 34\,000\,m$^3$/h). That is a plausible total for a screened outlet with a sludge
+collector; a clean exit and entrance alone would be about 1.5. Fouling of the screen or the
+sludge collector raises $K_f$ and lowers the flow at every opening.
+
+Because $K_f$ dominates, the installed characteristic is quick-opening: the flow is within 10\,\%
+of full above about 60\,\% opening and falls steeply below 40\,\%. The opening per mode in the
+table above is the inverse, $z=f^{-1}(k_d/k_{d,\text{full}})$, at the mode's own level setpoint.
+The PLC holds one level setpoint (6\,cm); at 6\,cm the openings for the [FD] flows are about
+100, 44, 28 and 22\,\% for O-35, O-45, O-60 and S-75. These are starting values for
+commissioning. $C_c$, the damper geometry and $h_\rho$ are assumed, so the openings must be
+tuned against the measured flow.
+
 \textbf{\CASNomMode{} is the nominal design point.} It is the [DB] dimensioning case (case~3:
 1\,000\,t, 27\,000\,m$^3$/h, 45\,min), and the mode that must be held with one pump out. The
 linear model and the discrete equations are given for \CASNomMode{} with \CASNomPumps{} pumps.
@@ -608,8 +633,9 @@ the behaviour:
         valve position $u_{\%,j}$. The plant is the valve itself:
         $\tau_v\,\ddot m_j = \sigma_j\,\dot m_\text{max}\,u_{\%,j}/100 - \dot m_j$, zero below
         the cut-off $u_\text{cut}$. FT41--43 read $\dot m_j$.
-  \item \textbf{Outlet opening.} $q_\text{out} = k_{d,\text{full}}\,z\,\mathrm{sgn}(\Delta h+h_\rho)
-        \sqrt{|\Delta h+h_\rho|}$ with opening $z\in[0,1]$, set from the simulator control block or
+  \item \textbf{Outlet opening.} $q_\text{out} = k_{d,\text{full}}\,f(z)\,\mathrm{sgn}(\Delta h+h_\rho)
+        \sqrt{|\Delta h+h_\rho|}$ with opening $z\in[0,1]$ and the damper characteristic $f(z)$ of
+        Section~\ref{sec:damper}, set from the simulator control block or
         from the mean damper cylinder position. A negative $q_\text{out}$ is sea water flowing in
         through the outlet; it carries $c_\text{in}$.
   \item \textbf{Start state.} Pumps stopped, $\Delta h = -h_\rho$, $c = c_\text{in}$.
@@ -907,8 +933,8 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
         restart). Sharing a total-flow output among the running pumps, with the contribution of a
         starting pump subtracted, would remove most of it. Deferred.
   \item \textbf{Outlet dampers for flow control.} Planned: the hydraulic dampers become part of
-        the flow control. The model then needs the damper characteristic (opening $\to k_d$),
-        the stroke time and the hydraulics.
+        the flow control. The model has an assumed damper characteristic (Section~\ref{sec:damper});
+        it needs the real one from Framo or a measurement, and the stroke time and the hydraulics.
   \item \textbf{SCL.Butterworth version.} Only the per-transmitter display smoothing uses it now;
         check that the corrected filter is in the library version Heimdall references.
 \end{enumerate}
