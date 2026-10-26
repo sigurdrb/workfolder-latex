@@ -115,7 +115,8 @@ A & 2026-10-21 & First issue. Written from [FD] rev~B, the P\&ID set and the PLC
 A1 & 2026-10-22 & RIO link loss: the line's pressure and flow values freeze with good quality (fault table, OI28). Inlet side: the inlet pumps' speed now follows the shared total of LIC01 and the PLC chooses the number of inlet pumps (CAS-FD-10 rev~B); a line stops when its inlet pump is stopped by the pump count or rotation and starts again when its pump is back in REMOTE. Oxygenation is switched for the whole pen (Pen Oxygen Start / Stop) and each line has a retained Enable, replacing the per-line \var{Command.EnableOxyControl}; valve auto / manual as pulses. Live test
   2026-10-22: the O$_2$ valve outputs to the 750-563 (CommonRIO words 20--22) were mapped from an unused
   struct and stayed at 4\,mA; corrected to \var{OxySystem[i].OxyValve} (register OX-29), retest pending.
-  No upstream shut-off valves (OI5 closed, budget). \\
+  No upstream shut-off valves (OI5 closed, budget). Drive fault reset also by acknowledging the
+  DriveError alarm (2026-10-26). \\
 A2 & 2026-10-23 & OIC01 operator auto/manual bumpless both ways (register OX-30): auto$\to$manual starts the
   manual output at the current output, manual$\to$auto sets the \Otwo{} setpoint to the PV and restarts
   with a cleared integral. OIC01 moved from \var{InletSupervisor} to its own FB \var{PenOxygenControl}
@@ -542,8 +543,11 @@ the transmitters turn out to read gauge pressure, both must be lowered together 
 \subsection{Drive state machine (DRIVECOM)}
 The PLC walks the ATV650 through the DRIVECOM (CiA 402) states by writing the command word CMD
 (8501) and reading the status word ETA (3201) every 100\,ms (block \var{OxyPumpATV650}).
-Speed reference LFR (8502) is written in 0.1\,Hz, limited to 20--50\,Hz. A fault is reset by an
-operator reset, which sends \texttt{0x0080} for 0.5\,s. The drive must have its command and
+Speed reference LFR (8502) is written in 0.1\,Hz, limited to 20--50\,Hz. A fault is reset by the
+operator's Reset (\var{OxyPump.Command.Reset}, HMI \emph{Reset oxy pump}) or by acknowledging the drive
+fault alarm (\var{OxyPump.AlarmAck.DriveError}, also through \emph{Acknowledge all}); either sends
+\texttt{0x0080} for 0.5\,s on its rising edge. The alarm clears once the PLC reads a status word without
+fault. Typical case: the drive trips on EtHF after a lost Ethernet link and waits for this reset. The drive must have its command and
 reference channel set to the embedded Ethernet port (Fr1, Cd1).
 \begin{figure}[htbp]
 \centering
@@ -650,7 +654,7 @@ Fault & Detection & Response (PLC 2026-10-21) & Recovery \\
 \endhead
 \bottomrule
 \endfoot
-Drive fault & ETA state ``fault''; code in LFT & Pump Unavailable, line drops out of auto, valve closed, alarms DriveError + PumpCommonError & Operator reset (\texttt{0x0080}), then restart \\
+Drive fault & ETA state ``fault''; code in LFT & Pump Unavailable, line drops out of auto, valve closed, alarms DriveError + PumpCommonError & Reset oxy pump, or acknowledge the DriveError alarm: \texttt{0x0080}; alarm clears with a fault-free ETA; in auto the line restarts \\
 Drive communication lost & \var{DriveMaster.comOk} FALSE (socket timeout 5\,s) & Pump Unavailable, valve closed, DriveCommunicationError. The drive's own reaction is set by ETHL (factory: freewheel stop) & Automatic when the link returns; [FD] wants the pump to keep running at preset speed\open{19} \\
 Drive not in remote & ETA bit 9 = 0 & Alarm DriveNotInRemote; commands ignored by the drive & Set drive to remote \\
 Pump does not start / stop & not turning 10\,s after Run; turning 10\,s after stop & StartUpTimeout / StopTimeout & Operator ack \\
