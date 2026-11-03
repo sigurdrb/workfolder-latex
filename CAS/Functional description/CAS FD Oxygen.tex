@@ -12,7 +12,7 @@
 \newcommand{\TBD}{\textcolor{red}{TBD}}
 \setlength{\emergencystretch}{2em}
 
-\casfdheader{Oxygen system}{CAS-FD-20}{A1}
+\casfdheader{Oxygen system}{CAS-FD-20}{A3}
 
 \begin{document}
 \maketitle
@@ -121,6 +121,11 @@ A2 & 2026-10-23 & OIC01 operator auto/manual bumpless both ways (register OX-30)
   manual output at the current output, manual$\to$auto sets the \Otwo{} setpoint to the PV and restarts
   with a cleared integral. OIC01 moved from \var{InletSupervisor} to its own FB \var{PenOxygenControl}
   (same behaviour); the pen state reaches it one cycle after the operator's command. \\
+A3 & 2026-11-03 & Drive link loss also detected when the master still reports connected but no new
+  response has come for 2\,s (freshness watchdog); the master is restarted. A communication-loss fault
+  (ETHF / CNF) is reset automatically once the link is back, so the pump restarts in auto; the alarms
+  stay unacknowledged until acknowledged. The reset by acknowledging DriveError (A1) was never in the
+  program: removed from the text (register OX-31). OIC01 limit / overflow alarms only in auto. \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -544,11 +549,18 @@ the transmitters turn out to read gauge pressure, both must be lowered together 
 The PLC walks the ATV650 through the DRIVECOM (CiA 402) states by writing the command word CMD
 (8501) and reading the status word ETA (3201) every 100\,ms (block \var{OxyPumpATV650}).
 Speed reference LFR (8502) is written in 0.1\,Hz, limited to 20--50\,Hz. A fault is reset by the
-operator's Reset (\var{OxyPump.Command.Reset}, HMI \emph{Reset oxy pump}) or by acknowledging the drive
-fault alarm (\var{OxyPump.AlarmAck.DriveError}, also through \emph{Acknowledge all}); either sends
-\texttt{0x0080} for 0.5\,s on its rising edge. The alarm clears once the PLC reads a status word without
-fault. Typical case: the drive trips on EtHF after a lost Ethernet link and waits for this reset. The drive must have its command and
-reference channel set to the embedded Ethernet port (Fr1, Cd1).
+operator's Reset (\var{OxyPump.Command.Reset}, HMI \emph{Reset oxy pump}), which sends \texttt{0x0080}
+for 0.5\,s on its rising edge; a reset by acknowledging the drive fault alarm is decided but not
+implemented. A communication-loss fault (ETHF 150 or CNF 7, the drive's reaction to a lost link) is
+reset automatically: only after the PLC has itself seen the link to the drive drop and come back, once
+the link has been back 2\,s (so the fault code LFT, read every second, is current), within 30\,s and
+once per recovery. Any other fault, or one that the automatic reset does not clear, needs the operator.
+In auto the pump then starts again by itself when the line's start conditions hold; the communication
+and drive fault alarms stay unacknowledged until the operator acknowledges them, but do not block the
+restart. The link to the drive counts as lost when the master reports no connection or when no new
+response has come for 2\,s (freshness watchdog, see the inlet FD); the master is then restarted at once
+and every 10\,s while the data stays stale. The drive must have its command and reference channel set to
+the embedded Ethernet port (Fr1, Cd1).
 \begin{figure}[htbp]
 \centering
 \begin{adjustbox}{max width=\linewidth}\begin{tikzpicture}[x=1cm, y=1cm, font=\small]
@@ -654,8 +666,8 @@ Fault & Detection & Response (PLC 2026-10-21) & Recovery \\
 \endhead
 \bottomrule
 \endfoot
-Drive fault & ETA state ``fault''; code in LFT & Pump Unavailable, line drops out of auto, valve closed, alarms DriveError + PumpCommonError & Reset oxy pump, or acknowledge the DriveError alarm: \texttt{0x0080}; alarm clears with a fault-free ETA; in auto the line restarts \\
-Drive communication lost & \var{DriveMaster.comOk} FALSE (socket timeout 5\,s) & Pump Unavailable, valve closed, DriveCommunicationError. The drive's own reaction is set by ETHL (factory: freewheel stop) & Automatic when the link returns; [FD] wants the pump to keep running at preset speed\open{19} \\
+Drive fault & ETA state ``fault''; code in LFT & Pump Unavailable, line drops out of auto, valve closed, alarms DriveError + PumpCommonError & Reset oxy pump: \texttt{0x0080}; alarm clears with a fault-free ETA; in auto the line restarts \\
+Drive communication lost & \var{DriveMaster.comOk} FALSE (socket timeout 5\,s), or no new response for 2\,s (freshness watchdog) & Pump Unavailable, valve closed, DriveCommunicationError; the drive master is restarted at once and every 10\,s. The drive's own reaction is set by ETHL (trip ETHF) & Automatic: when the link is back, an ETHF / CNF fault is reset automatically (once, after 2\,s) and in auto the pump starts again; the alarms stay unacknowledged until acknowledged. [FD] wants the pump to keep running at preset speed\open{19} \\
 Drive not in remote & ETA bit 9 = 0 & Alarm DriveNotInRemote; commands ignored by the drive & Set drive to remote \\
 Pump does not start / stop & not turning 10\,s after Run; turning 10\,s after stop & StartUpTimeout / StopTimeout & Operator ack \\
 Pressure after pump low & PT4$n$ $\leq$ 3.0\,bar or bad, while oxygenation active & Valve forced closed (4\,mA), alarm ValvePressureLow; PIC on preset speed if PT bad & Automatic when pressure returns; operator ack \\
@@ -664,7 +676,7 @@ Pen \Otwo{} measurement lost & no selected Orbit sensor with good quality & OIC0
 One Orbit sensor fails & Modbus timeout / bad quality & Sensor drops out of the mean; CommFail alarm after delay & Automatic \\
 Inlet pump lost & inlet permit FALSE (not REMOTE or heartbeat lost) & Line stops: valve closed, oxy pump stopped; other lines take over the share at once & Automatic: while oxygenation is on and the line enabled, the line starts again when its inlet pump is back in REMOTE \\
 Inlet pump stopped by the pump count or rotation & inlet permit FALSE & As inlet pump lost. A line whose inlet pump is started by the pump count or rotation starts when that pump reaches REMOTE, if it is enabled & Automatic while oxygenation is on\open{23} \\
-RIO link lost (InletRIO$n$ or CommonRIO) & Modbus TCP \var{CommOK} FALSE; alarm RIO comm.\ error & \emph{None yet}: PT4$n$, PT4($n$+3) (InletRIO$n$) and FT4$n$, PT40 (CommonRIO) keep their last value and good quality, so PIC4$n$, the valve permit and FIC4$n$ run on frozen values\open{28} & -- \\
+RIO link lost (InletRIO$n$ or CommonRIO) & Modbus TCP \var{CommOK} FALSE (InletRIO: also no new response for 2\,s); alarm RIO comm.\ error & \emph{None yet}: PT4$n$, PT4($n$+3) (InletRIO$n$) and FT4$n$, PT40 (CommonRIO) keep their last value and good quality, so PIC4$n$, the valve permit and FIC4$n$ run on frozen values\open{28} & -- \\
 \Otwo{} supply lost & PT40 (displayed only) & \emph{None}: no alarm, no interlock\open{4}\textsuperscript{,}\open{10}; FIC opens valve fully, flow stays low & -- \\
 Water back into injector / supply & -- & Mechanical only (check valves)\open{6} & -- \\
 Emergency stop & not wired\open{22} & (Drive quick stop is alarmed as EmergencyStop) & -- \\
