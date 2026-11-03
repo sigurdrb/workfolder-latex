@@ -6,7 +6,7 @@
 \usepackage{casfd}
 \usepackage{adjustbox}
 
-\casfdheader{Outlet system}{CAS-FD-30}{A}
+\casfdheader{Outlet system}{CAS-FD-30}{A1}
 
 \newcommand{\prop}{\textsuperscript{\dag}}  % proposed tag, not on the P&ID set
 \newcommand{\TBD}{\textcolor{red}{TBD}}
@@ -109,6 +109,8 @@ Rev. & Date & Change \\
 \midrule
 A & 21.10.2026 & First issue. Written from [A1], [JB] rev.~A3, [FD] rev.~B and the PLC export, after the review of 21.10.2026.
   Records the power-loss decision \decided{1}. Supersedes [FD] rev.~B §3.2.3 on fail-to-close and XV65. \\
+A1 & 03.11.2026 & CommonRIO link loss also detected by stale data (freshness watchdog) with an automatic
+  reconnect (FR-20). \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -701,7 +703,11 @@ Table~\ref{tab:alarms} lists the alarms. Common rules:
 \begin{description}[nosep, leftmargin=14mm, style=sameline]
   \item[FR-20] The PLC reads and writes the CommonRIO image over Modbus TCP every cycle. A lost link
         gives the alarm \emph{CommonRIO communication error}; the cylinder positions become invalid
-        and the cylinders go to \texttt{Faulted} (valves off). \hfill Impl.
+        and the cylinders go to \texttt{Faulted} (valves off). The link also counts as lost when the
+        connection is open without error but no new response has come for 2\,s (freshness watchdog:
+        a marker in the spare input word 27 that every response overwrites; \var{Status.DataStale});
+        the connection is then closed for 1\,s and opened again, at once and every 10\,s while the
+        data stays stale (\var{Status.Restarts}). \hfill Impl.
   \item[FR-21] On a lost link the remote I/O shall switch its outputs (valves, pump start) off, so
         the dampers hold. The behaviour of the 750-362 fieldbus watchdog is not set, and [FD]
         Tabell~4 is empty \open{13}.
