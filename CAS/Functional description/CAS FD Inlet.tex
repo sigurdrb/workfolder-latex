@@ -163,7 +163,9 @@ B2 & 2026-11-03 & After the merge with the outlet / oxygen branch (InletPumpConf
   only with a live link, LIC01 / OIC01 limit and overflow alarms only in automatic control (Alarm
   functions). The split \var{InletSupervisor} of B1 restored after the merge had reverted it to the
   pre-B1 version. InletRIO freshness watchdog: a link whose master still reports connected but sends
-  no new data for 2~s counts as lost, and the master is restarted (fault table). \\
+  no new data for 2~s counts as lost, and the master is restarted (fault table). Framo data sources:
+  endpoint and update rate from the retained \var{InletConfig[i]} (dynamic configuration, \var{FramoLink}),
+  reconnect on change or a lost link, link live only with the data source connected (Communication). \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -818,7 +820,7 @@ Transmitter disabled by operator & Config.Enable FALSE & Pair drops out & Operat
 All pairs lost & no valid pair & Alarm \emph{Level measurement lost} (LAL01); LIC01 to manual at \var{SafeOutput} 60~rpm (interlock I6) & Back to auto bumplessly when a pair is valid \\
 InletRIO $n$ link lost & Master not connected, or no new response for 2~s while the master still reports connected (freshness watchdog: a marker in read word 25, unused by the mapping, that every response overwrites; \var{Status.DataStale}) & Alarm \emph{InletRIO comm.\ error}; both transmitters of inlet $n$ count as bad, so its pair drops out of the PV (DEC6); the master is restarted at once (disabled 1~s, channels added again) and every 10~s while stale (\var{Status.Restarts}) & Automatic \\
 24 V field breaker XF05 tripped & InletRIO word 4.0 & Alarm; both transmitters of that inlet read bad $\Rightarrow$ pair drops out & Reset XF05 (HMI, DO 0.0) \\
-Framo link / heartbeat lost & no clear for 10~s & Alarm \emph{Communication loss}; PLC shows UNAVAILABLE; the pump stays in LIC01's total at its last speed and the pumps in REMOTE keep controlling (DEC9); with no pump left in REMOTE LIC01 tracks; oxygenation permit off. PCC: HOLD at preset speed & Link back: PCC still in HOLD $\Rightarrow$ operator Reset\open{2}; in REMOTE the pump takes its share, the total is unchanged \\
+Framo link / heartbeat lost & no clear for 10~s, or the data source \var{Framo_n} not connected & Alarm \emph{Communication loss}; PLC shows UNAVAILABLE; the pump stays in LIC01's total at its last speed and the pumps in REMOTE keep controlling (DEC9); with no pump left in REMOTE LIC01 tracks; oxygenation permit off. PCC: HOLD at preset speed & Link back: PCC still in HOLD $\Rightarrow$ operator Reset\open{2}; in REMOTE the pump takes its share, the total is unchanged \\
 Pump trip / fault & PCC alarm flags; state LOCKDOWN & Common alarm \emph{Pump $n$ failed}; pump leaves level control; the remaining pumps take over its share in the same cycle (DEC5); if their share stays $\ge$ \var{PumpAddSpeed}, a standby candidate is started; permit off & Fix the fault, operator Reset\open{3}; as a candidate it is started again while the pen runs \\
 Start not acknowledged & Start sent, still AVAILABLE after 30~s & Alarm \emph{Start failed}; a candidate is left out of the pump count and another one is started if the share stays high (Section~\ref{sec:count}) & Operator \\
 Stop not acknowledged & Stop sent, still in START, REMOTE or HOLD after 30~s & Alarm \emph{Stop failed} & Operator, locally at the PCC \\
@@ -851,6 +853,15 @@ I6 & No valid level pair: LIC01 to manual at SafeOutput. & [PID] -400 & \impl \\
 \begin{itemize}[nosep]
   \item \textbf{PLC $\leftrightarrow$ Framo PCC$n$:} OPC UA. The PLC is the client (CODESYS Data Sources
         \var{Framo_1..3}); each PCC is a server (TwinCAT TF6100). Signal list: Table~\ref{tab:opcua}.
+        The data sources use a dynamic configuration filled by \var{FramoLink} (in \var{FramoDataProcessing}):
+        endpoint \texttt{opc.tcp://<FramoIP>:<FramoPort>} and the subscription's sampling and publishing
+        interval \var{FramoUpdateRate}, all from the retained \var{InletConfig[i]}, so the PCC address can be
+        changed from the HMI without a download. A new endpoint or update rate, or a link lost for 30~s
+        (and every 30~s after), disconnects the data source for 1~s and connects it again
+        (\var{InletPump.Status.FramoRestarts}). The link counts as live only with the heartbeat \emph{and}
+        the data source connected (\var{g\_Datasources.Framo\_nState}), so a dead session is seen before
+        the heartbeat times out. Only the pump variables are mapped, not the server's standard
+        \texttt{Server} object.
         Start, Stop and Reset are events acted on at the rising edge\open{4}. The PLC holds Reset TRUE
         from the operator's command until it reads the pump out of HOLD or LOCKDOWN, at most
         $2\times$\var{ResetExpectedTime}; then it withdraws Reset and warns \emph{Failed to reset}.
@@ -1057,7 +1068,8 @@ Parameter & Default & Unit & Meaning \\
 \var{InletConfig[i].SpeedDeviationLimit} / \var{SpeedDeviationDelay} & 10 / 30 & rpm / s & speed deviation alarm in REMOTE; limit 0 = off \\
 \var{InletConfig[i].ResetExpectedTime} & 5 & s & expected PCC response to Reset (OPC UA round trip $\approx$4.6~s); warning \emph{Failed to reset} after $2\times$ \\
 \var{InletRIOConfig[i]}: IP, Port & sim: 10.1.2.150, 5121--5123 & & coupler address (site plan \TBD) \\
-Data sources \var{Framo_1..3} & per project & & OPC UA endpoint of each PCC \\
+\var{InletConfig[i].FramoIP}, \var{.FramoPort} & sim: 10.1.2.150, 4841--4843 & & OPC UA endpoint of PCC $i$ (data source \var{Framo_i}, dynamic configuration); 0.0.0.0 = not configured \\
+\var{InletConfig[i].FramoUpdateRate} & 500 & ms & sampling and publishing interval of the data source's subscription \\
 Not yet defined: L/H level limits and delays, speed deviation limit, vacuum overfill delay (5~s), mode table SP & \TBD & & \open{8}\open{9}\open{11}\open{14} \\
 \end{longtable}
 \end{small}
