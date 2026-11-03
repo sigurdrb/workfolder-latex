@@ -9,7 +9,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \lhead{\small CAS (Heimdall) -- FD inlet system}
-\rhead{\small CAS-FD-10 rev.~B1}
+\rhead{\small CAS-FD-10 rev.~B2}
 \cfoot{\small\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 \setlength{\headheight}{14pt}
@@ -20,7 +20,7 @@
 \renewcommand{\floatpagefraction}{0.8}
 \setcounter{totalnumber}{5}
 
-\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{B}
+\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{B2}
 
 % short helpers used only in this document
 \newcommand{\TBD}{\textcolor{red}{TBD}}
@@ -158,6 +158,11 @@ B1 & 2026-10-23 & LIC01 operator auto/manual bumpless both ways (IN-32): auto$\t
   \var{InletPumpSet}, \var{PenLevelControl}, \var{PumpCount}, \var{PenOxygenControl}, \var{PenSequence},
   \var{ControllerMode} (IN-33: before, a pump reset from HOLD dropped all pumps to 45--49~rpm). The
   operator's manual output is per pump in REMOTE. \\
+B2 & 2026-11-03 & After the merge with the outlet / oxygen branch (InletPumpConfigDUT removed): the pump
+  count flag is \var{InletConfig[i].InletPumpEnable}. Alarms only from pumps in service, PCC flag alarms
+  only with a live link, LIC01 / OIC01 limit and overflow alarms only in automatic control (Alarm
+  functions). The split \var{InletSupervisor} of B1 restored after the merge had reverted it to the
+  pre-B1 version. \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -551,7 +556,7 @@ Stop (accepted while Starting or Running; Stop turns it off).
 refuses (wrong state, not ready) sets \var{Pen.Status.CommandRejected}. Modes are statuses: LIC01, OIC01,
 the pumps, the oxygen valves and the outlet go to manual and back with \var{Command.Manual} /
 \var{Command.Auto} pulses and show \var{Status.Manual}. Enable / disable of a pump or oxygen line is
-retained configuration (\var{InletConfig[i].InletPump.Enable}, \var{OxyConfig[i].Enable}). Commands the
+retained configuration (\var{InletConfig[i].InletPumpEnable}, \var{OxyConfig[i].Enable}). Commands the
 PLC code gives itself are in \var{InternalCommand} (supervisor $\to$ pump: \var{AutoStart} /
 \var{AutoStop}; pump $\to$ PCC: Start, Stop, Reset, speed, heartbeat), never in \var{Command}.
 
@@ -592,7 +597,7 @@ in auto): acknowledge the start-up alarms, check \emph{Ready}, Pen Start, then O
 While the pen runs, the PLC chooses how many pumps run and which (DEC7). The goal is to run the
 pumps near their operating speed rather than many pumps slowly. The PLC acts only on pumps that are
 \emph{candidates}: in automatic, not UNAVAILABLE or LOCKDOWN, and enabled for it with the retained flag
-\var{InletConfig[i].InletPump.Enable}. Pumps in auto without Enable follow Pen Start / Pen Stop only;
+\var{InletConfig[i].InletPumpEnable}. Pumps in auto without Enable follow Pen Start / Pen Stop only;
 pumps in manual are left alone. The logic is in \var{FB.Inlet.PumpCount}.
 \begin{itemize}[nosep]
   \item \textbf{Pen Start} starts every candidate (start all, then reduce). A pump that becomes a
@@ -969,6 +974,13 @@ Alarm states are handled by \var{AlarmManagement} (raised on the condition, ackn
 rising edge of the acknowledge bit). [AL] defines no priorities or acknowledgement classes; the
 column Class is a proposal (A = alarm, operator action; W = warning; N = notification only)\open{21}.
 
+A pump out of service raises no alarms: a pump is in service when it takes part in the pump count
+(\var{InletConfig[i].InletPumpEnable}) or is in manual. The communication loss alarm needs the pump in
+service; the alarms from the PCC's flags (drive, power, speed deviation and the common alarm) also need a
+live link (\var{InletPump.Status.CommunicationOK}), so no alarm is raised from values that are no longer
+read. LIC01's and OIC01's limit and overflow alarms are raised only while the controller is in automatic
+control (LIC01 mode Auto; OIC01 running, not in manual, with a good O$_2$ measurement).
+
 \begin{small}
 \begin{longtable}{@{}P{34mm}P{46mm}P{9mm}P{34mm}P{20mm}@{}}
 \caption{Alarms of the inlet system ([FD] Tabell 7 and 9, [AL], [PLC]). Per pump $n$ = 1..3 unless
@@ -1032,7 +1044,7 @@ Parameter & Default & Unit & Meaning \\
 \var{PenConfig.PumpAddSpeed} & 115 & rpm & start a pump when the share is at or above this; above \var{PumpTargetSpeed}; 0 = never \\
 \var{PenConfig.PumpRemoveDelay} / \var{PumpAddDelay} & 15 / 2 & min & how long the stop / start condition must hold \\
 \var{PenConfig.PumpCycleTime} & 24 & h & time in REMOTE before a standby takes over; 0 = no rotation \\
-\var{InletConfig[i].InletPump.Enable} & TRUE & & pump $i$ takes part in the pump count and rotation \\
+\var{InletConfig[i].InletPumpEnable} & TRUE & & pump $i$ takes part in the pump count and rotation \\
 \var{Pen.Command.LevelSetpoint} & 0.06 & m & over-height setpoint (O-35) \\
 \var{LevelInsideConfig[i]}: Enable, MinValue, MaxValue & TRUE, 0, 2.0 & m & LT0$i$ in use and range \\
 \var{LevelInsideConfig[i]}: FilterFc, QualityEnabled & 0.05, TRUE & Hz & display filter; quality alarm \\
@@ -1118,7 +1130,7 @@ Function & PLC variable & Note \\
 \midrule
 Pen Start / Pen Stop & \var{Pen.Command.Start}, \var{.Stop}; shows \var{Pen.Status.State}, \var{.Ready}, \var{.CommandRejected} & pulses; Start only when Ready; starts the enabled pumps in auto \\
 Oxygen Start / Stop & \var{Pen.Command.OxygenStart}, \var{.OxygenStop}; shows \var{Pen.Status.OxygenOn} & pulses; enabled lines follow their inlet pumps \\
-Pump count and rotation & \var{InletConfig[i].InletPump.Enable}; shows \var{PenInletSupervisor.PumpsWanted}, \var{.PumpRotationActive} & take a pump out of the count without manual \\
+Pump count and rotation & \var{InletConfig[i].InletPumpEnable}; shows \var{PenInletSupervisor.PumpsWanted}, \var{.PumpRotationActive} & take a pump out of the count without manual \\
 Level setpoint & \var{Pen.Command.LevelSetpoint} & m; from the mode in future\open{14} \\
 LIC01 auto / manual, manual output & \var{LevelController.Command.Manual}, \var{.Auto} (pulses; mode in \var{.Status.Manual}), \var{.ManualOutput} & rpm per pump \\
 Pump auto / manual & \var{Inlet[i].InletPump.Command.Auto}, \var{.Manual} (pulses; mode in \var{.Status.Manual}) & default auto \\
