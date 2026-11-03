@@ -1,0 +1,249 @@
+% CAS (Heimdall) / SiteControl -- requirements for OPC UA clients of the PLC.
+% Build: latexmk -pdf -interaction=nonstopmode "OPC UA client requirements.tex"
+\documentclass[11pt,a4paper]{article}
+\usepackage{amsmath}
+\makeatletter
+\def\input@path{{Functional description/}}   % casfd.sty lives with the FDs
+\makeatother
+\usepackage{casfd}
+\setlength{\emergencystretch}{2em}
+
+% Requirement table: ID, requirement, rationale / source
+\newenvironment{reqtable}{%
+  \begin{small}
+  \setlength{\tabcolsep}{4pt}%
+  \begin{longtable}{@{}P{14mm}P{86mm}P{60mm}@{}}
+  \toprule
+  ID & Requirement & Why / source\\
+  \midrule
+  \endfirsthead
+  \toprule
+  ID & Requirement & Why / source\\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+}{%
+  \end{longtable}
+  \end{small}
+}
+\newcommand{\TBD}{\textcolor{red}{TBD}}
+
+\title{CAS (Heimdall) -- requirements for OPC UA clients of the PLC\\[1mm]\Large HMI, SiteControl and tools}
+\author{ScaleAQ Automation \quad Draft, rev.~A0}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent Every program that talks OPC UA to the CAS PLC shares one small controller with the control
+program. This document states what such a client must do, and must not do, so that it gets reliable
+data and does not load or disturb the PLC. It applies to the CAS web HMI (\var{heimdall-cas-hmi}),
+to SiteControl services that read or command the PLC, and to engineering tools. The requirements come
+from the CAS commissioning on the simulator (November 2026), where a client reading every value every
+second turned out to use about a third of the PLC's CPU. Items not decided are marked \open{n} and
+listed in Section~\ref{sec:open}.
+\end{abstract}
+
+\tableofcontents
+
+% =============================================================================================
+\section{Scope and the server}
+\label{sec:scope}
+
+\subsection{Clients in scope}
+\begin{itemize}[nosep]
+  \item \textbf{CAS web HMI} (\var{scaleaq/heimdall-cas-hmi}, Python \var{asyncua}): reads about 600 values,
+        writes operator commands and alarm acknowledges.
+  \item \textbf{SiteControl services} that integrate the CAS PLC (edge drivers on
+        \var{sitecontrol-opcua-lib}, the OPC Foundation .NET stack): read plant values and alarms,
+        possibly send commands.
+  \item \textbf{Engineering tools}: UaExpert, the CODESYS IDE (online monitoring, trace), used during
+        commissioning and service only.
+\end{itemize}
+Not in scope: the PLC as an OPC UA \emph{client} (its data sources to the Framo pump controllers), and
+Modbus clients.
+
+\subsection{The server}
+\begin{itemize}[nosep]
+  \item WAGO PFC200 G2 (750-8212), \textbf{one CPU core}, 512\,MB RAM, CODESYS runtime with its OPC UA
+        server on port 4840. The same core runs the control task (20\,ms), the I/O, the Modbus masters and
+        the PLC's own OPC UA client.
+  \item The address space is the application's \emph{Symbol Configuration}: \var{GVLMain}, \var{GVLIO}
+        and the variables ticked there. Node ids are CODESYS string ids,
+        \var{ns=4;s=|var|<device>.Application.<GVL>.<path>}; device name and namespace index differ
+        between projects.
+  \item The real PLC requires a user login; anonymous access is off.
+  \item A download, Reset Origin or reboot restarts the address space. An online change can add
+        variables without ending existing sessions.
+\end{itemize}
+
+\subsection{What the measurements showed}
+\label{sec:measure}
+Simulator PLC 10.1.2.41, 2026-11-03, \var{htop} on the controller. The HMI read 455 values and 28
+quality flags every second and 136 data log values every 2\,s, each by string node id, in requests of 50.
+
+\begin{center}
+\begin{small}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+State & Runtime main thread & \var{OPCUAServer} thread & Total CPU\\
+\midrule
+No application loaded & $\approx$15\,\% & $\approx$5\,\% & 26\,\%\\
+Application running, HMI blocked & 40\,\% & $\approx$0 & 33\,\%\\
+Application running, HMI reading & 55--65\,\% & 21--25\,\% & 66--68\,\%\\
+Application stopped, HMI reading & 53\,\% & 25\,\% & 57\,\%\\
+\bottomrule
+\end{tabular}
+\end{small}
+\end{center}
+
+The cost followed the client, not the program: it stayed with the application stopped, and disappeared
+when the client was blocked. The server resolves a string node id on every read. A subscription lets it
+resolve each variable once (\var{heimdall-cas-hmi} PR~\#25, to be measured).
+
+% =============================================================================================
+\section{Requirements}
+\label{sec:req}
+``Shall'' is a requirement, ``should'' a recommendation.
+
+\subsection{Connection and session}
+\begin{reqtable}
+CON-01 & The client shall log in with its own user account on the PLC. Credentials shall come from the
+deployment's secrets (environment, Kubernetes secret), never from source code or images. &
+Real PLC has no anonymous access. One account per client makes a misbehaving client identifiable and
+lets it be locked out alone.\\
+CON-02 & The client shall use one session per PLC and give it a session name that identifies the client
+and its site. & Several sessions per client multiply the server load; the name shows up in the
+runtime log.\\
+CON-03 & After a lost connection the client shall reconnect by itself, with a back-off that starts at
+about 1\,s and grows to at most 15\,s between attempts. & Fast reconnect after a download; no connection
+storm while the PLC reboots, and back within 15\,s once it is up.\\
+CON-04 & On every new session the client shall look up its nodes again, and shall not reuse node ids
+from an earlier session. & Download, Reset Origin and reboot rebuild the address space.\\
+CON-05 & A node that is not found shall be reported once (log, and ``not available'' where it is shown),
+shall not stop the client, and shall be looked up again at least every 10 minutes and at every reconnect.
+& Symbols added by an online change only appeared in the HMI after its pod was restarted.\\
+CON-06 & The client shall not hard-code the namespace index or the device name. It should find the GVL
+root (\var{GVLMain}) once per session by browsing and derive the other paths from it. & Device and
+application names differ between the simulator PLC, the site PLC and the soft PLC.\\
+CON-07 & Security policy and certificates \open{1}. & Not decided for site use.\\
+\end{reqtable}
+
+\subsection{Reading data}
+\begin{reqtable}
+RD-01 & Cyclic data shall be read through a \textbf{subscription} (monitored items), not by reading every
+value every cycle. & Section~\ref{sec:measure}: polling 600 values per second used about a third of the CPU.\\
+RD-02 & The sampling and publishing interval shall be at least 1\,s. Faster sampling shall be limited to
+a few values, only while a user looks at them, and at most 5\,Hz. & The HMI's wave trend samples two
+level transmitters at 5\,Hz only while a page shows it.\\
+RD-03 & Monitored items shall use queue size 1 (latest value only). & The client needs the current state,
+not a history; queues cost server memory.\\
+RD-04 & A client that must read (no subscription available, or a value the server refuses to monitor)
+shall read at most 50 values per request and should not read the same value more often than every 2\,s.
+& The PFC200 refuses large requests (\var{BadTooManyOperations} at 200).\\
+RD-05 & Large browses (for example all \var{AlarmAck} bits, about 1100 nodes, 35\,s) shall run at most
+once per session, in the background, and never periodically. & Browsing walks the symbol tree in the
+runtime.\\
+RD-06 & The client shall read only what it uses. Each client shall keep its list of paths in one place
+in its code, with the PLC data type. & The list is the contract with the PLC (Section~\ref{sec:contract}).\\
+RD-07 & Total load: with all permanent clients connected the PLC shall keep \TBD{} CPU in reserve
+\open{2}. & Measured baseline 33\,\% without clients.\\
+\end{reqtable}
+
+\subsection{Link supervision and data quality}
+\begin{reqtable}
+LQ-01 & The client shall notice a lost connection within 3 publishing intervals (keep-alive, or a cheap
+read of \var{Server_ServerStatus_CurrentTime}, a numeric node). & A subscription alone sends nothing
+when nothing changes.\\
+LQ-02 & While the connection is lost, every value shall be shown as unknown, never as the last value
+received. & An operator must not act on frozen data.\\
+LQ-03 & The client shall respect the PLC's own quality information: values whose quality flag says bad
+(\var{Status.BadQuality}), and values from a device whose link the PLC reports down or stale
+(\var{CommOK} FALSE, \var{DataStale} TRUE), shall be shown as invalid. & The PLC knows more about its
+field devices than the client.\\
+LQ-04 & The client shall show what the PLC computes (scaling, averages, states) and shall not compute
+plant values itself. & One source of truth; the FDs describe the PLC.\\
+LQ-05 & Timestamps: the client shall use its own clock for when it received a value until the PLC
+clock is synchronised \open{3}. & The simulator PLC clock was months off.\\
+\end{reqtable}
+
+\subsection{Writing}
+\begin{reqtable}
+WR-01 & The client shall write only variables on its own whitelist: \var{Command} members, \var{AlarmAck}
+bits and named setpoints. It shall never write \var{Status}, \var{Input}, \var{Output},
+\var{InternalCommand} or \var{Alarm}. & The PLC owns its state.\\
+WR-02 & Commands are pulses: write TRUE, hold at least 1\,s or until the PLC clears it, then FALSE.
+The client shall not rely on the PLC clearing a bit it did not document as cleared. & AlarmManagement
+acknowledges on the rising edge; some commands are latched and cleared by the PLC.\\
+WR-03 & On connect and on a clean session end, the client shall write FALSE to every command bit it may
+have left TRUE. & A command bit left TRUE after a lost link would act again on the next edge.\\
+WR-04 & Setpoints shall be bounds-checked by the client before writing, with the same limits as the PLC.
+& The PLC limits them too; the client gives the operator a clear message instead.\\
+WR-05 & Retained configuration (\var{InletConfig}, \var{OxyConfig}, IP addresses) shall only be written by
+explicitly named, whitelisted functions, never in bulk. & Retained values survive a restart; a wrong bulk
+write survives too.\\
+WR-06 & Every client shall have a read-only mode that writes nothing. & Diagnosis on a running plant.\\
+WR-07 & Only one client shall command a given function at a time \open{4}. & HMI and SiteControl must not
+fight over the same command.\\
+\end{reqtable}
+
+\subsection{The contract with the PLC}
+\label{sec:contract}
+\begin{reqtable}
+CT-01 & Everything a client reads or writes shall be in the Symbol Configuration. New fields of a
+structure shall be ticked there explicitly (where the structure is not exported whole). & New fields
+were in the PLC but not on the server until ticked.\\
+CT-02 & A PLC change that renames, removes or retypes a published variable shall update the clients'
+path lists in the same change, or be agreed with the client owners first. & The client finds out only at
+runtime.\\
+CT-03 & The PLC should publish a program version (\var{PlcInfo}) that clients log at connect. & To tell
+which program a client talked to.\\
+\end{reqtable}
+
+\subsection{Engineering tools}
+\begin{reqtable}
+EN-01 & UaExpert, the CODESYS IDE online view and traces shall be connected only while needed, and
+closed after commissioning and service. & They add load (subscriptions, monitoring) on the same core.\\
+EN-02 & CPU checks on the controller shall be done with the IDE logged out and UaExpert closed,
+reading \var{htop} with thread names (\var{OPCUAServer}, \var{codesys3}). & Otherwise the tools
+measure themselves.\\
+\end{reqtable}
+
+% =============================================================================================
+\section{Verification}
+\label{sec:verify}
+A client is accepted when, on the simulator PLC with the application running:
+\begin{enumerate}[nosep]
+  \item total CPU with the client connected is within \TBD{} of the value with the client blocked
+        (\var{iptables -I INPUT -p tcp --dport 4840 -s <client IP> -j REJECT}, removed afterwards) \open{2};
+  \item it notices a lost link within 3 publishing intervals and shows its values as unknown;
+  \item it reconnects by itself after a download and after a reboot, and finds its nodes again;
+  \item it finds a variable added by an online change without a restart (CON-05);
+  \item it writes nothing in read-only mode.
+\end{enumerate}
+
+% =============================================================================================
+\section{Open issues}
+\label{sec:open}
+\begin{small}
+\begin{longtable}{@{}P{10mm}P{86mm}P{58mm}@{}}
+\toprule
+No. & Issue & To decide\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+OI1 & Security policy for site use: None, or Basic256Sha256 with certificates; who manages them. &
+Automation / IT.\\
+OI2 & CPU budget: how much the PLC shall keep in reserve with all clients connected, and how much one
+client may use. & After the subscription has been measured (PR~\#25).\\
+OI3 & NTP on the PLC; until then source timestamps are not trusted. & Commissioning.\\
+OI4 & Which client commands what when both the HMI and SiteControl are connected. & Project.\\
+OI5 & Does SiteControl read the CAS PLC directly over OPC UA, or through the HMI or another gateway? &
+SiteControl team.\\
+\end{longtable}
+\end{small}
+
+\end{document}
