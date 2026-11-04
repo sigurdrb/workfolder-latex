@@ -29,3 +29,15 @@ Open the page, Edit, select all and delete, then `Insert` > `Markup` (or type `/
 The `{anchor}` macros make the type links jump to the structure on the same page.
 
 Deviations found while writing the notes go into `../Outstanding items.xlsx` (GEN-12, GEN-13).
+
+## Commissioning use cases
+
+`commissioning_usecases.py` writes `CAS commissioning use cases.confluence.txt` / `.html`: use cases
+for field test and commissioning (structure after J. Cooling, *Software Engineering for Real-Time
+Systems*, 2020, sec. 3.4.5), with the OPC UA nodes to write and read in order, the expected PLC
+response and the error scenarios. Every node in it is checked against GVLMain (`opc_paths.py`); the
+script fails and lists the references that do not exist, so a PLC rename shows up at once.
+
+```bash
+py commissioning_usecases.py /tmp/hplc
+```

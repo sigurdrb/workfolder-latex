@@ -1,4 +1,4 @@
-{info}Generated 2026-11-04 from scaleaq/heimdall\-plc 7d6180d 2026\-11\-03 grafted, HEAD \-> inletControl, origin/inletControl, application pfc200\_sim. Do not edit here: change the PLC or notes.json in workfolder-latex/CAS/OPC UA interface and regenerate.{info}
+{info}Generated 2026-11-04 from scaleaq/heimdall\-plc f3b20bb 2026\-11\-04 grafted, HEAD \-> inletControl, origin/inletControl, application pfc200\_sim. Do not edit here: change the PLC or notes.json in workfolder-latex/CAS/OPC UA interface and regenerate.{info}
 {toc:maxLevel=2}
 h1. How to use this page
 *What this page is.* The variables the CAS (Heimdall) PLC publishes on its OPC UA server: every node, its data type, and what it does when you read or write it. It is generated from the CODESYS project (scaleaq/heimdall\-plc) and the notes in workfolder\-latex/CAS/OPC UA interface, so it follows the program. Do not edit the page by hand: change notes.json or the PLC and regenerate.
