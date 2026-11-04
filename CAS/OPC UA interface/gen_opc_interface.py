@@ -365,7 +365,8 @@ INTRO = [
      "The server publishes the application's Symbol Configuration. Node ids are CODESYS string ids, "
      "ns=4;s=|var|<device>.Application.<GVL>.<path>, e.g. ...Application.GVLMain.Inlet[0].InletPump.Command.Reset. "
      "Device name and namespace index differ between PLCs: find GVLMain by browsing once per session. "
-     "GVLMain is the only node structure exposed to clients; it is exported whole and read/write, so every "
+     "Clients use GVLMain (plant, commands, settings; read/write) and GVLIO (remote I/O link status, alarms "
+     "and the 750-652 image; access as set in the Symbol Configuration). Both are exported whole, so every "
      "member below is a node. The real PLC needs a user login (no anonymous access)."),
     ("Structure of a device",
      "Most devices use the same sub-structures: Command (client writes: requests and setpoints), "
@@ -507,8 +508,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("repo", help="checkout of scaleaq/heimdall-plc")
     ap.add_argument("--app", default="pfc200_sim", help="application folder prefix (default pfc200_sim)")
-    ap.add_argument("--gvl", default=["GVLMain"], nargs="+",
-                    help="published GVLs to document (default GVLMain, the only interface exposed to clients)")
+    ap.add_argument("--gvl", default=["GVLMain", "GVLIO"], nargs="+",
+                    help="published GVLs to document (default GVLMain and GVLIO, when published)")
     args = ap.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
 

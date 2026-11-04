@@ -1,6 +1,6 @@
 # CAS PLC OPC UA interface reference
 
-Generates the Confluence page that lists every node of GVLMain, the only node structure the CAS
+Generates the Confluence page that lists every node of GVLMain and GVLIO, the node structures the CAS
 (Heimdall) PLC exposes over OPC UA: data type, what a client may do with it, and what it does (conditions, inhibits,
 request/response). Structures and enumerations are linked.
 
@@ -18,7 +18,7 @@ git clone --depth 1 -b inletControl https://github.com/scaleaq/heimdall-plc.git 
 py gen_opc_interface.py /tmp/hplc
 ```
 
-Only GVLMain is documented (`--gvl` to change); other GVLs still ticked in the Symbol Configuration
+GVLMain and GVLIO are documented when published (`--gvl` to change); other GVLs ticked in the Symbol Configuration
 are named in the output so they can be removed from the OPC server. The script also prints notes that no longer match a member (renamed or removed in the PLC) and types it
 cannot find (library types). Update `notes.json` when a PLC change alters a node's behaviour.
 
