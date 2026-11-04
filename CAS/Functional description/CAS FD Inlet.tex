@@ -9,7 +9,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \lhead{\small CAS (Heimdall) -- FD inlet system}
-\rhead{\small CAS-FD-10 rev.~B2}
+\rhead{\small CAS-FD-10 rev.~B3}
 \cfoot{\small\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 \setlength{\headheight}{14pt}
@@ -20,7 +20,7 @@
 \renewcommand{\floatpagefraction}{0.8}
 \setcounter{totalnumber}{5}
 
-\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{B2}
+\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{B3}
 
 % short helpers used only in this document
 \newcommand{\TBD}{\textcolor{red}{TBD}}
@@ -166,6 +166,11 @@ B2 & 2026-11-03 & After the merge with the outlet / oxygen branch (InletPumpConf
   no new data for 2~s counts as lost, and only that master is restarted (fault table). Framo data sources:
   endpoint and update rate from the retained \var{InletConfig[i]} (dynamic configuration, \var{FramoLink}),
   reconnect on change or a lost link, link live only with the data source connected (Communication). \\
+B3 & 2026-11-04 & Remote I/O channel tables for one InletRIO and the CommonRIO, checked against [EL] 792.001
+  rev.~2 / 792.002 rev.~1 and the cable list, and the lost-link rule with its configuration
+  (Section~\ref{sec:rio}, DEC10, OI25--27). Freshness watchdog now on the master's receive counter
+  (\var{HasReceivedChannelData}) instead of a marker word; the CommonRIO uses the same master as the
+  InletRIO (SCL.sModbusMasterTCP). \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -278,10 +283,11 @@ Vacuum system (per inlet) & TV-3$n$, EJ-3$n$, XV3$n$A (air to ejector), XV3$n$B 
   (compressed air). Controlled by the PCC; the PLC only reads status.\open{11} \\
 Heimdall PLC & WAGO PFC200 750-8212 in the PLC/RIO1 cabinet (UPS backed). Runs the level loop, the
   pen sequence and the pump supervision. No local I/O. \\
-InletRIO1--3 & 750-362 Modbus TCP couplers, one per inlet. 750-455 analog inputs for LT0$n$ (word 0)
-  and LT2$n$ (word 1); 750-1405 for cabinet power status (word 4) and bilge switches (word 5). Polled by
-  the PLC every 100~ms. \\
-CommonRIO & 750-362 coupler for the common signals (oxygen, outlet, analysis). Not used by the inlet
+InletRIO1--3 & 750-362 Modbus TCP couplers, one per inlet. One 750-455 for LT0$n$, LT2$n$ and the oxygen
+  line pressures, two 750-1405 for cabinet power status and bilge / oxy pump switches, one 750-1515 for
+  the field power reset (Table~\ref{tab:rioinlet}). Polled by the PLC every 100~ms. \\
+CommonRIO & 750-362 coupler for the common signals: oxygen valves and flows, outlet cylinders and
+  hydraulics, pen analysis, Orbit 864 O$_2$ sensors (Table~\ref{tab:riocommon}). Not used by the inlet
   functions. \\
 Level transmitters & LT01--03 inside the pen (VEGAPULS radar on the gooseneck), LT21--23 outside
   (submersible pressure probe), one pair per inlet, 0--2~m, 4--20~mA 2-wire.\open{18} \\
@@ -289,6 +295,148 @@ HMI / SiteControl & Operator interface; reads and writes the PLC's variables ove
 \bottomrule
 \end{tabularx}
 \end{table}
+
+\subsubsection{Remote I/O stations: channels and behaviour on a lost link}
+\label{sec:rio}
+Tables~\ref{tab:rioinlet} and~\ref{tab:riocommon} list what is connected to each channel of one InletRIO and
+of the CommonRIO, from the cabinet drawings [EL] 792.001 rev.~2 (PLC/RIO1 cabinet: CommonRIO and InletRIO1)
+and 792.002 rev.~1 (RIO2/RIO3 cabinets), the cable list 15169-860-001 and [PLC] (\var{FB.RIO.InletRIO},
+\var{FB.RIO.CommonRIO}, heimdall-plc 833738d). \emph{Word} is the register in the coupler's process image
+that the PLC reads and writes with Modbus FC23 (inputs and outputs both from address 0); a 750-362 places
+the complex modules (652, 638, 455, 563) first in slot order and packs the digital modules after them.
+The 750-602 modules are power feeds without process data. Signals the drawings and the PLC do not agree on
+are marked; register items in brackets.
+
+\begin{small}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}P{17mm}P{9mm}P{40mm}P{30mm}P{10mm}P{48mm}@{}}
+\caption{InletRIO $n$ (coupler 750-362 -R1-100), channels. Tags for inlet 1 / 2 / 3. Image from the
+drawings: 6 input words, 1 output word.}\label{tab:rioinlet}\\
+\toprule
+Module & Ch. & Signal (drawing) & Tag & Word & PLC variable, remark \\
+\midrule
+\endfirsthead
+\toprule
+Module & Ch. & Signal (drawing) & Tag & Word & PLC variable, remark \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+-R1-106 750-455 AI & 1 & Level inside pen, 4--20~mA & \itag{LT01/02/03} & 0 & \var{LevelInsidePen} \\
+ & 2 & Level outside pen & \itag{LT21/22/23} & 1 & \var{LevelOutsidePen} \\
+ & 3 & Pressure after the oxy pump & \itag{PT41/42/43} & 2 & \var{OxyPumpPressure} (PIC, valve permit) \\
+ & 4 & Pressure oxy injector outlet & \itag{PT44/45/46} & 3 & \var{OxynatorOutletPressure} (same point, to confirm) \\
+(none) & -- & -- & -- & 4 & PLC and simulator assume a second 750-455: \var{OxyInjectionPressure} in word 4,
+  words 5--7 spare. \textbf{Not on the drawings} (IN-50)\open{25} \\
+-R1-101 750-1405 DI & 1 & 24~V field breaker XF05 tripped & \itag{XF05} & 4.0 & \var{FieldPower24VTripped}, PLC reads word \textbf{8}.0 (IN-50) \\
+ & 2 & XF05 load $>$ 80~\% & \itag{XF05} & 4.1 & \var{FieldPower24VHighLoad} (PLC 8.1) \\
+ & 3 & 230~V breaker XF01 tripped & \itag{XF01} & 4.2 & \var{MainCircuitBreakerTripped} (PLC 8.2) \\
+ & 4 & Backup power on (XT01) & \itag{XT01} & 4.3 & \var{BackupPowerOn} (PLC 8.3). RIO2/3: no XT01, drawn to +24~V (IN-51)\open{26} \\
+ & 5 & Battery low / faulty (XT01) & \itag{XT01} & 4.4 & \var{BatteryFault} (PLC 8.4). RIO2/3 as ch.~4 \\
+ & 6--16 & spare & & 4.5--15 & \\
+-R1-104 750-1405 DI & 1 & Water detection inlet $n$ chamber 1 & \itag{LS7n1H} & 5.0 & \var{BilgePumpSwitchHigh[0]}, PLC reads word \textbf{9}.0 (IN-50) \\
+ & 2 & High level chamber 1 & \itag{LS7n1HH} & 5.1 & \var{BilgePumpSwitchHighHigh[0]} (PLC 9.1) \\
+ & 3--6 & Water detection / high level chambers 2 and 3 & \itag{LS7n2H} .. \itag{LS7n3HH} & 5.2--5.5 & \var{BilgePumpSwitchHigh/HighHigh[1..2]} (PLC 9.2--9.5) \\
+ & 7 & Breaker bilge pumps inlet $n$ & \itag{QE7n} & 5.6 & \var{CircuitBreakerBilgePump} (PLC 9.6) \\
+ & 8 & Oxy pump leak alarm (inlet 1 only) & \itag{PU41-QS} & 5.7 & \var{OxyPumpLeakDetection} (PLC 9.7). RIO2/3: spare on the drawing (OX-43)\open{26} \\
+ & 9 & Oxy pump temperature alarm (inlet 1 only) & \itag{PU41-TS} & 5.8 & \var{OxyPumpHighTemperature} (PLC 9.8). As ch.~8 \\
+ & 10--16 & spare & & 5.9--15 & \\
+-R1-102 750-1515 DO & 1 & Reset 24~V field breaker XF05 & \itag{XF05} & out 0.0 & \var{ResetFieldPower24V} \\
+ & 2--8 & spare & & out 0.1--7 & \\
+\end{longtable}
+\end{small}
+
+The three InletRIOs have the same modules and channel positions. They differ in: the oxy pump leak and
+temperature alarms are wired only on InletRIO1; only the PLC/RIO1 cabinet has the battery charger XT01
+(ch.~4/5 of -R1-101); XF05 is a CBM~E8 in the PLC/RIO1 cabinet (it also feeds the PLC and the CommonRIO)
+and a CBM~E4 in RIO2/3. RIO3 has no drawing of its own; its tags are only in the cable list.
+
+\begin{small}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}P{19mm}P{9mm}P{40mm}P{24mm}P{12mm}P{50mm}@{}}
+\caption{CommonRIO (coupler 750-362 -R1-001), channels. Image 45 input and 25 output words; drawing and
+PLC agree on the size.}\label{tab:riocommon}\\
+\toprule
+Module & Ch. & Signal (drawing) & Tag & Word & PLC variable, remark \\
+\midrule
+\endfirsthead
+\toprule
+Module & Ch. & Signal (drawing) & Tag & Word & PLC variable, remark \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+-R1-003 750-652 & RS-485 & Orbit 864 O$_2$ sensors 1--6 via hub -MB01 & \itag{OT01..OT06} & 0--11 in/out & \var{ModbusRTUData}: Modbus RTU through the module's image (\var{Serial652}); addresses 1--3 inside, 4--6 outside (not on the drawing) \\
+-R1-004 750-638 & 1 & Oil flow counter cylinder 1 & \itag{FT61} & 12/13 in/out & \var{OutletCylinder[0]} status / count, control / counter set \\
+ & 2 & Oil flow counter cylinder 2 & \itag{FT62} & 14/15 & \var{OutletCylinder[1]} \\
+-R1-005 750-638 & 1, 2 & Oil flow counters cylinders 3, 4 & \itag{FT63, FT64} & 16--19 & \var{OutletCylinder[2..3]} \\
+-R1-007 750-455 & 1 & CO$_2$ inside pen & \itag{QT11} & 20 & \var{Pen.CO2} \\
+ & 2 & Total gas pressure & \itag{PT11} & 21 & \var{Pen.TotalGasPressure} \\
+ & 3, 4 & spare & & 22, 23 & \\
+-R1-008 750-455 & 1--3 & O$_2$ flow line 1--3 (Normex FM-01.1..3) & \itag{FT41/42/43} & 24--26 & \var{OxySystem[i].Input.OxygenFlow}. Meter output in l/min or m$^3$/h, PLC in kg/h (OX-04) \\
+ & 4 & O$_2$ pressure (header, Normex PT-01.4) & \itag{PT40} & 27 & \textbf{not read}: mapping commented out (OX-42) \\
+-R1-009/010 750-455 & 1--4 & Oil pressure open / close, cylinders 1--4 & \itag{PT61..PT68} & 28--35 & \var{OutletCylinder[i].PressureOpen/Close} \\
+-R1-011/012 750-455 & 1--4 & spare (8 channels) & & 36--43 & free for the Normex valve feedbacks and line pressures (OX-42) \\
+-R1-014 750-563 AO & 1, 2 & O$_2$ control valve line 1, 2 (Normex MV-01.1/.2) & \itag{OV41, OV42} & out 20, 21 & \var{OxySystem[i].OxyValve.Output.RawPosition}, 4~mA = closed \\
+-R1-015 750-563 AO & 1 & O$_2$ control valve line 3 & \itag{OV43} & out 22 & as above \\
+ & 2 & spare & & out 23 & \\
+-R1-017 750-1405 DI & 1--5 & \textbf{spare on the drawing} & & 44.0--44.4 & PLC: hydraulic pump running, starter fault, oil tank fault, emergency switch (NC: unwired reads as pressed), oil filter (OUT-28) \\
+ & 6--16 & spare & & 44.5--15 & \\
+-R1-019 750-1515 DO & 1--8 & Open / close outlet cylinders 1--4 (relays XK01--08) & \itag{XV61..XV64 O/C} & out 24.0--24.7 & \var{OutletCylinder[i].OpenValve/CloseValve} \\
+-R1-020 750-1515 DO & 1 & spare & & out 24.8 & the simulator has a \emph{FailCloseValve} here that the PLC does not write \\
+ & 2--5 & \textbf{spare on the drawing} & & out 24.9--24.12 & PLC: hydraulic pump start, reset, main / backup supply contactor (OUT-28) \\
+ & 6--8 & spare & & out 24.13--15 & \\
+\end{longtable}
+\end{small}
+
+\paragraph{Design rule for a lost link\decided{10}.} When a remote I/O station loses its link to the PLC, or
+the PLC stops, the plant shall stay as it was: the oxygen lines keep adding O$_2$ at the rate they had, and
+the outlet dampers keep their position. Nothing moves until the link is back and the PLC has fresh data.
+Table~\ref{tab:rioconf} gives the settings that achieve this, layer by layer; they are not configured yet\open{27}.
+
+\begin{small}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}P{28mm}P{56mm}P{42mm}P{14mm}@{}}
+\caption{Configuration of the remote I/O for the lost-link rule ([WAGO] manuals 750-362 sec.~11.2.5.2 and
+750-563 register 32; [OX] Normex P\&ID 070926-PID 300kgO2-04 rev.~04).}\label{tab:rioconf}\\
+\toprule
+Layer & Setting & Effect on a lost link & Status \\
+\midrule
+\endfirsthead
+\toprule
+Layer & Setting & Effect on a lost link & Status \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+750-362 Modbus watchdog, CommonRIO & Enabled; type \emph{Alternative}; register 0x1009 = 0 (keep the TCP
+  connection); timeout 1--2~s. Not \emph{Standard}: it answers every request with exception~4 after a
+  timeout until the watchdog is restarted, which the PLC does not do. & On timeout every AO goes to 0~mA and
+  every DO off (one setting for the whole coupler; ``hold'' is only possible with the watchdog off, and then
+  every DO holds too). Cylinder valves de-energised: the over-centre valves lock the cylinders, the dampers
+  stay put; hydraulic pump and supply contactors off. & \notimpl{} (OUT-13) \\
+750-362 Modbus watchdog, InletRIO1--3 & As CommonRIO. & Only DO out 0.0 (XF05 reset) goes off; the
+  inputs are not affected. & \notimpl{} \\
+750-563 AO, O$_2$ valve channels & Internal-bus timeout action ``keep last value'' (register 32 bits 11/10 =
+  01, WAGO-I/O-CHECK; default 0~mA). & Covers a coupler that stops its internal bus: the valve keeps its
+  last setpoint. & \notimpl{} \\
+Normex motor valves MV-01.1--3 & Stay in position on loss of power (motor actuator, decided 2026-11-04);
+  set to \emph{hold} on loss of the 4--20~mA signal ($<$3.6~mA). & Watchdog 0~mA, AO module without 24~V
+  or a broken cable all end as signal loss: the valve stays where it was, so the line keeps its O$_2$ rate
+  (as long as the supply pressure holds). & to confirm with Normex (OX-40) \\
+PLC: link supervision & Freshness watchdog per Modbus master (InletRIO, its drive, CommonRIO): no new reply
+  for 2~s $\Rightarrow$ \var{CommOK} FALSE, \var{DataStale}; master restarted at once and every 10~s. &
+  Detects frozen links (IN-40); the inputs of that station count as bad. & \impl{} \\
+PLC: InletRIO $n$ lost & Level pair of inlet $n$ bad (DEC6); oxygen line $n$: pressures bad, valve
+  \emph{held} at its last position while the oxy pump runs and the inlet pump is in REMOTE, alarm. & Level
+  control continues on the other pairs; line $n$ keeps its O$_2$ rate. & level \impl{}, oxygen
+  \notimpl{} (OX-28) \\
+PLC: CommonRIO lost & Outlet: no cylinder moves until the link has been valid for 1~s ([FD outlet] FR-10).
+  Oxygen: flows bad, every line out of auto with its valve held (the bad-flow rule). The valve outputs do
+  not reach the coupler anyway. & Dampers and O$_2$ valves stay put; OIC01 cannot measure the O$_2$ added. &
+  outlet \impl{}, oxygen \notimpl{} (OX-28) \\
+\end{longtable}
+\end{small}
 
 \subsection{Simplified process and instrument diagram}
 Figure~\ref{fig:proc} is a simplified P\&ID for one inlet ($n = 1$); inlets 2 and 3 are identical.
@@ -818,7 +966,7 @@ Fault & Detection & Automatic response & Recovery \\
 One level transmitter bad & 750-455 status bits $\neq$ 00 (wire break, over-range) for 1~s & Quality alarm; its \emph{pair} drops out of the PV; LIC01 continues on the remaining pairs & Automatic when healthy; the filter restarts at the current value (no dip) \\
 Transmitter disabled by operator & Config.Enable FALSE & Pair drops out & Operator enables it \\
 All pairs lost & no valid pair & Alarm \emph{Level measurement lost} (LAL01); LIC01 to manual at \var{SafeOutput} 60~rpm (interlock I6) & Back to auto bumplessly when a pair is valid \\
-InletRIO $n$ link lost & Master not connected, or no new response for 2~s while the master still reports connected (freshness watchdog: a marker in read word 25, unused by the mapping, that every response overwrites; \var{Status.DataStale}) & Alarm \emph{InletRIO comm.\ error}; both transmitters of inlet $n$ count as bad, so its pair drops out of the PV (DEC6); the master is restarted at once (disabled 1~s, channels added again) and every 10~s while stale (\var{Status.Restarts}). The station's RIO and oxy pump drive have one master each and restart independently: a restart of one does not interrupt the other & Automatic \\
+InletRIO $n$ link lost & Master not connected, or no new response for 2~s while the master still reports connected (freshness watchdog on the master's receive counter, \var{HasReceivedChannelData}; \var{Status.DataStale}) & Alarm \emph{InletRIO comm.\ error}; both transmitters of inlet $n$ count as bad, so its pair drops out of the PV (DEC6); the master is restarted at once (disabled 1~s, channels added again) and every 10~s while stale (\var{Status.Restarts}). The station's RIO and oxy pump drive have one master each and restart independently: a restart of one does not interrupt the other & Automatic \\
 24 V field breaker XF05 tripped & InletRIO word 4.0 & Alarm; both transmitters of that inlet read bad $\Rightarrow$ pair drops out & Reset XF05 (HMI, DO 0.0) \\
 Framo link / heartbeat lost & no clear for 10~s, or the data source \var{Framo_n} not connected & Alarm \emph{Communication loss}; PLC shows UNAVAILABLE; the pump stays in LIC01's total at its last speed and the pumps in REMOTE keep controlling (DEC9); with no pump left in REMOTE LIC01 tracks; oxygenation permit off. PCC: HOLD at preset speed & Link back: PCC still in HOLD $\Rightarrow$ operator Reset\open{2}; in REMOTE the pump takes its share, the total is unchanged \\
 Pump trip / fault & PCC alarm flags; state LOCKDOWN & Common alarm \emph{Pump $n$ failed}; pump leaves level control; the remaining pumps take over its share in the same cycle (DEC5); if their share stays $\ge$ \var{PumpAddSpeed}, a standby candidate is started; permit off & Fix the fault, operator Reset\open{3}; as a candidate it is started again while the pen runs \\
@@ -1234,6 +1382,18 @@ agreement with the supplier.
   \item \textbf{Operator Reset on the HMI.} A Reset button per inlet pump (enabled in HOLD and LOCKDOWN,
         with confirmation) is in review for the test HMI (heimdall-cas-hmi); the production HMI needs the
         same function.
+  \item \textbf{InletRIO process image.} The drawings show one 750-455 per InletRIO (6 input words: AI 0--3,
+        DI words 4 and 5); the PLC and the simulator assume two (\var{OxyInjectionPressure} in word 4,
+        digitals in words 8 and 9, read 26 / write 21 words). On the real coupler the digitals would be read
+        from the wrong words and an oversize request may be refused. Add the second module or move the
+        PLC back to the drawing (IN-50).
+  \item \textbf{RIO2/3 wiring.} Backup power and battery inputs are drawn tied to +24~V without a battery
+        charger (always TRUE); the oxy pump leak and temperature switches of inlets 2 and 3 are not wired
+        (IN-51, OX-43).
+  \item \textbf{Lost-link configuration.} 750-362 watchdog (Alternative, 0x1009 = 0) on all couplers, 750-563
+        ``keep last value'' on the O$_2$ valve channels, Normex motor valves holding on signal loss, and the
+        PLC holding the O$_2$ valves on a lost RIO link (Table~\ref{tab:rioconf}); to be agreed with the outlet
+        (OUT-13) and Normex (OX-40) and implemented (OX-28).
 \end{enumerate}
 \end{small}
 
@@ -1261,6 +1421,9 @@ agreement with the supplier.
         with the pumps it can set, instead of freezing ([FD] Tabell~5, [FRAMO] rev~B): the three PCCs do not
         know each other's state. The HOLD pump counts in the total at its own speed. Implemented as rules
         R1/R2 (Section~\ref{sec:lic}) in the split of \var{InletSupervisor} (IN-33).
+  \item 2026-11-04 (Sigurd): on a lost remote I/O link or a stopped PLC the plant stays as it was: the oxygen
+        lines keep their O$_2$ rate and the outlet dampers their position (Section~\ref{sec:rio}). The Normex
+        motor valves stay in position on loss of power (OX-40).
 \end{enumerate}
 \end{small}
 
