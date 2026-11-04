@@ -1,0 +1,1849 @@
+{
+ "_general": {
+  "commands": "Command members are written by the client. Two kinds. Pulses (Manual, Auto, Reset, Pen Start/Stop/OxygenStart/OxygenStop, Cylinder CalibrateClosed/CalibrateOpen, Outlet FaultReset, HydraulicPump Start/Stop/Reset): write TRUE once; the PLC acts on the level it sees and writes FALSE itself, mostly in the same scan. Requests that the PLC keeps until done (InletPump/OxyPump Start and Stop): the PLC clears them only when the pump state confirms them. Levels (Setpoint, ManualSetpoint, ManualOutput, ManualPosition, Mode, LevelSetpoint, Cylinder Open/Close jog): the PLC reads the value every scan and does not clear it. Exceptions: OxyPump.Command.Reset is edge-triggered and never cleared by the PLC (write TRUE, then FALSE). Manual/Auto pairs set Status.Manual; if both arrive in the same scan Auto wins. On the switch to manual the PLC copies the active value into the manual setpoint (bumpless), so ManualSetpoint / ManualPosition / ManualOutput are written by both PLC and client. The PLC gives no explicit acknowledge per command; the client sees the effect in Status (Status.Manual, State, Pen.Status.CommandRejected).",
+  "alarm_ack": "Every alarm is an AlarmState byte (enum AlarmState: 0 Normal, 1 UnacknowledgedAlarm, 2 AcknowledgedAlarm, 3 RetainUnacknowledged, 4 Suppressed) in an *AlarmDUT, with a BOOL of the same name in the matching *AlarmAckDUT. AlarmManagement acknowledges on the RISING EDGE of the AlarmAck bit; the PLC never clears AlarmAck bits, so the client must write TRUE and then FALSE (a bit left TRUE will not acknowledge the next alarm). Transitions: Normal -> Unacknowledged when the condition appears; Unacknowledged -> Acknowledged on ack, or -> RetainUnacknowledged if the condition clears first; Acknowledged -> Normal when the condition clears; RetainUnacknowledged -> Normal on ack, back to Unacknowledged if the condition returns. Suppressed (alarm disabled in config) overrides everything and returns to Normal when unsuppressed. Notification alarms (inlet LowPower, HighPower, FailedToReset) are auto-acknowledged: they go straight to AcknowledgedAlarm and need no ack. Acknowledging only changes the alarm state; it never resets equipment. Equipment resets are separate commands (InletPump/OxyPump Command.Reset, HydraulicPump Command.Reset, Outlet Command.FaultReset). Exception: acknowledging Cylinder FlowSensorFault aborts a hanging counter set.",
+  "config": "Config lives in GVLMain (PenConfig, InletConfig[i], OxyConfig[i], CommonRIOConfig, InletRIOConfig[i], Outlet.Config, Outlet.Cylinder[i].Config, sensor Configs). Main.UpdateRetain keeps a persistent copy in GVLRetain (VAR_GLOBAL PERSISTENT RETAIN): on the first scan after start the retained copy is copied into GVLMain; after that any change in GVLMain is copied to GVLRetain in the same scan. So a client change is retained and survives a restart. Defaults for a fresh download come from ConfigValues (pfc200_sim application) or, where it gives none, from the DUT initial values. Retained: InletConfig, InletRIOConfig, OxyConfig (OxySystemConfig), Outlet.Config, Cylinder Config, cylinder position counter and pressure sensor configs, CommonRIOConfig, PenConfig, Pen.Command.LevelSetpoint, Orbit864Sensor[i].Config, level inside/outside and over-height sensor configs, oxy line sensor configs. NOT retained (back to DUT defaults after a restart): Orbit864 item configs (alarm limits, FilterTime), OxyValve config, Pen CO2/TGP/Turbidity/pH sensor configs, EstimatedInletFlow config, PID Command/Status. FBs read GVLMain config every scan, so most changes act at once. Exceptions are noted per member (e.g. Orbit864 SlaveAddress is read once at start-up).",
+  "status": "Status, Input, Output, State and Alarm members are written by the PLC every scan; client writes are overwritten. Quality: analog sensors (AnalogSensorDUT) have Status.BadQuality (750-455 diagnostic bits set, value out of range, or for level transmitters the InletRIO link down); control uses Filtered only when quality is good and Config.Enable is TRUE. Links: InletRIO/CommonRIO Status.CommOK = connected AND data fresh (a watched spare word must be rewritten within 2 s), DataStale = connected but no fresh data, Restarts counts automatic reconnects (every 10 s while stale). Inlet pumps: Status.CommunicationOK = Framo data source connected AND heartbeat answered; without it State is forced to Unavailable. Oxy pumps: Status.CommunicationOK = drive channel connected and fresh. Units: inlet pump speeds rpm; oxy pump Hz; levels and over-height m; oxy pressures bar (absolute as the transmitter reads); O2 flow kg/h; pen O2 mg/L; saturation %; valve and outlet/cylinder positions %.",
+  "internal": "InletPumpDUT.InternalCommand (InletPumpInternalCommandDUT) is PLC-internal: InletSupervisor/PumpCount writes AutoStart/AutoStop, InletControl writes Start/Stop/Reset/VelocitySetpoint/HeartbeatToggle, and FramoDataProcessing copies them to the Framo controller over OPC UA (data source Framo_n). It is visible because it sits inside GVLMain.Inlet[i]; clients must not write it (the PLC overwrites it every scan, and a write between scans could reach the Framo controller). Also internal or unused despite being exported: GVLMain.InletSequence (PLC re-sorts it every scan), Pen.InletSupervisor (unused copy; the live one is GVLMain.PenInletSupervisor), GVLMain.LevelController.Config and OxyController.Config (unused; tuning is in PenConfig), GVLIO.InletRIO[i].Config and GVLIO.CommonRIO.Config (unused; the live settings are GVLMain.InletRIOConfig / CommonRIOConfig)."
+ },
+ "_structs": {
+  "PenDUT": "The pen (fish tank) as a whole: commands Start/Stop/OxygenStart/OxygenStop and level setpoint, pen state, level and O2 process values, pen alarms and the Orbit 864 sensors. Owned by InletSupervisor (PenSequence, PenLevelControl, PenOxygenControl) and PenControl.",
+  "PenCommandDUT": "Operator commands for the pen (GVLMain.Pen.Command). Read by PenSequence (Start/Stop/OxygenStart/OxygenStop, pulses cleared there) and PenLevelControl (LevelSetpoint).",
+  "PenStatusDUT": "Pen state machine and process values: State, Ready, OxygenOn, CommandRejected (PenSequence) and OverHeight, PenOxygenLevel, LevelControlOK, OxyControlOK (PenControl).",
+  "PenConfigDUT": "Pen tuning: LIC01 level controller, OIC01 oxygen controller and O2 setpoint, level deviation alarms, automatic pump count and rotation. Retained (GVLRetain.PenConfig). Read by InletSupervisor (PenLevelControl, PenOxygenControl, PumpCount).",
+  "PenInletSupervisorDUT": "Read-only summary of the inlet supervision (GVLMain.PenInletSupervisor): pump counts, LIC01 share per pump, pumps wanted, rotation. Written by InletSupervisor.",
+  "PenInputDUT": "Pen measurements: Orbit 864 O2 sensors, CO2/TGP analog inputs and calculated averages (over-height, O2). Written by CommonRIO, ModbusRTUData and PenControl.Sensors.",
+  "PenAlarmDUT": "Pen alarms LevelMeasurementLost (PenControl), LevelDeviationHigh/Low (PenLevelControl).",
+  "InletDUT": "One inlet station i (0..2): Framo inlet pump, level transmitters inside/outside, power supply inputs, vacuum system and bilge inputs. Owned by InletControl[i]; inputs from InletRIO[i] and FramoDataProcessing.",
+  "InletPumpDUT": "Framo inlet pump of inlet i, controlled over OPC UA (data source Framo_n). InletControl[i] runs commands, alarms and heartbeat; FramoDataProcessing maps Input and State.",
+  "InletPumpCommandDUT": "Operator commands for an inlet pump: Manual/Auto mode, manual Start/Stop and speed setpoint, Reset of HOLD/LOCKDOWN. Read by InletControl.",
+  "InletPumpStatusDUT": "Inlet pump status: mode, link to Framo, oxygen permit, actual speed. Written by InletControl and FramoDataProcessing.",
+  "InletPumpInputDUT": "Values and flags read from the Framo controller (FramoDataProcessing).",
+  "InletPumpOutputDUT": "Start and speed setpoint as computed by InletControl before they go to InternalCommand.",
+  "InletPumpInternalCommandDUT": "PLC-internal commands: InletSupervisor -> InletControl (AutoStart/AutoStop) and InletControl -> Framo controller (Start/Stop/Reset/VelocitySetpoint/HeartbeatToggle). Not for clients.",
+  "InletConfigDUT": "Per inlet pump settings: timeouts, heartbeat, reset supervision, speed deviation alarm, pump count enable, Framo OPC UA endpoint. Retained (GVLRetain.InletConfig).",
+  "InletInputDUT": "Inlet station inputs from InletRIO[i]: level transmitters, over-height of the level pair, power and bilge digital inputs.",
+  "OxySystemDUT": "One oxygen line i (0..2): oxy pump (ATV650 drive), O2 valve, line sensors, status and alarm ValvePressureLow. Owned by OxyControl[i]; I/O through InletRIO[i] and CommonRIO.",
+  "OxySystemStatusDUT": "Oxygen line status: pump speed, valve position, O2 flow and its setpoint (share of OIC01), oxygenation active, in auto, valve permit. Written by OxyControl and PenOxygenControl.",
+  "OxySystemConfigDUT": "Per oxygen line settings: enable, oxy pump speeds and run delay, pressure controller PIC and flow controller FIC tuning, flow max, valve ramp and open pressure. Retained (GVLRetain.OxySystemConfig, exported as GVLMain.OxyConfig[i]).",
+  "OxyPumpDUT": "Oxy pump of a line: Schneider ATV650 drive over Modbus TCP via InletRIO[i]'s drive channel. OxyControl (OxyPumpControl, OxyAlarmHandling) and OxyPumpATV650 own it.",
+  "OxyPumpCommandDUT": "Operator commands for the oxy pump: Manual/Auto, manual Start/Stop and speed, drive fault Reset. Read by OxyControl and OxyPumpATV650.",
+  "OxyPumpConfigDUT": "Oxy pump speed range, preset speed, run delay and drive thermal warning level (inside OxySystemConfigDUT).",
+  "AnalogValveDUT": "Analog (4-20 mA) valve; used for the O2 valve OxySystem[i].OxyValve. AnalogValve FB scales Status.Setpoint to Output.RawPosition; OxyControl writes AutoSetpoint and forces 4 mA when the valve is not permitted.",
+  "AnalogValveCommandDUT": "Valve commands: Manual/Auto pulses, ManualSetpoint (client), AutoSetpoint (PLC). Open, Close, SuppressAlarms have no reader.",
+  "PIDControllerDUT": "Operator interface of a pen controller: GVLMain.LevelController (LIC01, PenLevelControl) and GVLMain.OxyController (OIC01, PenOxygenControl). Command and Status.Manual are used; Config is NOT used (tuning is in PenConfig.LevelController / OxyController).",
+  "PIDCommandDUT": "Auto/manual pulses and the manual output of LIC01 or OIC01, handled by ControllerMode (bumpless both ways).",
+  "PIDConfigDUT": "Controller tuning. Used in PenConfig.LevelController (LIC01), PenConfig.OxyController (OIC01), OxyConfig[i].PressureController (PIC) and FlowController (FIC). Not used inside GVLMain.LevelController/OxyController.",
+  "OutletDUT": "Outlet: four hydraulic cylinders that set the outlet opening, a common setpoint by operation mode, the hydraulic pump and the emergency stop. Owned by OutletControl; I/O through CommonRIO.",
+  "OutletCommandDUT": "Outlet commands: Manual/Auto, common manual position, operation Mode, FaultReset of the emergency stop latch. Read by OutletControl.",
+  "OutletConfigDUT": "Outlet settings: opening per mode, pressure/travel limits, ramps, hysteresis, calibration tolerance, hydraulic pump timing. Retained (GVLRetain.OutletConfig).",
+  "CylinderDUT": "One outlet cylinder: position from an oil flow counter (750-638), open/close valves, end positions by pressure. OutletControl (CylinderMapping, CylinderStateMachine, CylinderCalibration, CylinderControl, CylinderAlarmHandling).",
+  "CylinderCommandDUT": "Cylinder commands: Manual/Auto, manual setpoint, jog Open/Close, calibration of closed and open position.",
+  "DirectOnlineMotorDUT": "Direct-on-line motor; used for Outlet.HydraulicPump. OutletControl.HydraulicPumpControl.",
+  "DirectOnlineMotorCommandDUT": "Hydraulic pump commands: Manual/Auto, manual Start/Stop, Reset of feedback fault and starter.",
+  "InletRIODUT": "GVLIO.InletRIO[i]: status and alarms of inlet station i's Wago coupler and of the oxy pump drive channel (InletRIO FB in IO_Processing). Its Config member is not used.",
+  "InletRIOConfigDUT": "Address of inlet station i's RIO and of its oxy pump drive. Live copy is GVLMain.InletRIOConfig[i], retained.",
+  "CommonRIODUT": "GVLIO.CommonRIO: status and alarms of the common Wago coupler (750-362) with the outlet I/O, O2 valve outputs, O2 flow inputs and the 750-652 serial module. Its Config member is not used.",
+  "CommonRIOConfigDUT": "Address of the CommonRIO and the Modbus RTU line settings for the Orbit 864 sensors. Live copy is GVLMain.CommonRIOConfig, retained.",
+  "Serial652ImageDUT": "Process image of the 750-652 serial module carried over CommonRIO's Modbus TCP client; diagnostic.",
+  "AnalogSensorDUT": "One analog input (750-455, 4-20 mA): raw word, scaled and filtered value, quality, L/LL/H/HH and quality alarms. AnalogSensor FB.",
+  "AnalogSensorConfigDUT": "Scaling, filter and alarm limits of an analog input.",
+  "Orbit864SensorDUT": "One In-Situ Orbit 864 (RDO) multi-sensor on Modbus RTU: O2, temperature, conductivity, pressure items. ModbusRTUData polls it; Orbit864Sensor FB (PenControl) decodes and alarms.",
+  "Orbit864SensorConfigDUT": "Per sensor settings: slave address, polled or not, stay awake, used for OIC01, comm alarm. Retained (GVLRetain.Orbit864SensorConfig).",
+  "Orbit864ItemDUT": "One parameter of an Orbit 864 (float value, filtered value, quality, alarms). Orbit864Item FB.",
+  "PlcInfoDUT": "Declared, but no instance found in GVLMain/GVLIO and no reader or writer.",
+  "ModbusRTUData": "FB instance (IO_Processing_RTU) that polls the Orbit 864 sensors over the 750-652; exported read-only for its diagnostic counters."
+ },
+ "PenCommandDUT.Start": {
+  "desc": "Start the pen (water): start all enabled inlet pumps in auto.",
+  "behaviour": "Pulse, cleared by PenSequence in the same scan. Accepted only in State Stopped with Status.Ready (an enabled pump in auto is Available AND a valid level pair). Then State -> Starting, PumpCount starts all candidates (InletPumpEnable, auto, not Unavailable/Lockdown), LIC01 tracks, then Running when a pump is in REMOTE. Ignored without rejection when already Starting/Running; otherwise CommandRejected := TRUE. Stop in the same scan wins.",
+  "client": "write",
+  "unit": "",
+  "source": "PenSequence (InletSupervisor), PumpCount, PenLevelControl"
+ },
+ "PenCommandDUT.Stop": {
+  "desc": "Stop the pen: pumps in auto stop, oxygenation off.",
+  "behaviour": "Pulse, cleared in the same scan. From Starting or Running: State -> Stopping, then Stopped when no pump is counted. Always sets Status.OxygenOn := FALSE (oxygen lines stop) and clears CommandRejected. All inlet pumps in auto get AutoStop; pumps in manual are not stopped. Has priority over Start.",
+  "client": "write",
+  "unit": "",
+  "source": "PenSequence, PumpCount, OxyControl"
+ },
+ "PenCommandDUT.OxygenStart": {
+  "desc": "Oxygenation on: enabled oxygen lines follow their inlet pumps.",
+  "behaviour": "Pulse, cleared in the same scan. Accepted while State is Starting or Running (evaluated after Start, so Start + OxygenStart together works): Status.OxygenOn := TRUE. Else CommandRejected := TRUE. A line then starts its oxy pump when OxyConfig[i].Enable and its inlet pump is in REMOTE with a live link (OxyPermit). OxygenStop in the same scan wins.",
+  "client": "write",
+  "unit": "",
+  "source": "PenSequence, OxyControl"
+ },
+ "PenCommandDUT.OxygenStop": {
+  "desc": "Oxygenation off for the pen.",
+  "behaviour": "Pulse, cleared in the same scan. Always accepted: Status.OxygenOn := FALSE, CommandRejected := FALSE. Oxygen lines in auto stop their oxy pumps and close their valves; oxy pumps in manual keep running but their valves close (no OxygenationActive).",
+  "client": "write",
+  "unit": "",
+  "source": "PenSequence, OxyControl"
+ },
+ "PenCommandDUT.InitModbusRTU": {
+  "desc": "Intended to force Modbus RTU re-initialisation. Not implemented.",
+  "behaviour": "No reader found in the pfc200_sim application. Writing it has no effect. Note: Orbit 864 slave addresses are read only at start-up.",
+  "client": "write",
+  "unit": "",
+  "source": "no reader"
+ },
+ "PenCommandDUT.LevelSetpoint": {
+  "desc": "LIC01 setpoint: wanted over-height of the pen level above the outside level.",
+  "behaviour": "Level value, read every scan by PenLevelControl; used in Auto and for the level deviation alarms. Retained through GVLRetain.LevelSetpoint (default 0.06 m). The PLC overwrites it: when LIC01 goes from manual to auto with pumps in REMOTE and a valid level, the setpoint is set to the current over-height (bumpless transfer); the new value is then retained.",
+  "client": "write",
+  "unit": "m",
+  "source": "PenLevelControl, ControllerMode, Main.UpdateRetain"
+ },
+ "InletPumpCommandDUT.Manual": {
+  "desc": "Put the inlet pump in operator manual (Status.Manual := TRUE).",
+  "behaviour": "Pulse, cleared by InletControl in the same scan (Auto in the same scan wins). In manual the pump is out of the automatic pump count and rotation, not counted by LIC01, not stopped by Pen Stop, and runs on Command.Start/Stop/Setpoint. Alarms stay active in manual even if InletPumpEnable is FALSE. A Start left TRUE from before takes effect at once.",
+  "client": "write",
+  "unit": "",
+  "source": "InletControl, InletPumpSet, PumpCount, Accounting"
+ },
+ "InletPumpCommandDUT.Auto": {
+  "desc": "Return the inlet pump to auto (Status.Manual := FALSE).",
+  "behaviour": "Pulse, cleared in the same scan. In auto InletSupervisor starts/stops the pump (InternalCommand.AutoStart/AutoStop, pen state and pump count) and the speed is PenInletSupervisor.AutoSpeedSetpoint. With the pen stopped, an auto pump that is not a candidate gets AutoStop.",
+  "client": "write",
+  "unit": "",
+  "source": "InletControl"
+ },
+ "InletPumpCommandDUT.Start": {
+  "desc": "Manual start request to the Framo controller.",
+  "behaviour": "Acted on only with Status.Manual; ignored in auto. Latched internally until Stop. Sent as Framo Start while State is Available, Starting, Remote or Hold (not Unavailable, Stopping, Lockdown). The PLC clears Command.Start once State is Starting, Remote or Stopping; otherwise it stays TRUE. Alarm StartUpTimeout if State stays Available for InletConfig.StartupTime (30 s). Response: State Available -> Starting -> Remote.",
+  "client": "write",
+  "unit": "",
+  "source": "InletControl.InletPumpControl, FramoDataProcessing"
+ },
+ "InletPumpCommandDUT.Stop": {
+  "desc": "Manual stop request to the Framo controller.",
+  "behaviour": "Acted on only in manual. Held by the PLC while State is Starting, Remote or Stopping, cleared in any other state (Available, Hold, Lockdown, Unavailable). While TRUE, Framo Stop is TRUE and the start latch is cleared. Alarm StopTimeout if State stays Starting/Remote/Hold for InletConfig.ShutdownTime (30 s). In auto the stop comes from InletSupervisor; Command.Stop is ignored but still cleared by state.",
+  "client": "write",
+  "unit": "",
+  "source": "InletControl.InletPumpControl, FramoDataProcessing"
+ },
+ "InletPumpCommandDUT.Reset": {
+  "desc": "Reset the Framo controller from HOLD or LOCKDOWN.",
+  "behaviour": "Pulse, cleared in the same scan; manual or auto. Accepted only in State Hold or Lockdown and when no reset is running; ignored otherwise. Framo Reset is held TRUE until the PLC sees the state change (HOLD -> REMOTE, LOCKDOWN -> AVAILABLE) or 2 x InletConfig.ResetExpectedTime passes; then warning FailedToReset (auto-acknowledged) until the pump leaves Hold/Lockdown or Reset is given again. Acknowledging alarms does not reset the pump.",
+  "client": "write",
+  "unit": "",
+  "source": "InletControl, FramoDataProcessing"
+ },
+ "InletPumpCommandDUT.Setpoint": {
+  "desc": "Manual speed setpoint of the inlet pump.",
+  "behaviour": "Level value, used only in manual and only sent to Framo while State = Remote (other states send the actual speed or 0). Not limited by the PLC. In auto it is ignored; the speed is LIC01's share (PenInletSupervisor.AutoSpeedSetpoint). Alarm SpeedDeviation if |setpoint - MotorVelocity| > SpeedDeviationLimit for SpeedDeviationDelay in REMOTE.",
+  "client": "write",
+  "unit": "rpm",
+  "source": "InletControl"
+ },
+ "OxyPumpCommandDUT.Manual": {
+  "desc": "Put the oxy pump in operator manual (Status.Manual := TRUE).",
+  "behaviour": "Pulse, cleared by OxyControl in the same scan (Auto in the same scan wins). In manual: started/stopped by Command.Start/Stop without the line start (no inlet permit needed); speed = Command.Setpoint (PIC in manual). The O2 valve still opens only when the line is started (OxygenOn, Enable, inlet permit) and the pump has run RunDelay with pressure. Alarms active even if OxyConfig.Enable is FALSE.",
+  "client": "write",
+  "unit": "",
+  "source": "OxyControl, OxyPumpControl, OxyAlarmHandling"
+ },
+ "OxyPumpCommandDUT.Auto": {
+  "desc": "Return the oxy pump to auto (Status.Manual := FALSE).",
+  "behaviour": "Pulse, cleared in the same scan. In auto the pump runs while the line is started: Pen.Status.OxygenOn AND OxyConfig.Enable AND inlet OxyPermit AND NOT EmergencyStop; speed from the PIC (pressure) or PresetSpeed_Hz.",
+  "client": "write",
+  "unit": "",
+  "source": "OxyControl.OxyPumpControl"
+ },
+ "OxyPumpCommandDUT.Start": {
+  "desc": "Manual start of the oxy pump drive.",
+  "behaviour": "Acted on only in manual; latched until Stop. Runs the drive unless State is Unavailable (no comm or drive fault) or EmergencyStop. The PLC clears Command.Start when State = Running; it stays TRUE otherwise (also in auto). Alarm StartUpTimeout if the drive does not turn within OxyConfig.OxyStartupTime (10 s). Response: State Available -> Starting -> Running (speed above MinSpeed_Hz - 0.5).",
+  "client": "write",
+  "unit": "",
+  "source": "OxyControl.OxyPumpControl, OxyPumpATV650"
+ },
+ "OxyPumpCommandDUT.Stop": {
+  "desc": "Manual stop of the oxy pump drive.",
+  "behaviour": "Acted on only in manual: clears the start latch, the drive ramps down (DRIVECOM switched on). The PLC clears Command.Stop when State = Available; until then it stays TRUE. Alarm StopTimeout if the drive still runs after OxyConfig.OxyShutdownTime (10 s).",
+  "client": "write",
+  "unit": "",
+  "source": "OxyControl.OxyPumpControl"
+ },
+ "OxyPumpCommandDUT.Reset": {
+  "desc": "Reset a fault in the ATV650 drive.",
+  "behaviour": "Edge-triggered (rising edge in OxyPumpATV650); NOT cleared by the PLC, so write TRUE then FALSE. Acts only while the drive is in fault: control word 0x0080 for 500 ms. Manual or auto. Communication-loss faults (LFT 150 ETHF, 7 CNF) are reset automatically once per link recovery (Status.AutoResets); other faults need this Reset. Acknowledging DriveError does not reset the drive.",
+  "client": "write",
+  "unit": "",
+  "source": "OxyControl, OxyPumpATV650"
+ },
+ "OxyPumpCommandDUT.Setpoint": {
+  "desc": "Manual speed of the oxy pump.",
+  "behaviour": "Level value, used only in pump manual while the pump is Starting/Running (PIC forced to manual with this output). Limited to OxyPump.MinSpeed_Hz..MaxSpeed_Hz. In auto it is ignored: PIC output, or PresetSpeed_Hz while starting, with the PIC disabled or with a bad pressure.",
+  "client": "write",
+  "unit": "Hz",
+  "source": "OxyControl, PIDController, OxyPumpATV650"
+ },
+ "AnalogValveCommandDUT.Manual": {
+  "desc": "Put the O2 valve in operator manual (Status.Manual := TRUE).",
+  "behaviour": "Pulse, cleared by AnalogValve in the same scan (Auto wins if both). In manual the valve follows ManualSetpoint without the ramp, the line is not InAuto and OIC01 counts its measured flow instead. The valve is still forced closed (4 mA) unless OxygenationActive AND ValvePermit.",
+  "client": "write",
+  "unit": "",
+  "source": "AnalogValve, OxyControl, PenOxygenControl"
+ },
+ "AnalogValveCommandDUT.Auto": {
+  "desc": "Return the O2 valve to auto (FIC).",
+  "behaviour": "Pulse, cleared in the same scan. The FIC continues from the manual position (bumpless) and the ramped FIC output goes to AutoSetpoint.",
+  "client": "write",
+  "unit": "",
+  "source": "AnalogValve, OxyControl"
+ },
+ "AnalogValveCommandDUT.ManualSetpoint": {
+  "desc": "Manual valve position.",
+  "behaviour": "Level value, used in valve manual (Status.Setpoint, scaled to 4-20 mA over Config.MinValue..MaxValue, default 0..100). Effective only when the valve is permitted; otherwise the output stays 4 mA and Status.OxyValvePosition shows 0. Not cleared or overwritten by the PLC.",
+  "client": "write",
+  "unit": "%",
+  "source": "AnalogValve.ScaleOutput, OxyControl"
+ },
+ "AnalogValveCommandDUT.AutoSetpoint": {
+  "desc": "Valve position in auto, written by the PLC (ramped FIC output).",
+  "behaviour": "Written by OxyControl every scan; client writes are overwritten. 0 when the valve may not open.",
+  "client": "internal",
+  "unit": "%",
+  "source": "OxyControl"
+ },
+ "AnalogValveCommandDUT.Open": {
+  "desc": "Not implemented.",
+  "behaviour": "No reader in the AnalogValve FB used for the O2 valve.",
+  "client": "write",
+  "unit": "",
+  "source": "no reader"
+ },
+ "AnalogValveCommandDUT.Close": {
+  "desc": "Not implemented.",
+  "behaviour": "No reader in the AnalogValve FB used for the O2 valve.",
+  "client": "write",
+  "unit": "",
+  "source": "no reader"
+ },
+ "AnalogValveCommandDUT.SuppressAlarms": {
+  "desc": "Not implemented.",
+  "behaviour": "No reader. Valve alarms are suppressed by Config.EnableAlarms instead.",
+  "client": "write",
+  "unit": "",
+  "source": "no reader"
+ },
+ "PIDCommandDUT.Manual": {
+  "desc": "Put LIC01 (LevelController) or OIC01 (OxyController) in operator manual.",
+  "behaviour": "Pulse, cleared by ControllerMode every scan (Auto wins if both). Sets Status.Manual. If the loop is active, the PLC copies the current output into Command.ManualOutput (bumpless). LIC01 manual: pumps in REMOTE run at ManualOutput rpm each. OIC01 manual: total O2 flow = ManualOutput, shared over the lines in auto. Status.Manual is kept while the loop is idle. The oxy line PIC/FIC have no PIDCommandDUT.",
+  "client": "write",
+  "unit": "",
+  "source": "ControllerMode, PenLevelControl, PenOxygenControl"
+ },
+ "PIDCommandDUT.Auto": {
+  "desc": "Return LIC01 or OIC01 to auto.",
+  "behaviour": "Pulse, cleared every scan. Clears Status.Manual; the PI restarts from the last output (bumpless). If the loop is active and the PV is good, the PLC sets the setpoint to the current PV: LIC01 overwrites Pen.Command.LevelSetpoint, OIC01 overwrites PenConfig.OxySetpoint (both retained). Auto while already in auto restarts the PI from its current output.",
+  "client": "write",
+  "unit": "",
+  "source": "ControllerMode, PIDController"
+ },
+ "PIDCommandDUT.ManualOutput": {
+  "desc": "Controller output in manual.",
+  "behaviour": "Level value used while Status.Manual. LIC01: speed per pump in REMOTE [rpm], limited to PenConfig.LevelController.MinOutput..MaxOutput. OIC01: total O2 flow to the pen [kg/h]. Written by both: the PLC sets it to the current output on the switch to manual.",
+  "client": "write",
+  "unit": "rpm per pump (LIC01) / kg/h (OIC01)",
+  "source": "ControllerMode, PenLevelControl, PenOxygenControl"
+ },
+ "CylinderCommandDUT.Manual": {
+  "desc": "Put one outlet cylinder in manual (Status.Manual).",
+  "behaviour": "Pulse, cleared by OutletControl in the same scan (Auto wins). On entry the PLC copies Status.Setpoint into Command.ManualSetpoint. In manual the cylinder follows ManualSetpoint and accepts jog Open/Close.",
+  "client": "write",
+  "unit": "",
+  "source": "OutletControl"
+ },
+ "CylinderCommandDUT.Auto": {
+  "desc": "Return the cylinder to the common outlet setpoint.",
+  "behaviour": "Pulse, cleared in the same scan. In auto the cylinder follows Outlet.Status.Setpoint (mode table or outlet manual position), ramped by RampRateOpen/Close.",
+  "client": "write",
+  "unit": "",
+  "source": "OutletControl"
+ },
+ "CylinderCommandDUT.ManualSetpoint": {
+  "desc": "Position setpoint of this cylinder in cylinder manual.",
+  "behaviour": "Level value, limited to 0..100 %, ramped. Movement needs a calibrated position, no fault and no emergency stop. Written by both: the PLC sets it to the setpoint on entry to manual and to the actual position while jogging.",
+  "client": "write",
+  "unit": "%",
+  "source": "OutletControl.CylinderStateMachine"
+ },
+ "CylinderCommandDUT.Open": {
+  "desc": "Jog the cylinder open while held.",
+  "behaviour": "Level (hold to jog), not cleared by the PLC. Only in cylinder manual, not with Close, fault, emergency stop or open end position. Works without calibration. Starts the hydraulic pump; the valve opens once the pump is ready. Stops after MaxTravelTimeOpen of valve-on time or on high pressure, latched until released.",
+  "client": "write",
+  "unit": "",
+  "source": "OutletControl, CylinderStateMachine, HydraulicPumpControl"
+ },
+ "CylinderCommandDUT.Close": {
+  "desc": "Jog the cylinder closed while held.",
+  "behaviour": "As Open, in the closing direction: manual only, level, limited by MaxTravelTimeClose or high closing pressure until released.",
+  "client": "write",
+  "unit": "",
+  "source": "OutletControl, CylinderStateMachine"
+ },
+ "CylinderCommandDUT.CalibrateClosed": {
+  "desc": "Define the present position as closed (counter set to 0).",
+  "behaviour": "Pulse, cleared in the same scan. No state condition checked: sets Config.ClosedPosition := 0 and starts the 750-638 set-counter handshake with 0. Position is not valid (Calibrated FALSE) until the module confirms; CounterSetFailed after 3 s raises FlowSensorFault. Clears CalibrationMismatch. Config is retained.",
+  "client": "write",
+  "unit": "",
+  "source": "CylinderCalibration, CylinderControl, CylinderMapping"
+ },
+ "CylinderCommandDUT.CalibrateOpen": {
+  "desc": "Define the present counter value as fully open.",
+  "behaviour": "Pulse, cleared in the same scan. Accepted only when Status.CurrentState = Opened (open end position confirmed by pressure); ignored otherwise. Sets Config.OpenPosition := OilFlowCounter (retained) and clears CalibrationMismatch.",
+  "client": "write",
+  "unit": "",
+  "source": "CylinderCalibration"
+ },
+ "OutletCommandDUT.Manual": {
+  "desc": "Outlet common setpoint to manual (Status.Manual).",
+  "behaviour": "Pulse, cleared in the same scan (Auto wins). On entry the PLC copies the active setpoint into Command.ManualPosition. Cylinders in auto then follow ManualPosition.",
+  "client": "write",
+  "unit": "",
+  "source": "OutletControl"
+ },
+ "OutletCommandDUT.Auto": {
+  "desc": "Outlet common setpoint from the operation mode table.",
+  "behaviour": "Pulse, cleared in the same scan. Setpoint = Config.ModePosition[Mode].",
+  "client": "write",
+  "unit": "",
+  "source": "OutletControl"
+ },
+ "OutletCommandDUT.ManualPosition": {
+  "desc": "Common outlet opening in outlet manual.",
+  "behaviour": "Level value, limited to 0..100 %. Written by both: set by the PLC on the switch to manual.",
+  "client": "write",
+  "unit": "%",
+  "source": "OutletControl"
+ },
+ "OutletCommandDUT.Mode": {
+  "desc": "Operation mode O35/O45/O60/S75 (OutletValveMode 0..3).",
+  "behaviour": "Level value. In auto the setpoint is Config.ModePosition[Mode]. Copied to Status.Mode and Config.Mode (retained); restored from Config.Mode on start. An out-of-range value is replaced by the current mode.",
+  "client": "write",
+  "unit": "enum OutletValveMode",
+  "source": "OutletControl"
+ },
+ "OutletCommandDUT.FaultReset": {
+  "desc": "Reset the latched outlet emergency stop.",
+  "behaviour": "Pulse, cleared in the same scan. Clears the emergency stop latch only if the emergency switch is released; otherwise no effect. Status.EmergencyStop and Status.Fault then clear (if nothing else is wrong). Does not reset cylinder or pump alarms.",
+  "client": "write",
+  "unit": "",
+  "source": "OutletControl"
+ },
+ "DirectOnlineMotorCommandDUT.Manual": {
+  "desc": "Hydraulic pump to manual (Outlet.HydraulicPump.Status.Manual).",
+  "behaviour": "Pulse, cleared in the same scan (Auto wins). In manual the pump runs on Start/Stop only, not on cylinder demand; cylinders still need the pump ready to move.",
+  "client": "write",
+  "unit": "",
+  "source": "OutletControl.HydraulicPumpControl"
+ },
+ "DirectOnlineMotorCommandDUT.Auto": {
+  "desc": "Hydraulic pump to auto.",
+  "behaviour": "Pulse. In auto the pump runs while any cylinder requests movement, plus Config.PumpStopDelay.",
+  "client": "write",
+  "unit": "",
+  "source": "HydraulicPumpControl"
+ },
+ "DirectOnlineMotorCommandDUT.Start": {
+  "desc": "Manual start of the hydraulic pump.",
+  "behaviour": "Pulse, cleared every scan. Only in manual, and only while Status.Available (no starter fault, no feedback fault) and no emergency stop; a trip cancels it, no restart by itself. Supply contactor, then start output after 300 ms.",
+  "client": "write",
+  "unit": "",
+  "source": "HydraulicPumpControl"
+ },
+ "DirectOnlineMotorCommandDUT.Stop": {
+  "desc": "Manual stop of the hydraulic pump.",
+  "behaviour": "Pulse, cleared every scan. Only in manual.",
+  "client": "write",
+  "unit": "",
+  "source": "HydraulicPumpControl"
+ },
+ "DirectOnlineMotorCommandDUT.Reset": {
+  "desc": "Reset hydraulic pump feedback fault and starter.",
+  "behaviour": "Pulse, cleared every scan. Clears the latched FeedbackFault. If the pump is not Available, sends a 1 s starter reset pulse (Output.Reset).",
+  "client": "write",
+  "unit": "",
+  "source": "HydraulicPumpControl"
+ },
+ "GVLMain.EmergencyStop": {
+  "desc": "Global emergency stop flag. Not implemented.",
+  "behaviour": "Declared 'not implemented'; no reader or writer found. The oxy lines use OxySystem[i].Input.EmergencyStop (also never written), the outlet uses its own emergency switch.",
+  "client": "read",
+  "unit": "",
+  "source": "no reader"
+ },
+ "GVLMain.InletSequence": {
+  "desc": "Pump order, fewest running days first (inlet indices).",
+  "behaviour": "Written by the PLC every scan (InletSupervisor.SortSequence, stable insertion sort on Input.MotorRunningDays). Client writes: invalid entries reset it to 0,1,2; valid ones are re-sorted at once, so a client order only matters between equal running days. Used by PumpCount: start the first standby, stop the last running pump, rotation.",
+  "client": "read",
+  "unit": "",
+  "source": "InletSupervisor.SortSequence, PumpCount"
+ },
+ "InletPumpAlarmAckDUT.HeartbeatTimeout": {
+  "desc": "Acknowledge Alarm.HeartbeatTimeout (Framo has not cleared the heartbeat bit).",
+  "behaviour": "Rising edge. Alarm only when the pump is in service (InletPumpEnable or manual). The link itself comes back when Framo answers again; ack does not affect it.",
+  "client": "write",
+  "unit": "",
+  "source": "InletControl.AlarmHandling"
+ },
+ "InletPumpAlarmAckDUT.DriveError": {
+  "desc": "Acknowledge the Framo drive error alarm.",
+  "behaviour": "Rising edge; only changes the alarm state. The Framo controller is reset with Command.Reset (in HOLD/LOCKDOWN). Drive-flag alarms (DriveError ... EmergencyRunMode) are raised only with a live link and the pump in service; PumpCommonError collects them.",
+  "client": "write",
+  "unit": "",
+  "source": "InletControl.AlarmHandling"
+ },
+ "InletPumpAlarmAckDUT.LowPower": {
+  "desc": "No effect needed: LowPower is auto-acknowledged.",
+  "behaviour": "LowPower and HighPower are notifications (AutoAcknowledge). Alarm.FailedToReset is also auto-acknowledged and has no ack bit.",
+  "client": "write",
+  "unit": "",
+  "source": "InletControl.AlarmHandling"
+ },
+ "InletPumpAlarmAckDUT.SpeedDeviation": {
+  "desc": "Acknowledge the speed deviation alarm.",
+  "behaviour": "Rising edge. Condition: State Remote, SpeedDeviationLimit > 0, |Output.VelocitySetpoint - MotorVelocity| > limit for SpeedDeviationDelay.",
+  "client": "write",
+  "unit": "",
+  "source": "InletControl"
+ },
+ "OxyPumpAlarmAckDUT.DriveError": {
+  "desc": "Acknowledge the oxy pump drive fault alarm. Does not reset the drive.",
+  "behaviour": "Rising edge; alarm state only. The drive fault (code in OxyPump.Input.LastFault) is reset by Command.Reset (edge), or automatically for communication-loss faults (150, 7) after the link returns. Alarms only when the line is in service (Config.Enable or manual).",
+  "client": "write",
+  "unit": "",
+  "source": "OxyControl.OxyAlarmHandling, OxyPumpATV650"
+ },
+ "OxyPumpAlarmAckDUT.PumpStopped": {
+  "desc": "Not implemented for the oxy pump.",
+  "behaviour": "No alarm logic raises OxyPump.Alarm PumpStopped, UPSSupplyError, EmergencyRunMode, LowPower or HighPower; these ack bits have no effect.",
+  "client": "write",
+  "unit": "",
+  "source": "no reader"
+ },
+ "OxyPumpAlarmAckDUT.DriveCommunicationError": {
+  "desc": "Acknowledge loss of the drive's Modbus TCP channel.",
+  "behaviour": "Rising edge. Alarm when the drive is configured (InletRIOConfig DriveEnabled + IP) and Status.CommunicationOK is FALSE.",
+  "client": "write",
+  "unit": "",
+  "source": "OxyAlarmHandling"
+ },
+ "OxySystemAlarmAckDUT.ValvePressureLow": {
+  "desc": "Acknowledge ValvePressureLow.",
+  "behaviour": "Rising edge. Alarm while oxygenation is active but no valve permit (pump not running, pressure after the pump bad or below ValveOpenPressure); the valve is held closed meanwhile.",
+  "client": "write",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "PenAlarmAckDUT.LevelMeasurementLost": {
+  "desc": "Acknowledge LevelMeasurementLost (no valid level pair).",
+  "behaviour": "Rising edge. While the condition lasts LIC01 runs the pumps at SafeOutput and Pen Start is not accepted (Ready FALSE).",
+  "client": "write",
+  "unit": "",
+  "source": "PenControl.AlarmHandling"
+ },
+ "PenAlarmAckDUT.LevelDeviationHigh": {
+  "desc": "Acknowledge the high level deviation alarm.",
+  "behaviour": "Rising edge. Condition only with LIC01 in Auto: over-height > setpoint + LevelDeviationLimit for LevelDeviationDelay. LevelDeviationLow likewise below.",
+  "client": "write",
+  "unit": "",
+  "source": "PenLevelControl"
+ },
+ "PIDAlarmAckDUT.LimitsActive": {
+  "desc": "Acknowledge controller output at a limit.",
+  "behaviour": "Rising edge. Raised for LIC01 only in Auto mode, for OIC01 only while it controls (running, auto, good O2). Overflow likewise.",
+  "client": "write",
+  "unit": "",
+  "source": "PenLevelControl, PenOxygenControl"
+ },
+ "CylinderAlarmAckDUT.FlowSensorFault": {
+  "desc": "Acknowledge FlowSensorFault; also aborts a hanging counter set.",
+  "behaviour": "Rising edge. Special: if Status.CounterSetFailed (750-638 did not confirm a set within 3 s), the edge cancels the set request, keeps the module's count and sets CalibrationMismatch (CalibrationError) until the next calibration. Condition: PositionDrift, direction mismatch or CounterSetFailed.",
+  "client": "write",
+  "unit": "",
+  "source": "CylinderControl, CylinderAlarmHandling"
+ },
+ "CylinderAlarmAckDUT.TimeoutCylinderOpening": {
+  "desc": "Acknowledge a cylinder travel timeout.",
+  "behaviour": "Rising edge. Raised when a valve stays energised longer than MaxTravelTimeOpen/Close; suppressed if EnableTimeoutAlarms is FALSE. Status.Fault (blocks movement) is TRUE while the alarm is Unacknowledged or Acknowledged, not in RetainUnacknowledged.",
+  "client": "write",
+  "unit": "",
+  "source": "CylinderAlarmHandling"
+ },
+ "DirectOnlineMotorAlarmAckDUT.FeedbackFault": {
+  "desc": "Acknowledge the hydraulic pump feedback alarm. Does not clear the fault.",
+  "behaviour": "Rising edge, alarm state only. The latched FeedbackFault is cleared by HydraulicPump.Command.Reset.",
+  "client": "write",
+  "unit": "",
+  "source": "OutletControl.AlarmHandling, HydraulicPumpControl"
+ },
+ "InletRIOAlarmAckDUT.FuseError": {
+  "desc": "Not implemented.",
+  "behaviour": "No alarm logic for FuseError or PowerSupplyError; only CommError and MissingIPaddress are raised.",
+  "client": "write",
+  "unit": "",
+  "source": "InletRIO.AlarmHandling"
+ },
+ "InletAlarmAckDUT.LevelInsidePenLow": {
+  "desc": "Not implemented.",
+  "behaviour": "No alarm logic for LevelInsidePenLow/High or LevelOutsidePenLow/High. The transmitters' own AnalogSensor alarms (Input.LevelInsidePen.Alarm) are used instead. The breaker/power alarms are raised only with the InletRIO link up.",
+  "client": "write",
+  "unit": "",
+  "source": "InletSensors.AlarmHandling"
+ },
+ "AnalogValveAlarmAckDUT.Fault": {
+  "desc": "O2 valve alarms are never raised in this program.",
+  "behaviour": "AnalogValve raises FailedOpening/FailedClosing from Output.Open/Close and Fault from Input.Fault, but nothing writes those for the O2 valve; and Config.EnableAlarms defaults FALSE (Suppressed).",
+  "client": "write",
+  "unit": "",
+  "source": "AnalogValve.AlarmHandling"
+ },
+ "AnalogSensorAlarmAckDUT.Quality": {
+  "desc": "Acknowledge an analog input quality alarm.",
+  "behaviour": "Rising edge. Raised when Status.BadQuality lasts QualityDelay; suppressed unless Config.Enable AND QualityEnabled. L/LL/H/HH likewise with their *_Enabled and delays; those (not Quality) are inhibited for the oxy pump pressure until the pump has run RunDelay, and for O2 flow/injection pressure until the valve may open.",
+  "client": "write",
+  "unit": "",
+  "source": "AnalogSensor.AlarmHandling"
+ },
+ "Orbit864SensorAlarmAckDUT.CommFail": {
+  "desc": "Acknowledge an Orbit 864 communication failure.",
+  "behaviour": "Rising edge. Raised when an enabled sensor has no valid oxygen-block reply for CommAlarmDelay; suppressed by Config.SuppressAlarm.",
+  "client": "write",
+  "unit": "",
+  "source": "Orbit864Sensor"
+ },
+ "CommonRIOAlarmAckDUT.CommError": {
+  "desc": "Acknowledge CommonRIO communication error.",
+  "behaviour": "Rising edge. Raised when Config.Enabled and Status.CommOK is FALSE. InletRIO CommError likewise.",
+  "client": "write",
+  "unit": "",
+  "source": "CommonRIO.AlarmHandling, InletRIO.AlarmHandling"
+ },
+ "PenConfigDUT.LevelController": {
+  "desc": "LIC01 tuning and per-pump output limits.",
+  "behaviour": "Kp in total rpm per m (default 1350), Ti 60 s, Td 0. MinOutput 40 / MaxOutput 130 / SafeOutput 60 rpm per pump in REMOTE, scaled by the PLC with the number of pumps in REMOTE. SafeOutput is used when no valid level pair is left. Enabled/Override/Smoothing are not read. Retained, takes effect at once.",
+  "client": "config",
+  "unit": "see PIDConfigDUT",
+  "source": "PenLevelControl"
+ },
+ "PenConfigDUT.NumberOfInletsToRun": {
+  "desc": "Not implemented.",
+  "behaviour": "No reader. The pump count is automatic (PumpTargetSpeed/PumpAddSpeed).",
+  "client": "config",
+  "unit": "",
+  "source": "no reader"
+ },
+ "PenConfigDUT.OxyController": {
+  "desc": "OIC01 tuning: pen O2 to total O2 flow.",
+  "behaviour": "Kp in kg/h per mg/L (default 50), Ti 1800 s, Td 0. MinOutput 0 kg/h. MaxOutput 0 = no fixed limit; the PLC always limits to the FlowMax of the lines in auto plus the flow of active lines not in auto. Enabled/Override/Smoothing/SafeOutput are not read. Retained, immediate.",
+  "client": "config",
+  "unit": "kg/h, mg/L",
+  "source": "PenOxygenControl"
+ },
+ "PenConfigDUT.OxySetpoint": {
+  "desc": "Pen O2 setpoint for OIC01.",
+  "behaviour": "Default 8.0 mg/L, retained. Written by the PLC too: on OIC01 manual -> auto with a good O2 measurement it is set to the current pen O2 (bumpless).",
+  "client": "config",
+  "unit": "mg/L",
+  "source": "PenOxygenControl, ControllerMode"
+ },
+ "PenConfigDUT.LevelDeviationLimit": {
+  "desc": "Level deviation alarm band either side of the setpoint.",
+  "behaviour": "Default 0.02 m; 0 = alarms off. Active only with LIC01 in Auto.",
+  "client": "config",
+  "unit": "m",
+  "source": "PenLevelControl"
+ },
+ "PenConfigDUT.LevelDeviationDelay": {
+  "desc": "Delay of the level deviation alarms.",
+  "behaviour": "Default 5 min.",
+  "client": "config",
+  "unit": "time",
+  "source": "PenLevelControl"
+ },
+ "PenConfigDUT.PumpTargetSpeed": {
+  "desc": "Stop a pump when the others would run at or below this speed.",
+  "behaviour": "Default 85 rpm; 0 = never stop. Evaluated with pen started, LIC01 in Auto, all candidate pumps settled, no rotation, at least 2 counted pumps: Total/(pumps-1) <= this for PumpRemoveDelay. The pump with most running days stops.",
+  "client": "config",
+  "unit": "rpm",
+  "source": "PumpCount"
+ },
+ "PenConfigDUT.PumpAddSpeed": {
+  "desc": "Start a standby pump when the share per pump reaches this.",
+  "behaviour": "Default 115 rpm; 0 = never start; keep above PumpTargetSpeed. Same conditions as removal, plus an Available standby, for PumpAddDelay. The standby with fewest running days starts.",
+  "client": "config",
+  "unit": "rpm",
+  "source": "PumpCount"
+ },
+ "PenConfigDUT.PumpRemoveDelay": {
+  "desc": "How long the stop condition must hold.",
+  "behaviour": "Default 15 min.",
+  "client": "config",
+  "unit": "time",
+  "source": "PumpCount"
+ },
+ "PenConfigDUT.PumpAddDelay": {
+  "desc": "How long the start condition must hold.",
+  "behaviour": "Default 2 min.",
+  "client": "config",
+  "unit": "time",
+  "source": "PumpCount"
+ },
+ "PenConfigDUT.PumpCycleTime": {
+  "desc": "Run time in REMOTE before a standby pump takes over.",
+  "behaviour": "Default 24 h; 0 = no rotation. The standby starts first; the old pump stops when the standby reaches REMOTE (PenInletSupervisor.PumpRotationActive meanwhile).",
+  "client": "config",
+  "unit": "time",
+  "source": "PumpCount"
+ },
+ "InletConfigDUT.StartupTime": {
+  "desc": "Start supervision time of the inlet pump.",
+  "behaviour": "Default 30 s. Alarm StartUpTimeout if Framo has not left AVAILABLE this long after Start. PumpCount also drops a candidate that does not start within StartupTime + 10 s (left out until the pen stops).",
+  "client": "config",
+  "unit": "time",
+  "source": "InletControl, PumpCount"
+ },
+ "InletConfigDUT.ShutdownTime": {
+  "desc": "Stop supervision time.",
+  "behaviour": "Default 30 s. Alarm StopTimeout if the pump is still Starting/Remote/Hold this long after Stop.",
+  "client": "config",
+  "unit": "time",
+  "source": "InletControl"
+ },
+ "InletConfigDUT.HeartbeatInterval": {
+  "desc": "Delay before the PLC sets the heartbeat bit again.",
+  "behaviour": "Default 1 s (0 -> 1 s).",
+  "client": "config",
+  "unit": "time",
+  "source": "InletControl.Heartbeat"
+ },
+ "InletConfigDUT.HeartbeatTimeout": {
+  "desc": "Heartbeat supervision time of the Framo link.",
+  "behaviour": "Default 10 s in ConfigValues (DUT 5 s; 0 -> 5 s). On timeout: HeartbeatTimeout alarm, Status.CommunicationOK FALSE, State Unavailable, OxyPermit FALSE (oxygen line stops), data source reconnect after 30 s.",
+  "client": "config",
+  "unit": "time",
+  "source": "InletControl.Heartbeat, FramoLink"
+ },
+ "InletConfigDUT.ResetExpectedTime": {
+  "desc": "Expected time for Framo to leave HOLD/LOCKDOWN after Reset.",
+  "behaviour": "Default 5 s. Reset is withdrawn and FailedToReset raised after 2 x this time.",
+  "client": "config",
+  "unit": "time",
+  "source": "InletControl"
+ },
+ "InletConfigDUT.SpeedDeviationLimit": {
+  "desc": "Speed deviation alarm limit in REMOTE.",
+  "behaviour": "Default 10 rpm; 0 = off.",
+  "client": "config",
+  "unit": "rpm",
+  "source": "InletControl"
+ },
+ "InletConfigDUT.SpeedDeviationDelay": {
+  "desc": "Delay of the speed deviation alarm.",
+  "behaviour": "Default 30 s.",
+  "client": "config",
+  "unit": "time",
+  "source": "InletControl"
+ },
+ "InletConfigDUT.InletPumpEnable": {
+  "desc": "Pump in service: part of the automatic pump count and rotation.",
+  "behaviour": "Default TRUE (ConfigValues). FALSE: the pump in auto is not started by Pen Start (stopped when the pen stops), does not count for Pen.Status.PumpReady, and raises no alarms unless in manual. Takes effect at once.",
+  "client": "config",
+  "unit": "",
+  "source": "PumpCount, InletPumpSet, InletControl.AlarmHandling"
+ },
+ "InletConfigDUT.FramoIP": {
+  "desc": "IP address of the Framo controller's OPC UA server.",
+  "behaviour": "0.0.0.0 = not configured, data source waits. A change makes the data source disconnect for 1 s and reconnect to the new endpoint (immediate). Sim default 10.1.2.150.",
+  "client": "config",
+  "unit": "",
+  "source": "FramoDataProcessing, FramoLink"
+ },
+ "InletConfigDUT.FramoPort": {
+  "desc": "OPC UA port of the Framo controller.",
+  "behaviour": "Change reconnects at once. Sim defaults 4841/4842/4843.",
+  "client": "config",
+  "unit": "",
+  "source": "FramoLink"
+ },
+ "InletConfigDUT.FramoUpdateRate": {
+  "desc": "Sampling and publishing interval of the Framo subscription.",
+  "behaviour": "Default 500 ms, minimum 100 ms. Change reconnects at once.",
+  "client": "config",
+  "unit": "time",
+  "source": "FramoLink"
+ },
+ "OxySystemConfigDUT.Enable": {
+  "desc": "Oxygen line enabled: follows Pen OxygenStart/Stop and its inlet pump.",
+  "behaviour": "Default TRUE. FALSE: the line does not start in auto and its pump raises no alarms (unless in manual). Immediate.",
+  "client": "config",
+  "unit": "",
+  "source": "OxyControl, OxyAlarmHandling"
+ },
+ "OxySystemConfigDUT.OxyPump": {
+  "desc": "Oxy pump speed range, preset speed and run delay (OxyPumpConfigDUT).",
+  "behaviour": "See OxyPumpConfigDUT members.",
+  "client": "config",
+  "unit": "",
+  "source": "OxyControl, OxyPumpATV650"
+ },
+ "OxySystemConfigDUT.OxyStartupTime": {
+  "desc": "Drive start supervision.",
+  "behaviour": "Default 10 s: StartUpTimeout if the drive is told to run but does not turn.",
+  "client": "config",
+  "unit": "time",
+  "source": "OxyPumpControl"
+ },
+ "OxySystemConfigDUT.OxyShutdownTime": {
+  "desc": "Drive stop supervision.",
+  "behaviour": "Default 10 s: StopTimeout if the drive still runs after stop.",
+  "client": "config",
+  "unit": "time",
+  "source": "OxyPumpControl"
+ },
+ "OxySystemConfigDUT.PressureController": {
+  "desc": "PIC tuning: pump speed for the pressure after the oxy pump.",
+  "behaviour": "Enabled (default TRUE): FALSE runs the pump at PresetSpeed_Hz. Kp Hz per bar (2.0), Ti s (5), Td s (0). Output limits are MinSpeed_Hz..MaxSpeed_Hz; Min/MaxOutput here are not read. The PIC is in manual while starting, in pump manual or with bad pressure.",
+  "client": "config",
+  "unit": "Hz, bar, s",
+  "source": "OxyControl"
+ },
+ "OxySystemConfigDUT.PressureSetpoint": {
+  "desc": "Pressure setpoint after the oxy pump.",
+  "behaviour": "Default 4.0 bar, absolute as the transmitter reads. Shown in Status.PressureSetpoint.",
+  "client": "config",
+  "unit": "bar",
+  "source": "OxyControl"
+ },
+ "OxySystemConfigDUT.FlowController": {
+  "desc": "FIC tuning: valve position for this line's O2 flow share.",
+  "behaviour": "Enabled (default TRUE): FALSE keeps the line out of auto (OIC01 counts its measured flow). Kp % per kg/h (0.3), Ti 5 s, Td 0. Output 0..100 %; Min/MaxOutput here are not read.",
+  "client": "config",
+  "unit": "%, kg/h, s",
+  "source": "OxyControl"
+ },
+ "OxySystemConfigDUT.FlowMax": {
+  "desc": "Most O2 flow this line can deliver.",
+  "behaviour": "Default 104.2 kg/h (DUT 100). Limits the line's share of OIC01 and OIC01's maximum.",
+  "client": "config",
+  "unit": "kg/h",
+  "source": "PenOxygenControl"
+ },
+ "OxySystemConfigDUT.ValveRampTime": {
+  "desc": "Rate limit of the FIC output to the valve.",
+  "behaviour": "Default 2 s for 0-100 %; 0 = no limit. Not applied in valve manual.",
+  "client": "config",
+  "unit": "time",
+  "source": "OxyControl"
+ },
+ "OxySystemConfigDUT.ValveOpenPressure": {
+  "desc": "Minimum pressure after the pump for the valve to open.",
+  "behaviour": "Default 3.0 bar. Below it (or bad measurement) the valve is held at 4 mA, Status.ValvePermit FALSE, and ValvePressureLow if oxygenation is active.",
+  "client": "config",
+  "unit": "bar",
+  "source": "OxyControl"
+ },
+ "OxyPumpConfigDUT.MinSpeed_Hz": {
+  "desc": "Minimum oxy pump speed.",
+  "behaviour": "Default 20 Hz. Lower PIC limit and drive setpoint limit. State Running when speed >= MinSpeed_Hz - 0.5.",
+  "client": "config",
+  "unit": "Hz",
+  "source": "OxyControl, OxyPumpATV650"
+ },
+ "OxyPumpConfigDUT.MaxSpeed_Hz": {
+  "desc": "Maximum oxy pump speed.",
+  "behaviour": "Default 50 Hz. Upper PIC and setpoint limit.",
+  "client": "config",
+  "unit": "Hz",
+  "source": "OxyControl, OxyPumpATV650"
+ },
+ "OxyPumpConfigDUT.PresetSpeed_Hz": {
+  "desc": "Speed at start, with PIC disabled or bad pressure.",
+  "behaviour": "Default 40 Hz.",
+  "client": "config",
+  "unit": "Hz",
+  "source": "OxyControl"
+ },
+ "OxyPumpConfigDUT.RunDelay": {
+  "desc": "Pump run time before oxygen may be added.",
+  "behaviour": "Default 30 s in Running before Status.OxygenationActive; also delays the pressure sensor process alarms.",
+  "client": "config",
+  "unit": "time",
+  "source": "OxyControl"
+ },
+ "OxyPumpConfigDUT.DriveThermalWarning_pct": {
+  "desc": "Drive thermal state for the DriveTemperatureHigh alarm.",
+  "behaviour": "Default 100 % (THD register).",
+  "client": "config",
+  "unit": "%",
+  "source": "OxyPumpATV650"
+ },
+ "OxyPumpConfigDUT.RampUp_s": {
+  "desc": "Not implemented.",
+  "behaviour": "No reader; RampDown_s and Priority are not read either. Ramps are set in the drive.",
+  "client": "config",
+  "unit": "s",
+  "source": "no reader"
+ },
+ "PIDConfigDUT.Enabled": {
+  "desc": "Controller enabled (oxy line PIC/FIC only).",
+  "behaviour": "Read only for OxyConfig[i].PressureController and FlowController. Not read for LIC01/OIC01.",
+  "client": "config",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "PIDConfigDUT.Kp": {
+  "desc": "Proportional gain.",
+  "behaviour": "Units per loop: LIC01 total rpm per m, OIC01 kg/h per mg/L, PIC Hz per bar, FIC % per kg/h. Immediate.",
+  "client": "config",
+  "unit": "per loop",
+  "source": "PIDController"
+ },
+ "PIDConfigDUT.Ti": {
+  "desc": "Integral time.",
+  "behaviour": "Seconds (Util.PID TN).",
+  "client": "config",
+  "unit": "s",
+  "source": "PIDController"
+ },
+ "PIDConfigDUT.Td": {
+  "desc": "Derivative time; 0 = PI.",
+  "behaviour": "",
+  "client": "config",
+  "unit": "s",
+  "source": "PIDController"
+ },
+ "PIDConfigDUT.MinOutput": {
+  "desc": "Lower output limit (LIC01 per pump rpm, OIC01 kg/h).",
+  "behaviour": "Not read for the oxy line PIC/FIC.",
+  "client": "config",
+  "unit": "per loop",
+  "source": "PenLevelControl, PenOxygenControl"
+ },
+ "PIDConfigDUT.MaxOutput": {
+  "desc": "Upper output limit (LIC01 per pump rpm, OIC01 kg/h, 0 = capacity).",
+  "behaviour": "Not read for the oxy line PIC/FIC.",
+  "client": "config",
+  "unit": "per loop",
+  "source": "PenLevelControl, PenOxygenControl"
+ },
+ "PIDConfigDUT.SafeOutput": {
+  "desc": "LIC01 speed per pump when no valid level pair is left.",
+  "behaviour": "Only read for LIC01 (mode SafeOutput), limited to Min/MaxOutput.",
+  "client": "config",
+  "unit": "rpm",
+  "source": "PenLevelControl"
+ },
+ "PIDConfigDUT.Override": {
+  "desc": "Not implemented.",
+  "behaviour": "No reader in the active code; Smoothing likewise.",
+  "client": "config",
+  "unit": "",
+  "source": "no reader"
+ },
+ "PIDControllerDUT.Config": {
+  "desc": "Unused for LevelController and OxyController.",
+  "behaviour": "Tuning is taken from PenConfig.LevelController and PenConfig.OxyController. Writes here have no effect.",
+  "client": "internal",
+  "unit": "",
+  "source": "no reader"
+ },
+ "OutletConfigDUT.ModePosition": {
+  "desc": "Outlet opening per operation mode O35, O45, O60, S75.",
+  "behaviour": "Default [20, 30, 40, 50] %. Auto setpoint = ModePosition[Mode], limited 0..100. Retained, immediate.",
+  "client": "config",
+  "unit": "%",
+  "source": "OutletControl"
+ },
+ "OutletConfigDUT.MaxPressureOpenDelay": {
+  "desc": "Time above MaxPressureOpen that counts as open end position.",
+  "behaviour": "Default 4 s. MaxPressureCloseDelay likewise.",
+  "client": "config",
+  "unit": "time",
+  "source": "OutletControl"
+ },
+ "OutletConfigDUT.MaxTravelTimeOpen": {
+  "desc": "Maximum valve-on time opening.",
+  "behaviour": "Default 30 s. Timeout alarm and jog limit (0 = no jog limit). MaxTravelTimeClose likewise.",
+  "client": "config",
+  "unit": "time",
+  "source": "CylinderAlarmHandling, OutletControl"
+ },
+ "OutletConfigDUT.RampRateOpen": {
+  "desc": "Setpoint ramp rate opening.",
+  "behaviour": "%/s; 0 = step. RampRateClose likewise.",
+  "client": "config",
+  "unit": "%/s",
+  "source": "CylinderStateMachine"
+ },
+ "OutletConfigDUT.CylinderPositionHysteresis": {
+  "desc": "Dead band around the cylinder setpoint.",
+  "behaviour": "Default 0.5 %.",
+  "client": "config",
+  "unit": "%",
+  "source": "CylinderStateMachine"
+ },
+ "OutletConfigDUT.CalibrationTolerance": {
+  "desc": "Allowed position error at a pressure-confirmed end position.",
+  "behaviour": "Default 5 %, minimum 0.5. Larger error: CalibrationMismatch and CalibrationError alarm.",
+  "client": "config",
+  "unit": "%",
+  "source": "CylinderAlarmHandling"
+ },
+ "OutletConfigDUT.PumpStartUpTime": {
+  "desc": "Hydraulic pump run time before cylinders may move.",
+  "behaviour": "Default 5 s.",
+  "client": "config",
+  "unit": "time",
+  "source": "HydraulicPumpControl"
+ },
+ "OutletConfigDUT.PumpStopDelay": {
+  "desc": "Hydraulic pump run-on after the last move (auto).",
+  "behaviour": "Default 2 s.",
+  "client": "config",
+  "unit": "time",
+  "source": "HydraulicPumpControl"
+ },
+ "OutletConfigDUT.EnableTimeoutAlarms": {
+  "desc": "Enable cylinder travel timeout alarms.",
+  "behaviour": "Default TRUE. FALSE suppresses them (and thus the cylinder Fault from timeouts).",
+  "client": "config",
+  "unit": "",
+  "source": "CylinderAlarmHandling"
+ },
+ "OutletConfigDUT.Mode": {
+  "desc": "Retained copy of the operation mode, written by the PLC.",
+  "behaviour": "Written every scan from Command.Mode; restored into Command.Mode at start. Set the mode with Command.Mode.",
+  "client": "internal",
+  "unit": "enum OutletValveMode",
+  "source": "OutletControl"
+ },
+ "CylinderConfigDUT.ClosedPosition": {
+  "desc": "Counter value at closed.",
+  "behaviour": "Set to 0 by CalibrateClosed. Retained.",
+  "client": "config",
+  "unit": "counts",
+  "source": "CylinderMapping, CylinderCalibration"
+ },
+ "CylinderConfigDUT.OpenPosition": {
+  "desc": "Counter value at fully open.",
+  "behaviour": "Default 2000; set by CalibrateOpen. Span <= 0 means not calibrated (no movement in auto).",
+  "client": "config",
+  "unit": "counts",
+  "source": "CylinderMapping, CylinderCalibration"
+ },
+ "CylinderConfigDUT.MaxPressureOpen": {
+  "desc": "Pressure that marks the open end position.",
+  "behaviour": "Default 100 (units of PressureOpen, 0-250 range). 0 disables end position by pressure. MaxPressureClose likewise.",
+  "client": "config",
+  "unit": "bar",
+  "source": "OutletControl, CylinderStateMachine"
+ },
+ "CommonRIOConfigDUT.Enabled": {
+  "desc": "Connect to the CommonRIO.",
+  "behaviour": "Default TRUE. FALSE: no connection and no comm alarms.",
+  "client": "config",
+  "unit": "",
+  "source": "CommonRIO"
+ },
+ "CommonRIOConfigDUT.IP": {
+  "desc": "CommonRIO coupler IP.",
+  "behaviour": "0.0.0.0 = missing (alarm MissingIPaddress). Sim default 10.1.2.150. Passed to the Modbus master every scan; whether an open connection moves at once is not shown in the code.",
+  "client": "config",
+  "unit": "",
+  "source": "CommonRIO"
+ },
+ "CommonRIOConfigDUT.Port": {
+  "desc": "CommonRIO Modbus TCP port.",
+  "behaviour": "Default 502 (sim 5120).",
+  "client": "config",
+  "unit": "",
+  "source": "CommonRIO"
+ },
+ "CommonRIOConfigDUT.NumberOfAnalogInputs": {
+  "desc": "Not used.",
+  "behaviour": "The NumberOf* members have no reader; the process image layout is fixed in code.",
+  "client": "config",
+  "unit": "",
+  "source": "no reader"
+ },
+ "CommonRIOConfigDUT.RTUBaudrate": {
+  "desc": "Orbit 864 RS-485 line settings (baud, data bits, parity, stop bits, handshake, physical, frame type).",
+  "behaviour": "Passed to the Modbus RTU master (ModbusRTUData). They do NOT configure the 750-652 (set with WAGO-I/O-CHECK); keep them equal to it. Default 9600 8N1.",
+  "client": "config",
+  "unit": "",
+  "source": "ModbusRTUData"
+ },
+ "CommonRIOConfigDUT.RTUTimeOut": {
+  "desc": "RTU transaction timeout.",
+  "behaviour": "Default 200 ms but the PLC uses at least 5 s.",
+  "client": "config",
+  "unit": "time",
+  "source": "ModbusRTUData"
+ },
+ "CommonRIOConfigDUT.RTURetries": {
+  "desc": "Resends of an unanswered RTU request.",
+  "behaviour": "Default 1.",
+  "client": "config",
+  "unit": "",
+  "source": "ModbusRTUData"
+ },
+ "CommonRIOConfigDUT.RTURetryDelay": {
+  "desc": "Wait before a resend.",
+  "behaviour": "Default 1 s. Normal silence between requests is 50 ms.",
+  "client": "config",
+  "unit": "time",
+  "source": "ModbusRTUData"
+ },
+ "InletRIOConfigDUT.Enabled": {
+  "desc": "Connect to inlet station i's RIO.",
+  "behaviour": "Default TRUE. FALSE: no RIO connection, no comm alarms; the level pair then counts as bad.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "InletRIOConfigDUT.IP": {
+  "desc": "RIO coupler IP of inlet station i.",
+  "behaviour": "0.0.0.0 = missing (MissingIPaddress). Sim 10.1.2.150, ports 5121-5123.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "InletRIOConfigDUT.Port": {
+  "desc": "RIO Modbus TCP port.",
+  "behaviour": "Default 502.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "InletRIOConfigDUT.DriveEnabled": {
+  "desc": "Connect to the line's oxy pump drive (ATV650).",
+  "behaviour": "Default TRUE. With DriveIP and DrivePort set: OxyPump.Status.DriveConfigured TRUE and comm alarms active.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO, OxyAlarmHandling"
+ },
+ "InletRIOConfigDUT.DriveIP": {
+  "desc": "Oxy pump drive IP.",
+  "behaviour": "0.0.0.0 = no drive. Sim 10.1.2.150, ports 5131-5133.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "InletRIOConfigDUT.DrivePort": {
+  "desc": "Drive Modbus TCP port.",
+  "behaviour": "Default 502.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "InletRIOConfigDUT.DriveUnitId": {
+  "desc": "Drive Modbus unit id.",
+  "behaviour": "Default 0. A change re-creates the drive channels at once.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "InletRIOConfigDUT.NumberOfAnalogInputs": {
+  "desc": "Not used.",
+  "behaviour": "NumberOf* members have no reader.",
+  "client": "config",
+  "unit": "",
+  "source": "no reader"
+ },
+ "InletRIODUT.Config": {
+  "desc": "Unused copy; the live config is GVLMain.InletRIOConfig[i].",
+  "behaviour": "",
+  "client": "internal",
+  "unit": "",
+  "source": "no reader"
+ },
+ "CommonRIODUT.Config": {
+  "desc": "Unused copy; the live config is GVLMain.CommonRIOConfig.",
+  "behaviour": "",
+  "client": "internal",
+  "unit": "",
+  "source": "no reader"
+ },
+ "Orbit864SensorConfigDUT.SlaveAddress": {
+  "desc": "Modbus RTU address of the sensor.",
+  "behaviour": "Read once at start-up (InitQueries): a change needs a PLC restart. 0 falls back to i + 1. Defaults 1-6. Retained.",
+  "client": "config",
+  "unit": "",
+  "source": "ModbusRTUData.InitQueries"
+ },
+ "Orbit864SensorConfigDUT.Enabled": {
+  "desc": "Poll this sensor.",
+  "behaviour": "Online. FALSE: skipped, values BadQuality, comm alarm off, Status.Enabled FALSE.",
+  "client": "config",
+  "unit": "",
+  "source": "ModbusRTUData, Orbit864Sensor"
+ },
+ "Orbit864SensorConfigDUT.StayAwake": {
+  "desc": "Write 1 to the sensor's stay-awake register before polling.",
+  "behaviour": "Written again after each dropout. Turning it off writes nothing. Result in ModbusRTUData.StayAwakeOK.",
+  "client": "config",
+  "unit": "",
+  "source": "ModbusRTUData"
+ },
+ "Orbit864SensorConfigDUT.StayAwakeAddress": {
+  "desc": "PDU address of the stay-awake register.",
+  "behaviour": "Default 9209 (register 9210).",
+  "client": "config",
+  "unit": "",
+  "source": "ModbusRTUData"
+ },
+ "Orbit864SensorConfigDUT.EnableForAutoControl": {
+  "desc": "Use this sensor's O2 in the pen average (OIC01 PV).",
+  "behaviour": "TRUE for sensors 1-3 (inside). Average of good, enabled OxygenConcentration items; none good: OxyControlOK FALSE and OIC01 holds its output.",
+  "client": "config",
+  "unit": "",
+  "source": "PenControl.Sensors"
+ },
+ "Orbit864SensorConfigDUT.CommAlarmDelay": {
+  "desc": "Delay of the CommFail alarm.",
+  "behaviour": "Default 5 s.",
+  "client": "config",
+  "unit": "time",
+  "source": "Orbit864Sensor"
+ },
+ "Orbit864SensorConfigDUT.SuppressAlarm": {
+  "desc": "Suppress this sensor's alarms.",
+  "behaviour": "Suppresses CommFail and inhibits all item alarms.",
+  "client": "config",
+  "unit": "",
+  "source": "Orbit864Sensor"
+ },
+ "Orbit864ItemConfigDUT.Enable": {
+  "desc": "Item enabled for alarms and averages.",
+  "behaviour": "Alarms suppressed when FALSE; OxygenConcentration/Saturation with FALSE are left out of the pen averages. Not retained.",
+  "client": "config",
+  "unit": "",
+  "source": "Orbit864Item, PenControl.Sensors"
+ },
+ "Orbit864ItemConfigDUT.FilterTime": {
+  "desc": "Low-pass filter time of Filtered.",
+  "behaviour": "0 = no filter. Not retained.",
+  "client": "config",
+  "unit": "time",
+  "source": "Orbit864Item"
+ },
+ "Orbit864ItemConfigDUT.L": {
+  "desc": "Alarm limits L/LL/H/HH with *_Enabled and *Delay.",
+  "behaviour": "Compared with Value (unfiltered). Not retained: lost on restart. QualityEnabled/QualityDelay for the quality alarm.",
+  "client": "config",
+  "unit": "item unit",
+  "source": "Orbit864Item.AlarmHandling"
+ },
+ "Orbit864ItemConfigDUT.EnableForControl": {
+  "desc": "Not used.",
+  "behaviour": "Sensor Config.EnableForAutoControl selects control sensors. MinValue, MaxValue, SP are not read either.",
+  "client": "config",
+  "unit": "",
+  "source": "no reader"
+ },
+ "AnalogSensorConfigDUT.Enable": {
+  "desc": "Use this input in calculations and alarms.",
+  "behaviour": "FALSE: alarms suppressed; level transmitter left out of pair/averages; oxy pressure/flow treated as bad by OxyControl.",
+  "client": "config",
+  "unit": "",
+  "source": "AnalogSensor, InletSensors, PenControl, OxyControl"
+ },
+ "AnalogSensorConfigDUT.MinValue": {
+  "desc": "Value at 4 mA (raw 0).",
+  "behaviour": "Retained for the level, over-height, oxy line and cylinder pressure sensors. Levels 0-2 m, oxy pressures 0-10 bar, O2 flow 0-150 kg/h.",
+  "client": "config",
+  "unit": "eng. unit",
+  "source": "AnalogSensor.ScaleInput"
+ },
+ "AnalogSensorConfigDUT.MaxValue": {
+  "desc": "Value at 20 mA (raw 32760).",
+  "behaviour": "",
+  "client": "config",
+  "unit": "eng. unit",
+  "source": "AnalogSensor.ScaleInput"
+ },
+ "AnalogSensorConfigDUT.FilterFc": {
+  "desc": "Cut-off of the Butterworth low-pass.",
+  "behaviour": "Hz; 0 = no filter. For PenOverHeight it filters the pair (LIC01 PV); for single level transmitters it filters the display averages and Filtered.",
+  "client": "config",
+  "unit": "Hz",
+  "source": "AnalogSensor, InletSensors, PenControl"
+ },
+ "AnalogSensorConfigDUT.QualityEnabled": {
+  "desc": "Enable the quality alarm.",
+  "behaviour": "With QualityDelay (1 s). L/LL/H/HH limits and *_Enabled/*Delay likewise compare Filtered. SP is not read.",
+  "client": "config",
+  "unit": "",
+  "source": "AnalogSensor.AlarmHandling"
+ },
+ "AnalogValveConfigDUT.EnableAlarms": {
+  "desc": "Enable O2 valve alarms.",
+  "behaviour": "Default FALSE. Not retained. MinValue/MaxValue (0/100) scale the 4-20 mA output; FaultAction applies on Input.Fault (never written). Enable, EnableLimit*, Hysteresis, PositionTimeoutDelay are not read.",
+  "client": "config",
+  "unit": "",
+  "source": "AnalogValve"
+ },
+ "PenStatusDUT.State": {
+  "desc": "Pen state: 0 Stopped, 1 Starting, 2 Running, 3 Stopping.",
+  "behaviour": "Stopped -Start-> Starting -pump in REMOTE-> Running. Starting/Running -Stop-> Stopping -no pump counted-> Stopped. Starting -> Stopped if no pump counted or wanted (start failed; see pump alarms).",
+  "client": "read",
+  "unit": "enum PenOperationState",
+  "source": "PenSequence"
+ },
+ "PenStatusDUT.Ready": {
+  "desc": "Start would be accepted: PumpReady AND LevelControlOK.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "PenSequence"
+ },
+ "PenStatusDUT.PumpReady": {
+  "desc": "An enabled inlet pump in auto is Available (live link).",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletPumpSet"
+ },
+ "PenStatusDUT.OxygenOn": {
+  "desc": "Oxygenation on for the pen.",
+  "behaviour": "Set by OxygenStart, cleared by OxygenStop, Stop or a failed start.",
+  "client": "read",
+  "unit": "",
+  "source": "PenSequence"
+ },
+ "PenStatusDUT.CommandRejected": {
+  "desc": "Last Start/OxygenStart was refused.",
+  "behaviour": "TRUE when Start is given not Ready or in Stopping, or OxygenStart outside Starting/Running. Cleared by the next accepted command (also Stop/OxygenStop).",
+  "client": "read",
+  "unit": "",
+  "source": "PenSequence"
+ },
+ "PenStatusDUT.OverHeight": {
+  "desc": "LIC01 process value: mean filtered over-height of valid level pairs.",
+  "behaviour": "Inside minus outside level per inlet.",
+  "client": "read",
+  "unit": "m",
+  "source": "PenControl"
+ },
+ "PenStatusDUT.LevelControlOK": {
+  "desc": "At least one valid level pair.",
+  "behaviour": "FALSE: LevelMeasurementLost alarm, LIC01 SafeOutput, Ready FALSE.",
+  "client": "read",
+  "unit": "",
+  "source": "PenControl"
+ },
+ "PenStatusDUT.PenOxygenLevel": {
+  "desc": "OIC01 process value: mean O2 of control sensors.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "mg/L",
+  "source": "PenControl"
+ },
+ "PenStatusDUT.OxyControlOK": {
+  "desc": "At least one good O2 sensor for control.",
+  "behaviour": "FALSE: OIC01 holds its output, its alarms off.",
+  "client": "read",
+  "unit": "",
+  "source": "PenControl"
+ },
+ "PenStatusDUT.ModbusRTUInitialised": {
+  "desc": "No writer found; always FALSE.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "no writer"
+ },
+ "PenDUT.InletSupervisor": {
+  "desc": "Unused; read GVLMain.PenInletSupervisor instead.",
+  "behaviour": "",
+  "client": "internal",
+  "unit": "",
+  "source": "no writer"
+ },
+ "PenInletSupervisorDUT.NumberOfInletsInAuto": {
+  "desc": "Inlet pumps not in manual.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletSupervisor.Accounting"
+ },
+ "PenInletSupervisorDUT.NumberOfInletsRunning": {
+  "desc": "Inlet pumps whose Framo PumpStopped flag is FALSE.",
+  "behaviour": "Based only on Input.PumpStopped, not on State or link.",
+  "client": "read",
+  "unit": "",
+  "source": "InletSupervisor.Accounting"
+ },
+ "PenInletSupervisorDUT.NumberOfInletsEnabledForLevelControl": {
+  "desc": "Auto pumps in Starting, Remote or Stopping.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletSupervisor.Accounting"
+ },
+ "PenInletSupervisorDUT.NumberOfInletsEnabledForOxyControl": {
+  "desc": "Oxygen lines in auto taking a share of OIC01.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "PenOxygenControl"
+ },
+ "PenInletSupervisorDUT.AutoStartPumps": {
+  "desc": "Pen started and at least one pump in auto.",
+  "behaviour": "Information only; no reader.",
+  "client": "read",
+  "unit": "",
+  "source": "InletSupervisor"
+ },
+ "PenInletSupervisorDUT.AutoSpeedSetpoint": {
+  "desc": "Speed for each auto pump in REMOTE: LIC01 share.",
+  "behaviour": "Limited to LevelController Min/MaxOutput.",
+  "client": "read",
+  "unit": "rpm",
+  "source": "PenLevelControl, InletControl"
+ },
+ "PenInletSupervisorDUT.PumpsWanted": {
+  "desc": "Pumps the automatic count wants running.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "PumpCount"
+ },
+ "PenInletSupervisorDUT.PumpRotationActive": {
+  "desc": "A standby pump is starting to take over.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "PumpCount"
+ },
+ "PenInputDUT.AverageOverHeight": {
+  "desc": "Mean over-height of valid level pairs (Filtered, BadQuality).",
+  "behaviour": "",
+  "client": "read",
+  "unit": "m",
+  "source": "PenControl.Sensors"
+ },
+ "PenInputDUT.AverageOxygenInside": {
+  "desc": "Mean O2 of sensors with EnableForAutoControl.",
+  "behaviour": "BadQuality when none is good.",
+  "client": "read",
+  "unit": "mg/L",
+  "source": "PenControl.Sensors"
+ },
+ "PenInputDUT.AverageOxygenSaturationInside": {
+  "desc": "Mean O2 saturation of the same sensors, display only.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "%",
+  "source": "PenControl.Sensors"
+ },
+ "PenInputDUT.AverageLevelInside": {
+  "desc": "Mean of filtered inside levels, display only.",
+  "behaviour": "AverageLevelOutside likewise.",
+  "client": "read",
+  "unit": "m",
+  "source": "PenControl.Sensors"
+ },
+ "PenInputDUT.AverageOxygenForControl": {
+  "desc": "No writer found.",
+  "behaviour": "Use AverageOxygenInside. OxySaturation[], OxyConcentration[], Temperature[], Salinity[], TotalDissolvedSolids[], Depth[] arrays and Turbidity/pH have no source either; use Orbit864Sensor[i].",
+  "client": "read",
+  "unit": "",
+  "source": "no writer"
+ },
+ "PenInputDUT.Orbit864Sensor": {
+  "desc": "Six Orbit 864 sensors; 0-2 inside the pen (control).",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "ModbusRTUData, Orbit864Sensor"
+ },
+ "InletPumpDUT.State": {
+  "desc": "Framo pump state: 0 Available, 1 Starting, 2 Remote, 3 Stopping, 4 Hold, 5 Lockdown, 9 Unavailable.",
+  "behaviour": "From the Framo state flags; Unavailable without a live link. Remote: running under PLC speed control. Hold: Framo lost the PLC (reset to return to Remote). Lockdown: controller error, Reset after fixing.",
+  "client": "read",
+  "unit": "enum InletPumpState",
+  "source": "FramoDataProcessing"
+ },
+ "InletPumpDUT.InternalCommand": {
+  "desc": "PLC-internal commands to the Framo controller. Do not write.",
+  "behaviour": "See _general.internal.",
+  "client": "internal",
+  "unit": "",
+  "source": "PumpCount, InletControl, FramoDataProcessing"
+ },
+ "InletPumpInternalCommandDUT.AutoStart": {
+  "desc": "Internal: InletSupervisor wants this auto pump running.",
+  "behaviour": "Overwritten every scan.",
+  "client": "internal",
+  "unit": "",
+  "source": "PumpCount"
+ },
+ "InletPumpInternalCommandDUT.Start": {
+  "desc": "Internal: Start flag written to Framo_n.",
+  "behaviour": "Stop, Reset, VelocitySetpoint, HeartbeatToggle likewise.",
+  "client": "internal",
+  "unit": "",
+  "source": "InletControl, FramoDataProcessing"
+ },
+ "InletPumpStatusDUT.Manual": {
+  "desc": "Pump in operator manual.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletControl"
+ },
+ "InletPumpStatusDUT.CommunicationOK": {
+  "desc": "Live link: data source connected and heartbeat answered.",
+  "behaviour": "FALSE: State Unavailable, no start sent.",
+  "client": "read",
+  "unit": "",
+  "source": "InletControl"
+ },
+ "InletPumpStatusDUT.OxyPermit": {
+  "desc": "Oxygenation permit for this line.",
+  "behaviour": "Heartbeat OK AND State Remote. FALSE stops the oxygen line.",
+  "client": "read",
+  "unit": "",
+  "source": "InletControl, OxyControl"
+ },
+ "InletPumpStatusDUT.EnableLevelControl": {
+  "desc": "Auto pump in Starting, Remote or Stopping.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletControl"
+ },
+ "InletPumpStatusDUT.ActualSpeed": {
+  "desc": "Motor speed from Framo; 0 when Unavailable.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "rpm",
+  "source": "InletControl"
+ },
+ "InletPumpStatusDUT.FramoConnected": {
+  "desc": "OPC UA data source Framo_n connected.",
+  "behaviour": "FramoRestarts counts reconnects; FramoEndpoint shows the URL.",
+  "client": "read",
+  "unit": "",
+  "source": "FramoDataProcessing"
+ },
+ "InletPumpStatusDUT.Heartbeat": {
+  "desc": "No writer found.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "no writer"
+ },
+ "InletPumpInputDUT.MotorVelocity": {
+  "desc": "Motor speed reported by Framo.",
+  "behaviour": "MotorVelocityMin/Max are Framo's value range.",
+  "client": "read",
+  "unit": "rpm",
+  "source": "FramoDataProcessing"
+ },
+ "InletPumpInputDUT.MotorRunningDays": {
+  "desc": "Running days from Framo; orders InletSequence.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "days",
+  "source": "FramoDataProcessing, SortSequence"
+ },
+ "InletPumpInputDUT.HeartbeatToggle": {
+  "desc": "Shared heartbeat bit as read from Framo.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "FramoDataProcessing"
+ },
+ "InletPumpInputDUT.Start": {
+  "desc": "No writer found.",
+  "behaviour": "Stop, Reset, VelocitySetpoint, HeartbeatInterval, HeartbeatElapsed are not written either.",
+  "client": "read",
+  "unit": "",
+  "source": "no writer"
+ },
+ "InletPumpOutputDUT.Start": {
+  "desc": "Start to Framo (start latch AND state allows).",
+  "behaviour": "VelocitySetpoint likewise. Stop, Reset, Heartbeat are not written.",
+  "client": "read",
+  "unit": "",
+  "source": "InletControl"
+ },
+ "InletInputDUT.LevelInsidePen": {
+  "desc": "Inside level transmitter (LT01-03).",
+  "behaviour": "BadQuality forced when the InletRIO link is down.",
+  "client": "read",
+  "unit": "m",
+  "source": "InletRIO, InletSensors"
+ },
+ "InletInputDUT.LevelOutsidePen": {
+  "desc": "Outside level transmitter (LT21-23).",
+  "behaviour": "",
+  "client": "read",
+  "unit": "m",
+  "source": "InletRIO, InletSensors"
+ },
+ "InletInputDUT.PenOverHeight": {
+  "desc": "Over-height of this pair: inside minus outside.",
+  "behaviour": "Filtered 0 and BadQuality when not valid.",
+  "client": "read",
+  "unit": "m",
+  "source": "InletSensors"
+ },
+ "InletInputDUT.EstimatedInletFlow": {
+  "desc": "No raw input mapped.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletSensors"
+ },
+ "OxySystemStatusDUT.State": {
+  "desc": "No writer found; always 0 (Stopped).",
+  "behaviour": "Use OxygenationActive, InAuto and OxyPump.State.",
+  "client": "read",
+  "unit": "enum OxySystemState",
+  "source": "no writer"
+ },
+ "OxySystemStatusDUT.OxyPumpSpeed": {
+  "desc": "Oxy pump output frequency.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "Hz",
+  "source": "OxyControl"
+ },
+ "OxySystemStatusDUT.OxyValvePosition": {
+  "desc": "O2 valve setpoint sent; 0 when not permitted.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "%",
+  "source": "OxyControl"
+ },
+ "OxySystemStatusDUT.OxyFlow": {
+  "desc": "Measured O2 flow; 0 when the measurement is bad.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "kg/h",
+  "source": "OxyControl"
+ },
+ "OxySystemStatusDUT.FlowSetpoint": {
+  "desc": "This line's share of OIC01's output.",
+  "behaviour": "Not in auto: equals OxyFlow.",
+  "client": "read",
+  "unit": "kg/h",
+  "source": "PenOxygenControl"
+ },
+ "OxySystemStatusDUT.OxygenationActive": {
+  "desc": "Line started and pump has run RunDelay: O2 may be added.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemStatusDUT.InAuto": {
+  "desc": "Valve may open, FIC enabled, valve in auto, flow OK.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemStatusDUT.ValvePermit": {
+  "desc": "Pump running and pressure above ValveOpenPressure.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemStatusDUT.PressureSetpoint": {
+  "desc": "Copy of OxyConfig.PressureSetpoint.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "bar",
+  "source": "OxyControl"
+ },
+ "OxySystemInputDUT.OxyPumpPressure": {
+  "desc": "Pressure after the oxy pump (PIC PV).",
+  "behaviour": "",
+  "client": "read",
+  "unit": "bar",
+  "source": "InletRIO, OxySensors"
+ },
+ "OxySystemInputDUT.OxygenFlow": {
+  "desc": "Line O2 flow (FIC PV).",
+  "behaviour": "",
+  "client": "read",
+  "unit": "kg/h",
+  "source": "CommonRIO, OxySensors"
+ },
+ "OxySystemInputDUT.OxynatorOutletPressure": {
+  "desc": "Pressure after the oxygenator; display and alarms.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "bar",
+  "source": "InletRIO, OxySensors"
+ },
+ "OxySystemInputDUT.EmergencyStop": {
+  "desc": "Emergency stop input of the line. No writer found.",
+  "behaviour": "Always FALSE.",
+  "client": "read",
+  "unit": "",
+  "source": "no writer"
+ },
+ "OxyPumpDUT.State": {
+  "desc": "Oxy pump state: 0 Available, 1 Starting, 2 Running, 3 Stopping, 4 Unavailable.",
+  "behaviour": "Unavailable without comm or with a drive fault.",
+  "client": "read",
+  "unit": "enum PumpState",
+  "source": "OxyPumpATV650"
+ },
+ "OxyPumpStatusDUT.CommunicationOK": {
+  "desc": "Drive channel connected and fresh.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "OxyPumpStatusDUT.DriveConfigured": {
+  "desc": "Drive enabled with IP and port.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "OxyPumpStatusDUT.Manual": {
+  "desc": "Pump in operator manual.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxyPumpStatusDUT.ActualSpeed": {
+  "desc": "Drive output frequency.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "Hz",
+  "source": "OxyControl"
+ },
+ "OxyPumpStatusDUT.EnableOxyControl": {
+  "desc": "Pump State Running.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxyPumpStatusDUT.AutoResets": {
+  "desc": "Communication-loss faults reset automatically.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "OxyPumpATV650"
+ },
+ "OxyPumpInputDUT.LastFault": {
+  "desc": "ATV650 last fault code (LFT).",
+  "behaviour": "Kept after a reset; meaningful while Fault.",
+  "client": "read",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "OxyPumpInputDUT.Current": {
+  "desc": "Motor current.",
+  "behaviour": "ThermalState %, Power % of nominal.",
+  "client": "read",
+  "unit": "A",
+  "source": "InletRIO"
+ },
+ "AnalogValveStatusDUT.Manual": {
+  "desc": "Valve in operator manual.",
+  "behaviour": "Setpoint is the position sent before OxyControl's 4 mA override. Position, Opened, Closed, CurrentState, Faulted are not written.",
+  "client": "read",
+  "unit": "",
+  "source": "AnalogValve"
+ },
+ "PIDStatusDUT.Manual": {
+  "desc": "Controller in operator manual.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "ControllerMode"
+ },
+ "PIDOutputDUT.OUT": {
+  "desc": "Controller output.",
+  "behaviour": "LIC01: total speed of counted pumps (sum rpm), 0 when idle. OIC01: total O2 flow.",
+  "client": "read",
+  "unit": "rpm sum / kg/h",
+  "source": "PenLevelControl, PenOxygenControl"
+ },
+ "PIDInputDUT.Setpoint": {
+  "desc": "Setpoint and PV, written only for OxyController.",
+  "behaviour": "LevelController.Input.Setpoint/ProcessValue/ManualOutput are not written; use Pen.Command.LevelSetpoint and Pen.Status.OverHeight. LimitsActive/Overflow are written for both.",
+  "client": "read",
+  "unit": "",
+  "source": "PenOxygenControl"
+ },
+ "AnalogSensorDUT.Filtered": {
+  "desc": "Scaled, filtered value used by control.",
+  "behaviour": "ScaledRaw is unfiltered.",
+  "client": "read",
+  "unit": "eng. unit",
+  "source": "AnalogSensor"
+ },
+ "AnalogSensorStatusDUT.BadQuality": {
+  "desc": "Signal bad: wire break, range error or link down.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "AnalogSensor, InletSensors"
+ },
+ "AnalogSensorInputDUT.Quality": {
+  "desc": "No writer found.",
+  "behaviour": "Raw keeps the 750-455 word with status bits.",
+  "client": "read",
+  "unit": "",
+  "source": "no writer"
+ },
+ "Orbit864ItemDUT.Value": {
+  "desc": "Decoded float value.",
+  "behaviour": "Units: O2 mg/L, temperature degC, saturation %, pO2 torr, conductivity uS/cm, salinity PSU, resistivity ohm cm, density g/cm3, pressure psi. Depth is mapped but not decoded.",
+  "client": "read",
+  "unit": "per item",
+  "source": "Orbit864Item"
+ },
+ "Orbit864ItemStatusDUT.BadQuality": {
+  "desc": "Last poll failed or sensor quality word not 0.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "ModbusRTUData"
+ },
+ "Orbit864SensorStatusDUT.CommOK": {
+  "desc": "Last oxygen-block poll valid.",
+  "behaviour": "Enabled mirrors Config.Enabled.",
+  "client": "read",
+  "unit": "",
+  "source": "ModbusRTUData"
+ },
+ "InletRIOStatusDUT.CommOK": {
+  "desc": "RIO connected and data fresh.",
+  "behaviour": "FALSE removes the inlet's level pair from LIC01.",
+  "client": "read",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "InletRIOStatusDUT.DataStale": {
+  "desc": "Connected, no fresh data.",
+  "behaviour": "Restarts counts reconnects; DriveDataStale/DriveRestarts for the drive.",
+  "client": "read",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "InletRIOStatusDUT.FieldPowerOK": {
+  "desc": "24 V field power breaker not tripped.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "CommonRIOStatusDUT.CommOK": {
+  "desc": "CommonRIO connected and data fresh.",
+  "behaviour": "Outlet counter values trusted 1 s after.",
+  "client": "read",
+  "unit": "",
+  "source": "CommonRIO"
+ },
+ "CommonRIOStatusDUT.DataStale": {
+  "desc": "Connected, no fresh data.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "CommonRIO"
+ },
+ "OutletStatusDUT.Setpoint": {
+  "desc": "Common outlet setpoint.",
+  "behaviour": "Position: mean of cylinder positions.",
+  "client": "read",
+  "unit": "%",
+  "source": "OutletControl"
+ },
+ "OutletStatusDUT.EmergencyStop": {
+  "desc": "Emergency switch active or latched.",
+  "behaviour": "Latched until Command.FaultReset.",
+  "client": "read",
+  "unit": "",
+  "source": "OutletControl"
+ },
+ "OutletStatusDUT.Fault": {
+  "desc": "Cylinder fault, pump starter/feedback fault, oil tank fault or emergency stop.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "OutletControl.AlarmHandling"
+ },
+ "OutletStatusDUT.EstimatedFlow": {
+  "desc": "No writer found.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "no writer"
+ },
+ "CylinderStatusDUT.Calibrated": {
+  "desc": "Position valid.",
+  "behaviour": "Span > 0, comm valid, no counter set pending, direction OK. FALSE blocks auto/setpoint movement.",
+  "client": "read",
+  "unit": "",
+  "source": "CylinderMapping"
+ },
+ "CylinderStatusDUT.CurrentState": {
+  "desc": "Cylinder state (ValveState).",
+  "behaviour": "0 Opened, 1 Opening, 2 Closing, 3 Closed, 5 InPosition, 6 Faulted.",
+  "client": "read",
+  "unit": "enum ValveState",
+  "source": "CylinderStateMachine"
+ },
+ "CylinderStatusDUT.Fault": {
+  "desc": "Travel timeout alarm present.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "CylinderAlarmHandling"
+ },
+ "CylinderStatusDUT.RetainedCounter": {
+  "desc": "Last good counter value, retained.",
+  "behaviour": "Written back to the 750-638 after module power loss (CounterRestored).",
+  "client": "read",
+  "unit": "counts",
+  "source": "CylinderMapping, Main.UpdateRetain"
+ },
+ "DirectOnlineMotorStatusDUT.Available": {
+  "desc": "No starter fault and no feedback fault.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "HydraulicPumpControl"
+ },
+ "Serial652ImageDUT.Exchanges": {
+  "desc": "Modbus transactions that carried the 750-652 image.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "CommonRIO"
+ },
+ "ModbusRTUData.RTUReplies": {
+  "desc": "Completed RTU transactions.",
+  "behaviour": "RTUErrors: failed after retries; RTURetries: resends; RTUMismatches: discarded late replies.",
+  "client": "read",
+  "unit": "",
+  "source": "ModbusRTUData"
+ },
+ "ModbusRTUData.StayAwakeOK": {
+  "desc": "Per sensor: stay-awake write accepted.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "ModbusRTUData"
+ }
+}
