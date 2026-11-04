@@ -113,9 +113,10 @@ uc(id="UC-01", name="Configure and verify field communication", level="user goal
          "Inlet[i].InletPump.Status.CommunicationOK", "Inlet[i].InletPump.Status.FramoEndpoint",
          "Inlet[i].InletPump.Status.FramoRestarts", "OxySystem[i].OxyPump.Status.AutoResets"],
    config=[],
-   open=["GEN-14: the RIO link status (CommOK, DataStale, ChannelError) and its alarms are only in GVLIO, which is "
-         "to be removed from the OPC server; they must move to GVLMain before that, else clients cannot see a "
-         "RIO link", "IN-40 (frozen links, watchdog)", "IN-25 (IP plan)"])
+   open=["IN-40 (frozen links, watchdog)", "IN-25 (IP plan)",
+         "Coupler watchdog (CouplerWatchdog): with each RIO linked, InletRIO[i].Status.Watchdog.State and "
+         "CommonRIO.Status.Watchdog.State read 1 (active); check on a real 750-362 that the FC3 status read keeps "
+         "it alive (OX-40)"])
 
 uc(id="UC-02", name="Verify instruments", level="user goal",
    goal="Every transmitter reads a plausible value with good quality and the right scaling.",

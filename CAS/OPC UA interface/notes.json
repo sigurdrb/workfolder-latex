@@ -41,18 +41,18 @@
   "CylinderCommandDUT": "Cylinder commands: Manual/Auto, manual setpoint, jog Open/Close, calibration of closed and open position.",
   "DirectOnlineMotorDUT": "Direct-on-line motor; used for Outlet.HydraulicPump. OutletControl.HydraulicPumpControl.",
   "DirectOnlineMotorCommandDUT": "Hydraulic pump commands: Manual/Auto, manual Start/Stop, Reset of feedback fault and starter.",
-  "InletRIODUT": "GVLIO.InletRIO[i]: status and alarms of inlet station i's Wago coupler and of the oxy pump drive channel (InletRIO FB in IO_Processing). Its Config member is not used.",
+  "InletRIODUT": "GVLMain.InletRIO[i] (until 2026-11 GVLIO.InletRIO[i]): status and alarms of inlet station i's Wago coupler, its Modbus watchdog and the oxy pump drive channel (InletRIO FB in IO_Processing). Settings: GVLMain.InletRIOConfig[i].",
   "InletRIOConfigDUT": "Address of inlet station i's RIO and of its oxy pump drive. Live copy is GVLMain.InletRIOConfig[i], retained.",
-  "CommonRIODUT": "GVLIO.CommonRIO: status and alarms of the common Wago coupler (750-362) with the outlet I/O, O2 valve outputs, O2 flow inputs and the 750-652 serial module. Its Config member is not used.",
+  "CommonRIODUT": "GVLMain.CommonRIO (until 2026-11 GVLIO.CommonRIO): status and alarms of the common Wago coupler (750-362) with the outlet I/O, O2 valve outputs and O2 flow inputs, and its Modbus watchdog. Settings: GVLMain.CommonRIOConfig. The 750-652 image is no longer published (local to IO_Processing).",
   "CommonRIOConfigDUT": "Address of the CommonRIO and the Modbus RTU line settings for the Orbit 864 sensors. Live copy is GVLMain.CommonRIOConfig, retained.",
-  "Serial652ImageDUT": "Process image of the 750-652 serial module carried over CommonRIO's Modbus TCP client; diagnostic.",
   "AnalogSensorDUT": "One analog input (750-455, 4-20 mA): raw word, scaled and filtered value, quality, L/LL/H/HH and quality alarms. AnalogSensor FB.",
   "AnalogSensorConfigDUT": "Scaling, filter and alarm limits of an analog input.",
   "Orbit864SensorDUT": "One In-Situ Orbit 864 (RDO) multi-sensor on Modbus RTU: O2, temperature, conductivity, pressure items. ModbusRTUData polls it; Orbit864Sensor FB (PenControl) decodes and alarms.",
   "Orbit864SensorConfigDUT": "Per sensor settings: slave address, polled or not, stay awake, used for OIC01, comm alarm. Retained (GVLRetain.Orbit864SensorConfig).",
   "Orbit864ItemDUT": "One parameter of an Orbit 864 (float value, filtered value, quality, alarms). Orbit864Item FB.",
   "PlcInfoDUT": "Declared, but no instance found in GVLMain/GVLIO and no reader or writer.",
-  "ModbusRTUData": "FB instance (IO_Processing_RTU) that polls the Orbit 864 sensors over the 750-652; exported read-only for its diagnostic counters."
+  "ModbusRTUData": "FB instance (IO_Processing_RTU) that polls the Orbit 864 sensors over the 750-652; exported read-only for its diagnostic counters.",
+  "CouplerWatchdogStatusDUT": "The coupler's Modbus watchdog (750-362 manual 11.2.5) as CouplerWatchdog sets and reads it. At every link-up the PLC writes stop (0x1008), time 2 s (0x1000), type Alternative (0x100A = 1) and keep the socket open (0x1009 = 0); not saved in the coupler. FC3 of 0x1006 every 200 ms keeps it alive (FC23 is no trigger). When the PLC stops talking, the coupler switches all its outputs off after 2 s: DO off (outlet valves stop, the damper stays), AO 0 mA (O2 valves hold if the motor valve stays on signal loss, OX-03/40). FD-01 rev C 2.2."
  },
  "PenCommandDUT.Start": {
   "desc": "Start the pen (water): start all enabled inlet pumps in auto.",
@@ -483,7 +483,7 @@
  },
  "InletRIOAlarmAckDUT.FuseError": {
   "desc": "Not implemented.",
-  "behaviour": "No alarm logic for FuseError or PowerSupplyError; only CommError and MissingIPaddress are raised.",
+  "behaviour": "No alarm logic for FuseError or PowerSupplyError; only CommError, MissingIPaddress and WatchdogFault are raised.",
   "client": "write",
   "unit": "",
   "source": "InletRIO.AlarmHandling"
@@ -1052,20 +1052,6 @@
   "desc": "Not used.",
   "behaviour": "NumberOf* members have no reader.",
   "client": "config",
-  "unit": "",
-  "source": "no reader"
- },
- "InletRIODUT.Config": {
-  "desc": "Unused copy; the live config is GVLMain.InletRIOConfig[i].",
-  "behaviour": "",
-  "client": "internal",
-  "unit": "",
-  "source": "no reader"
- },
- "CommonRIODUT.Config": {
-  "desc": "Unused copy; the live config is GVLMain.CommonRIOConfig.",
-  "behaviour": "",
-  "client": "internal",
   "unit": "",
   "source": "no reader"
  },
@@ -1825,13 +1811,6 @@
   "unit": "",
   "source": "HydraulicPumpControl"
  },
- "Serial652ImageDUT.Exchanges": {
-  "desc": "Modbus transactions that carried the 750-652 image.",
-  "behaviour": "",
-  "client": "read",
-  "unit": "",
-  "source": "CommonRIO"
- },
  "ModbusRTUData.RTUReplies": {
   "desc": "Completed RTU transactions.",
   "behaviour": "RTUErrors: failed after retries; RTURetries: resends; RTUMismatches: discarded late replies.",
@@ -1845,5 +1824,75 @@
   "client": "read",
   "unit": "",
   "source": "ModbusRTUData"
+ },
+ "CouplerWatchdogStatusDUT.State": {
+  "desc": "Watchdog status read from the coupler (0x1006): 0 not active, 1 active, 2 expired.",
+  "behaviour": "1 with the link up is normal. 2 = the coupler had switched all its outputs off (no trigger for 2 s); the read restarts it (Alternative) and the PLC's next write puts the outputs back; raises WatchdogFault. Not updated while the link is down.",
+  "client": "read",
+  "unit": "",
+  "source": "CouplerWatchdog"
+ },
+ "CouplerWatchdogStatusDUT.NoAnswer": {
+  "desc": "A watchdog setting got no reply within 5 s at link-up.",
+  "behaviour": "Raises WatchdogFault; cleared at the next link-up.",
+  "client": "read",
+  "unit": "",
+  "source": "CouplerWatchdog"
+ },
+ "CouplerWatchdogStatusDUT.Writes": {
+  "desc": "Times the four settings were written (once per link-up).",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "CouplerWatchdog"
+ },
+ "CouplerWatchdogStatusDUT.Expiries": {
+  "desc": "Times the watchdog was read as expired since PLC start.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "CouplerWatchdog"
+ },
+ "InletRIOAlarmAckDUT.WatchdogFault": {
+  "desc": "Acknowledge the RIO coupler watchdog alarm.",
+  "behaviour": "Rising edge. Raised with Config.Enabled when a setting got no reply (Status.Watchdog.NoAnswer), when the watchdog is not active 5 s after it was set (State <> 1), or for one cycle when it is read as expired (State = 2: the coupler had switched its outputs off); that one stays until acknowledged.",
+  "client": "write",
+  "unit": "",
+  "source": "CouplerWatchdog, InletRIO.AlarmHandling, CommonRIO.AlarmHandling"
+ },
+ "CommonRIOAlarmAckDUT.WatchdogFault": {
+  "desc": "Acknowledge the RIO coupler watchdog alarm.",
+  "behaviour": "Rising edge. Raised with Config.Enabled when a setting got no reply (Status.Watchdog.NoAnswer), when the watchdog is not active 5 s after it was set (State <> 1), or for one cycle when it is read as expired (State = 2: the coupler had switched its outputs off); that one stays until acknowledged.",
+  "client": "write",
+  "unit": "",
+  "source": "CouplerWatchdog, InletRIO.AlarmHandling, CommonRIO.AlarmHandling"
+ },
+ "InletRIOStatusDUT.Watchdog": {
+  "desc": "The coupler's Modbus watchdog, see CouplerWatchdogStatusDUT.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "InletRIO (CouplerWatchdog)"
+ },
+ "CommonRIOStatusDUT.Watchdog": {
+  "desc": "The coupler's Modbus watchdog, see CouplerWatchdogStatusDUT.",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "CommonRIO (CouplerWatchdog)"
+ },
+ "GVLMain.InletRIO": {
+  "desc": "Inlet RIO status and alarms per inlet (InletRIODUT).",
+  "behaviour": "Moved from GVLIO 2026-11; settings in InletRIOConfig[i].",
+  "client": "read",
+  "unit": "",
+  "source": "IO_Processing (InletRIO)"
+ },
+ "GVLMain.CommonRIO": {
+  "desc": "Common RIO status and alarms (CommonRIODUT).",
+  "behaviour": "Moved from GVLIO 2026-11; settings in CommonRIOConfig.",
+  "client": "read",
+  "unit": "",
+  "source": "IO_Processing (CommonRIO)"
  }
 }
