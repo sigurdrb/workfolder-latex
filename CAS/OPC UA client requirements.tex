@@ -70,7 +70,7 @@ Modbus clients.
   \item WAGO PFC200 G2 (750-8212), \textbf{one CPU core}, 512\,MB RAM, CODESYS runtime with its OPC UA
         server on port 4840. The same core runs the control task (20\,ms), the I/O, the Modbus masters and
         the PLC's own OPC UA client.
-  \item The address space is the application's \emph{Symbol Configuration}: \var{GVLMain}, \var{GVLIO}
+  \item The address space is the application's \emph{Symbol Configuration}: \var{GVLMain}
         and the variables ticked there. Node ids are CODESYS string ids,
         \var{ns=4;s=|var|<device>.Application.<GVL>.<path>}; device name and namespace index differ
         between projects.

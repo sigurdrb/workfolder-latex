@@ -159,12 +159,12 @@ B1 & 2026-10-23 & LIC01 operator auto/manual bumpless both ways (IN-32): auto$\t
   \var{ControllerMode} (IN-33: before, a pump reset from HOLD dropped all pumps to 45--49~rpm). The
   operator's manual output is per pump in REMOTE. \\
 B2 & 2026-11-03 & After the merge with the outlet / oxygen branch (InletPumpConfigDUT removed): the pump
-  count flag is \var{InletConfig[i].InletPumpEnable}. Alarms only from pumps in service, PCC flag alarms
+  count flag is \var{Inlet[i].Config.InletPumpEnable}. Alarms only from pumps in service, PCC flag alarms
   only with a live link, LIC01 / OIC01 limit and overflow alarms only in automatic control (Alarm
   functions). The split \var{InletSupervisor} of B1 restored after the merge had reverted it to the
   pre-B1 version. InletRIO freshness watchdog: a link whose master still reports connected but sends
   no new data for 2~s counts as lost, and only that master is restarted (fault table). Framo data sources:
-  endpoint and update rate from the retained \var{InletConfig[i]} (dynamic configuration, \var{FramoLink}),
+  endpoint and update rate from the retained \var{Inlet[i].Config} (dynamic configuration, \var{FramoLink}),
   reconnect on change or a lost link, link live only with the data source connected (Communication). \\
 \bottomrule
 \end{tabularx}
@@ -559,7 +559,7 @@ Stop (accepted while Starting or Running; Stop turns it off).
 refuses (wrong state, not ready) sets \var{Pen.Status.CommandRejected}. Modes are statuses: LIC01, OIC01,
 the pumps, the oxygen valves and the outlet go to manual and back with \var{Command.Manual} /
 \var{Command.Auto} pulses and show \var{Status.Manual}. Enable / disable of a pump or oxygen line is
-retained configuration (\var{InletConfig[i].InletPumpEnable}, \var{OxyConfig[i].Enable}). Commands the
+retained configuration (\var{Inlet[i].Config.InletPumpEnable}, \var{OxySystem[i].Config.Enable}). Commands the
 PLC code gives itself are in \var{InternalCommand} (supervisor $\to$ pump: \var{AutoStart} /
 \var{AutoStop}; pump $\to$ PCC: Start, Stop, Reset, speed, heartbeat), never in \var{Command}.
 
@@ -600,7 +600,7 @@ in auto): acknowledge the start-up alarms, check \emph{Ready}, Pen Start, then O
 While the pen runs, the PLC chooses how many pumps run and which (DEC7). The goal is to run the
 pumps near their operating speed rather than many pumps slowly. The PLC acts only on pumps that are
 \emph{candidates}: in automatic, not UNAVAILABLE or LOCKDOWN, and enabled for it with the retained flag
-\var{InletConfig[i].InletPumpEnable}. Pumps in auto without Enable follow Pen Start / Pen Stop only;
+\var{Inlet[i].Config.InletPumpEnable}. Pumps in auto without Enable follow Pen Start / Pen Stop only;
 pumps in manual are left alone. The logic is in \var{FB.Inlet.PumpCount}.
 \begin{itemize}[nosep]
   \item \textbf{Pen Start} starts every candidate (start all, then reduce). A pump that becomes a
@@ -855,7 +855,7 @@ I6 & No valid level pair: LIC01 to manual at SafeOutput. & [PID] -400 & \impl \\
         \var{Framo_1..3}); each PCC is a server (TwinCAT TF6100). Signal list: Table~\ref{tab:opcua}.
         The data sources use a dynamic configuration filled by \var{FramoLink} (in \var{FramoDataProcessing}):
         endpoint \texttt{opc.tcp://<FramoIP>:<FramoPort>} and the subscription's sampling and publishing
-        interval \var{FramoUpdateRate}, all from the retained \var{InletConfig[i]}, so the PCC address can be
+        interval \var{FramoUpdateRate}, all from the retained \var{Inlet[i].Config}, so the PCC address can be
         changed from the HMI without a download. A new endpoint or update rate, or a link lost for 30~s
         (and every 30~s after), disconnects the data source for 1~s and connects it again
         (\var{InletPump.Status.FramoRestarts}). The link counts as live only with the heartbeat \emph{and}
@@ -987,7 +987,7 @@ rising edge of the acknowledge bit). [AL] defines no priorities or acknowledgeme
 column Class is a proposal (A = alarm, operator action; W = warning; N = notification only)\open{21}.
 
 A pump out of service raises no alarms: a pump is in service when it takes part in the pump count
-(\var{InletConfig[i].InletPumpEnable}) or is in manual. The communication loss alarm needs the pump in
+(\var{Inlet[i].Config.InletPumpEnable}) or is in manual. The communication loss alarm needs the pump in
 service; the alarms from the PCC's flags (drive, power, speed deviation and the common alarm) also need a
 live link (\var{InletPump.Status.CommunicationOK}), so no alarm is raised from values that are no longer
 read. LIC01's and OIC01's limit and overflow alarms are raised only while the controller is in automatic
@@ -1046,30 +1046,30 @@ Parameter & Default & Unit & Meaning \\
 \endhead
 \bottomrule
 \endfoot
-\var{PenConfig.LevelController.Kp} & 1350 & rpm/m & LIC01 gain on the total speed \\
-\var{PenConfig.LevelController.Ti} & 60 & s & integral time (new value takes effect at the next start or manual$\to$auto) \\
-\var{PenConfig.LevelController.Td} & 0 & s & derivative time \\
-\var{PenConfig.LevelController.MinOutput} / \var{MaxOutput} & 40 / 130 & rpm & speed range per pump (LIC01: $\times N$) \\
-\var{PenConfig.LevelController.SafeOutput} & 60 & rpm & speed per pump with no valid level pair \\
-\var{PenConfig.LevelDeviationLimit} / \var{LevelDeviationDelay} & 0.02 / 5 & m / min & level deviation alarms; limit 0 = off \\
-\var{PenConfig.PumpTargetSpeed} & 85 & rpm & stop a pump when the others would run at or below this; 0 = never \\
-\var{PenConfig.PumpAddSpeed} & 115 & rpm & start a pump when the share is at or above this; above \var{PumpTargetSpeed}; 0 = never \\
-\var{PenConfig.PumpRemoveDelay} / \var{PumpAddDelay} & 15 / 2 & min & how long the stop / start condition must hold \\
-\var{PenConfig.PumpCycleTime} & 24 & h & time in REMOTE before a standby takes over; 0 = no rotation \\
-\var{InletConfig[i].InletPumpEnable} & TRUE & & pump $i$ takes part in the pump count and rotation \\
+\var{Pen.Config.LevelController.Kp} & 1350 & rpm/m & LIC01 gain on the total speed \\
+\var{Pen.Config.LevelController.Ti} & 60 & s & integral time (new value takes effect at the next start or manual$\to$auto) \\
+\var{Pen.Config.LevelController.Td} & 0 & s & derivative time \\
+\var{Pen.Config.LevelController.MinOutput} / \var{MaxOutput} & 40 / 130 & rpm & speed range per pump (LIC01: $\times N$) \\
+\var{Pen.Config.LevelController.SafeOutput} & 60 & rpm & speed per pump with no valid level pair \\
+\var{Pen.Config.LevelDeviationLimit} / \var{LevelDeviationDelay} & 0.02 / 5 & m / min & level deviation alarms; limit 0 = off \\
+\var{Pen.Config.PumpTargetSpeed} & 85 & rpm & stop a pump when the others would run at or below this; 0 = never \\
+\var{Pen.Config.PumpAddSpeed} & 115 & rpm & start a pump when the share is at or above this; above \var{PumpTargetSpeed}; 0 = never \\
+\var{Pen.Config.PumpRemoveDelay} / \var{PumpAddDelay} & 15 / 2 & min & how long the stop / start condition must hold \\
+\var{Pen.Config.PumpCycleTime} & 24 & h & time in REMOTE before a standby takes over; 0 = no rotation \\
+\var{Inlet[i].Config.InletPumpEnable} & TRUE & & pump $i$ takes part in the pump count and rotation \\
 \var{Pen.Command.LevelSetpoint} & 0.06 & m & over-height setpoint (O-35) \\
 \var{LevelInsideConfig[i]}: Enable, MinValue, MaxValue & TRUE, 0, 2.0 & m & LT0$i$ in use and range \\
 \var{LevelInsideConfig[i]}: FilterFc, QualityEnabled & 0.05, TRUE & Hz & display filter; quality alarm \\
 \var{LevelOutsideConfig[i]}: as inside & as inside & & LT2$i$ \\
 \var{OverHeightConfig[i]}: Enable, FilterFc & TRUE, 0.05 & Hz & pair in use; cut-off of the pair's filter (0 = off) \\
-\var{InletConfig[i].HeartbeatInterval} & 1 & s & PLC sets the bit this long after the PCC cleared it \\
-\var{InletConfig[i].HeartbeatTimeout} & 10 (DUT 5) & s & link-loss detection \\
-\var{InletConfig[i].StartupTime} / \var{ShutdownTime} & 30 / 30 & s & start / stop failed alarms \\
-\var{InletConfig[i].SpeedDeviationLimit} / \var{SpeedDeviationDelay} & 10 / 30 & rpm / s & speed deviation alarm in REMOTE; limit 0 = off \\
-\var{InletConfig[i].ResetExpectedTime} & 5 & s & expected PCC response to Reset (OPC UA round trip $\approx$4.6~s); warning \emph{Failed to reset} after $2\times$ \\
-\var{InletRIOConfig[i]}: IP, Port & sim: 10.1.2.150, 5121--5123 & & coupler address (site plan \TBD) \\
-\var{InletConfig[i].FramoIP}, \var{.FramoPort} & sim: 10.1.2.150, 4841--4843 & & OPC UA endpoint of PCC $i$ (data source \var{Framo_i}, dynamic configuration); 0.0.0.0 = not configured \\
-\var{InletConfig[i].FramoUpdateRate} & 500 & ms & sampling and publishing interval of the data source's subscription \\
+\var{Inlet[i].Config.HeartbeatInterval} & 1 & s & PLC sets the bit this long after the PCC cleared it \\
+\var{Inlet[i].Config.HeartbeatTimeout} & 10 (DUT 5) & s & link-loss detection \\
+\var{Inlet[i].Config.StartupTime} / \var{ShutdownTime} & 30 / 30 & s & start / stop failed alarms \\
+\var{Inlet[i].Config.SpeedDeviationLimit} / \var{SpeedDeviationDelay} & 10 / 30 & rpm / s & speed deviation alarm in REMOTE; limit 0 = off \\
+\var{Inlet[i].Config.ResetExpectedTime} & 5 & s & expected PCC response to Reset (OPC UA round trip $\approx$4.6~s); warning \emph{Failed to reset} after $2\times$ \\
+\var{InletRIO[i].Config}: IP, Port & sim: 10.1.2.150, 5121--5123 & & coupler address (site plan \TBD) \\
+\var{Inlet[i].Config.FramoIP}, \var{.FramoPort} & sim: 10.1.2.150, 4841--4843 & & OPC UA endpoint of PCC $i$ (data source \var{Framo_i}, dynamic configuration); 0.0.0.0 = not configured \\
+\var{Inlet[i].Config.FramoUpdateRate} & 500 & ms & sampling and publishing interval of the data source's subscription \\
 Not yet defined: L/H level limits and delays, speed deviation limit, vacuum overfill delay (5~s), mode table SP & \TBD & & \open{8}\open{9}\open{11}\open{14} \\
 \end{longtable}
 \end{small}
@@ -1143,7 +1143,7 @@ Function & PLC variable & Note \\
 \midrule
 Pen Start / Pen Stop & \var{Pen.Command.Start}, \var{.Stop}; shows \var{Pen.Status.State}, \var{.Ready}, \var{.CommandRejected} & pulses; Start only when Ready; starts the enabled pumps in auto \\
 Oxygen Start / Stop & \var{Pen.Command.OxygenStart}, \var{.OxygenStop}; shows \var{Pen.Status.OxygenOn} & pulses; enabled lines follow their inlet pumps \\
-Pump count and rotation & \var{InletConfig[i].InletPumpEnable}; shows \var{PenInletSupervisor.PumpsWanted}, \var{.PumpRotationActive} & take a pump out of the count without manual \\
+Pump count and rotation & \var{Inlet[i].Config.InletPumpEnable}; shows \var{PenInletSupervisor.PumpsWanted}, \var{.PumpRotationActive} & take a pump out of the count without manual \\
 Level setpoint & \var{Pen.Command.LevelSetpoint} & m; from the mode in future\open{14} \\
 LIC01 auto / manual, manual output & \var{LevelController.Command.Manual}, \var{.Auto} (pulses; mode in \var{.Status.Manual}), \var{.ManualOutput} & rpm per pump \\
 Pump auto / manual & \var{Inlet[i].InletPump.Command.Auto}, \var{.Manual} (pulses; mode in \var{.Status.Manual}) & default auto \\
@@ -1152,7 +1152,7 @@ Reset pump (HOLD, LOCKDOWN) & \var{Inlet[i].InletPump.Command.Reset} & pulse, ac
 Enable/disable transmitter or pair & \var{...LevelInsidePen.Config.Enable}, \var{...PenOverHeight.Config.Enable} & takes a pair out of the PV \\
 Info panel per pump & \var{Inlet[i].InletPump.Input.*}, \var{.State} & [FD] Figur 3 \\
 Alarm list and acknowledgement & \var{*.Alarm.*}, \var{*.AlarmAck.*} & classes \TBD\open{21} \\
-Parameters (Table~\ref{tab:params}) & \var{GVLMain.PenConfig}, \var{InletConfig}, \ldots & access level \TBD \\
+Parameters (Table~\ref{tab:params}) & \var{GVLMain.Pen.Config}, \var{InletConfig}, \ldots & access level \TBD \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -1254,9 +1254,9 @@ agreement with the supplier.
         drops out of the PV (IN-19).
   \item 2026-10-22: automatic pump count and rotation (Section~\ref{sec:count}): candidates = Enable, auto,
         not UNAVAILABLE / LOCKDOWN; start all at Pen Start, then reduce; settings retained in
-        \var{PenConfig} (IN-15).
+        \var{Pen.Config} (IN-15).
   \item 2026-10-22: level deviation alarms high / low with LIC01 in auto, limit and delay retained in
-        \var{PenConfig} (IN-09).
+        \var{Pen.Config} (IN-09).
   \item 2026-10-23 (Sigurd): when a pump goes to HOLD or its link is lost, LIC01 keeps controlling the level
         with the pumps it can set, instead of freezing ([FD] Tabell~5, [FRAMO] rev~B): the three PCCs do not
         know each other's state. The HOLD pump counts in the total at its own speed. Implemented as rules

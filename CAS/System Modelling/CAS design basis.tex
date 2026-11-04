@@ -475,7 +475,7 @@ schedule would lower $K_c$ with more pumps; [FD] raises it.
         $Y_\text{off}$ alone.
   \item \textbf{Level measurement lost.} With no valid level pair (Section~\ref{sec:filter}),
         \texttt{Pen.Status.LevelControlOK} is FALSE, the alarm \texttt{LevelMeasurementLost} is
-        raised and LIC01 runs in manual at \texttt{PenConfig.LevelController.SafeOutput}
+        raised and LIC01 runs in manual at \texttt{Pen.Config.LevelController.SafeOutput}
         (60\,rpm on the test rig), limited to 40--130\,rpm. When a pair is valid again, LIC01
         returns to auto bumplessly. An operator in manual keeps the operator's output.
   \item \textbf{Heartbeat loss (HOLD, [FD] Tabell~5).} When the link to a pump in level control
@@ -505,7 +505,7 @@ in mg/L (mean of the sensors for control, \texttt{Pen.Status.PenOxygenLevel}) to
 flow to the pen, $\dot m_\text{tot}$ in kg/h. Since the dissolved O$_2$ depends on the total flow
 (Section~\ref{sec:linear}), the loop gain does not change with the number of lines running, so the
 three parameter sets of [FD] Tabell~13 are not needed. Setpoint and tuning are retained in
-\texttt{PenConfig} (\texttt{OxySetpoint}, \texttt{OxyController}).
+\texttt{Pen.Config} (\texttt{OxySetpoint}, \texttt{OxyController}).
 
 \textbf{Sharing.} Let $A$ be the lines in auto (oxygenation active, FIC and valve in auto, good flow
 measurement) and $M$ the active lines that are not (valve in manual, bad flow). Each line in auto
@@ -848,7 +848,7 @@ Pump dynamics & none & $T_p = 10$\,s\assumed{} & To be confirmed by Framo. \\
   \item \textbf{O$_2$ setpoint.} OIC01 regulates concentration in mg/L (decided 13 October
         2026); saturation is averaged for display only. [FD] does not yet give the value;
         $c_\text{ref}$ at 90\,\% saturation is taken from [O2S]. Heimdall's OIC01 takes the retained
-        \texttt{PenConfig.OxySetpoint} (default 8.0\,mg/L, a placeholder until [FD] gives it).
+        \texttt{Pen.Config.OxySetpoint} (default 8.0\,mg/L, a placeholder until [FD] gives it).
   \item \textbf{O$_2$ process value.} [FD]: OT03 at the outlet, falling back to the lowest
         remaining sensor. Heimdall: mean of the inside sensors in good quality.
   \item \textbf{Mixing.} A fully mixed pen is assumed. The delay from injection to OT03 is not

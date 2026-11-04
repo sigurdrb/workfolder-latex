@@ -185,7 +185,7 @@ Framo local controller 1--3 & OPC UA, data sources \var{Framo_1..3} in the \var{
   \var{PRG.FramoDataProcessing}, \var{Datasources_PRG} &
   In: pump state, motor values, alarms, heartbeat [FD Tabell~6]. Out: \var{Start},
   \var{Stop}, \var{Reset}, \var{SpeedSetpoint}. \\
-Operator (HMI) & OPC UA server of the PLC (Symbol Configuration: \var{GVLMain}, \var{GVLIO}) &
+Operator (HMI) & OPC UA server of the PLC (Symbol Configuration: \var{GVLMain}) &
   -- & Writes commands and configuration in \var{GVLMain}; reads status and alarms. \\
 GVLRetain & persistent variables & \var{Main.UpdateRetain} &
   Configuration copied to \var{GVLMain} in the first cycle, and back on every change. \\
@@ -348,7 +348,7 @@ PLC application & Running, with the tasks \var{Task}, \var{OPC_Processing} and
   \var{DatasourcesTask}. & -- \\
 Operator (HMI) & Connected to the PLC's OPC UA server to write the commands. & -- \\
 \midrule
-InletRIO $i$ & Connected (\var{GVLIO.InletRIO[i].Status.CommOK}); otherwise the level words are not
+InletRIO $i$ & Connected (\var{GVLMain.InletRIO[i].Status.CommOK}); otherwise the level words are not
   updated. Not an interlock for the start. & \var{InletRIO[i].Status.CommOK} \\
 Level transmitters LT inside/outside & At least one valid pair: both transmitters of an inlet
   4--20~mA healthy (status bits 1..0 $=$ 00) and enabled, and the pair enabled. Without one, LIC01
@@ -381,8 +381,8 @@ Variable & Default & For & Meaning, and what happens if it is wrong \\
 \midrule
 Data sources \var{Framo_1..3} (DatasourcesManager) & per project & S &
   OPC UA endpoint of each Framo controller. Wrong: no commands reach the pump. \\
-\var{InletRIOConfig[i].Enabled} & TRUE & L & Connects the Modbus TCP master. \\
-\var{InletRIOConfig[i].IP}, \var{.Port} & 10.1.2.101, 5121--5123 (simulator) & L &
+\var{InletRIO[i].Config.Enabled} & TRUE & L & Connects the Modbus TCP master. \\
+\var{InletRIO[i].Config.IP}, \var{.Port} & 10.1.2.101, 5121--5123 (simulator) & L &
   Address of InletRIO $i$. IP 0 or port 0 raises \emph{MissingIPaddress}. \\
 \var{Inlet[i].Input.LevelInsidePen.Config.Enable} & TRUE & L &
   Transmitter in use; disabled, its pair drops out. \\
@@ -397,17 +397,17 @@ Data sources \var{Framo_1..3} (DatasourcesManager) & per project & S &
   The inlet's level pair is used in LIC01's process value. \\
 \var{Inlet[i].Input.PenOverHeight.Config.FilterFc} & 0.05~Hz & L &
   Cut-off of the pair's Butterworth2 low-pass; 0 turns it off. \\
-\var{PenConfig.LevelController.Kp} & 450~rpm/m & L & Gain of LIC01. \\
-\var{PenConfig.LevelController.Ti} & 60~s\dev{11} & L & Integral time. \\
-\var{PenConfig.LevelController.Td} & 0~s & L & Derivative time (0 = PI). \\
-\var{PenConfig.LevelController.MinOutput}, \var{.MaxOutput} & 40, 130~rpm & L &
+\var{Pen.Config.LevelController.Kp} & 450~rpm/m & L & Gain of LIC01. \\
+\var{Pen.Config.LevelController.Ti} & 60~s\dev{11} & L & Integral time. \\
+\var{Pen.Config.LevelController.Td} & 0~s & L & Derivative time (0 = PI). \\
+\var{Pen.Config.LevelController.MinOutput}, \var{.MaxOutput} & 40, 130~rpm & L &
   Speed range of the pumps [FD Tabell~8]; also the PID's output limits. \\
-\var{PenConfig.LevelController.SafeOutput} & 60~rpm & L &
+\var{Pen.Config.LevelController.SafeOutput} & 60~rpm & L &
   Pump speed while no valid level pair is left. \\
-\var{InletConfig[i].HeartbeatInterval}, \var{.HeartbeatTimeout} & 1~s, 5~s & S &
+\var{Inlet[i].Config.HeartbeatInterval}, \var{.HeartbeatTimeout} & 1~s, 5~s & S &
   Framo heartbeat: the PLC sets the shared bit 1~s after Framo cleared it; alarm when Framo has
   not cleared it for 5~s. \\
-\var{InletConfig[i].StartupTime}, \var{.ShutdownTime} & 30~s, 30~s & S &
+\var{Inlet[i].Config.StartupTime}, \var{.ShutdownTime} & 30~s, 30~s & S &
   Longest time from Start (Stop) until Framo reports START (STOP); then the start-up (stop) timeout
   alarm.\dev{8} \\
 \bottomrule
@@ -453,7 +453,7 @@ Command & Type & Effect \\
 \var{Pen.Command.Stop} & pulse & Starting / Running $\to$ Stopping; pumps in auto get
   \var{InternalCommand.AutoStop}; oxygenation off. \\
 \var{Pen.Command.OxygenStart}, \var{.OxygenStop} & pulse & \var{Pen.Status.OxygenOn}: enabled oxygen lines
-  (\var{OxyConfig[i].Enable}) follow their inlet pumps. \\
+  (\var{OxySystem[i].Config.Enable}) follow their inlet pumps. \\
 \var{Pen.Command.LevelSetpoint} & value [m] & Setpoint of LIC01 (overheight inside the pen).
   [FD] gives it in cm. \\
 \var{Inlet[i].InletPump.Command.Manual} / \var{.Auto} & pulse & Sets / clears
@@ -568,7 +568,7 @@ what it does with them and the variables it writes.
   \node[ext, text width=20mm] (fr) at (0,-6.4) {Framo local\\controller $n$};
 
   \node[ext, text width=20mm] (hmi) at (19.6,-10.2) {Operator\\(HMI)};
-  \node[store, font=\scriptsize, align=center] (cfgP) at (28.0,-9.0) {PenConfig.\\LevelController\\Kp, Ti, Td,\\Min/MaxOutput,\\SafeOutput};
+  \node[store, font=\scriptsize, align=center] (cfgP) at (28.0,-9.0) {Pen.Config.\\LevelController\\Kp, Ti, Td,\\Min/MaxOutput,\\SafeOutput};
 
   % Forward flow
   \draw[flow] (lt) -- node[lab, above] {words\\0, 1} (s1);
@@ -670,13 +670,13 @@ SM & Code unit (task) & Reads & Operation & Writes \\
   \var{Pen.Status.OverHeight} [m], \var{Pen.Status.LevelControlOK} \\
 7 & \var{InletPumpSet} (Task) &
   \var{Inlet[i].InletPump.State}, \var{.Status.Manual}, \var{.Status.CommunicationOK},
-  \var{.Input.MotorVelocity}, \var{InletConfig[i].InletPump.Enable} &
+  \var{.Input.MotorVelocity}, \var{Inlet[i].Config.InletPump.Enable} &
   Counted: in auto and START, REMOTE, HOLD or STOP, or link lost while counted (last speed).
   Controlled: counted, REMOTE, link OK. &
   \code{Pumps}, \code{ControlledPumps}, \code{SumSpeed}, \code{FixedSpeed} [rpm], \code{PumpReady} \\
 8 & \var{PenLevelControl}: \var{ControllerMode}, \var{PIDController} $\to$ \var{Util.PID} (Task) &
   SP \var{Pen.Command.LevelSetpoint}, PV \var{Pen.Status.OverHeight},
-  \var{Pen.Status.LevelControlOK}, \var{PenConfig.LevelController.*},
+  \var{Pen.Status.LevelControlOK}, \var{Pen.Config.LevelController.*},
   \var{LevelController.Command.*}, SM~7 &
   Mode (\var{LevelControlMode}), by priority: Idle (pen stopped or no pump counted), Manual
   (operator), SafeOutput (\code{NOT LevelControlOK}), Tracking (no pump controlled: output = SM~7
@@ -738,7 +738,7 @@ O1 in \var{PenControl}, O2--O3 in \var{PenOxygenControl} (called by \var{InletSu
   \node[sm] (o5) at (24.6,0) {\textbf{O5}\\AnalogValve\\\footnotesize interlock};
   \node[ext, text width=22mm] (crio) at (29.2,0) {CommonRIO\\\footnotesize 750-563 words 20--22\\\footnotesize OV41--43};
   \node[ext, text width=22mm] (ft) at (19.6,3.0) {CommonRIO\\\footnotesize FT41--43, words 24--26};
-  \node[store, font=\scriptsize, align=center] (cfgO) at (9.6,2.8) {PenConfig.OxySetpoint,\\OxyController};
+  \node[store, font=\scriptsize, align=center] (cfgO) at (9.6,2.8) {Pen.Config.OxySetpoint,\\OxyController};
 
   % Row B: pump and permissive
   \node[ext, text width=22mm] (irio) at (0,-4.0) {InletRIO $i$\\\footnotesize word 2: pressure\\\footnotesize after the pump};
@@ -767,7 +767,7 @@ O1 in \var{PenControl}, O2--O3 in \var{PenOxygenControl} (called by \var{InletSu
   \draw[flow] (o7) -- node[lab, above] {speed\\{[Hz]}} (o8);
   \draw[flow] ([yshift=2mm]o8.east) -- node[lab, above] {CMD, LFR} ([yshift=2mm]atv.west);
   \draw[fb] ([yshift=-2mm]atv.west) -- node[lab, below] {ETA, RFR} ([yshift=-2mm]o8.east);
-  \draw[flow] (hmi.east) -| node[lab, pos=0.25, below] {Pen.Status.OxygenOn + OxyConfig[i].Enable} ([xshift=-6mm]o9.south);
+  \draw[flow] (hmi.east) -| node[lab, pos=0.25, below] {Pen.Status.OxygenOn + OxySystem[i].Config.Enable} ([xshift=-6mm]o9.south);
   \draw[flow] (inl) -- node[lab, above] {InletPermit} (o9);
   \draw[fb] ([xshift=-7mm]o8.south) -- node[lab, left] {OxyPump.State} ([xshift=-7mm]o9.north);
   \draw[flow] ([xshift=7mm]o9.north) -- node[lab, right] {Run} ([xshift=7mm]o8.south);
@@ -798,14 +798,14 @@ O1 & \var{PenControl.Sensors}, body &
   Mean of the sensors marked for control and in good quality; bad when none is good. &
   \var{Pen.Status.PenOxygenLevel} [mg/L], \var{Pen.Status.OxyControlOK} \\
 O2 & \var{PenOxygenControl}: \var{ControllerMode}, \var{PIDController} &
-  SP \var{PenConfig.OxySetpoint}, PV O1, \var{PenConfig.OxyController}, the lines' status &
+  SP \var{Pen.Config.OxySetpoint}, PV O1, \var{Pen.Config.OxyController}, the lines' status &
   PI to the total O$_2$ flow [kg/h]. Enabled with \var{PenStart} and at least one line in auto.
   Limited to what the lines in auto can deliver plus the manual lines' flow. Manual: operator;
   frozen while \code{NOT OxyControlOK}; first enabled cycle from the measured total flow
   (bumpless). &
   \var{OxyController.Output.OUT} [kg/h] \\
 O3 & \var{PenOxygenControl} &
-  O2, \var{OxySystem[i].Status.InAuto}, \var{.OxyFlow}, \var{OxyConfig[i].FlowMax} &
+  O2, \var{OxySystem[i].Status.InAuto}, \var{.OxyFlow}, \var{OxySystem[i].Config.FlowMax} &
   Share: (total $-$ measured flow of the active lines not in auto) / number of lines in auto,
   each limited to its \var{FlowMax}. A lost line or a moved manual line is made up at once. &
   \var{OxySystem[i].Status.FlowSetpoint} [kg/h] \\
@@ -835,7 +835,7 @@ O7 & \var{OxyControl[i].PressureControl} (PIC) &
   manual (operator speed), with \var{PressureController.Enabled} off or a bad pressure. &
   speed setpoint [Hz] \\
 O8 & \var{OxyControl[i].Drive} (\var{OxyPumpATV320}); transport \var{IO_Processing.InletRIO[i].DriveMaster} &
-  Run (O9), speed, \var{OxyPump.Command.Reset}; \var{InletRIOConfig[i].DriveIP}, \var{DrivePort},
+  Run (O9), speed, \var{OxyPump.Command.Reset}; \var{InletRIO[i].Config.DriveIP}, \var{DrivePort},
   \var{DriveUnitId} &
   DRIVECOM in \var{OxyPumpATV320}: 0x0006, 0x0007, 0x000F to run, 0x0007 to stop, 0x0080 to reset a
   fault; pump state from ETA and speed. Transport: \var{InletRIO[i]}'s second
@@ -869,24 +869,24 @@ O10 & \var{IO_Processing.CommonRIO} &
 \toprule
 Variable & Default & Meaning \\
 \midrule
-\var{PenConfig.OxySetpoint} & 8.0 mg/L & OIC01 setpoint (placeholder until [FD] gives it). \\
-\var{PenConfig.OxyController} & $K_p$ 50, $T_i$ 1800 s & OIC01, (kg/h)/(mg/L); \var{MaxOutput} 0 = what the lines can deliver. \\
-\var{InletRIOConfig[i].DriveIP}, \var{.DrivePort}, \var{.DriveUnitId}, \var{.DriveEnabled} & 10.1.2.101, 5131--5133, 0, TRUE & ATV320 of line $i$ on InletRIO $i$'s second channel (simulator on the test rig). \\
-\var{OxyConfig[i].OxyPump.Min/MaxSpeed_Hz}, \var{.PresetSpeed_Hz} & 20, 50, 40 Hz & PIC output range; speed while starting or in manual. \\
-\var{OxyConfig[i].OxyPump.RunDelay} & 30 s & Pump at speed this long before oxygen is added. \\
-\var{OxyConfig[i].PressureController}, \var{.PressureSetpoint} & $K_p$ 2 Hz/bar, $T_i$ 5 s; 4.0 bar & PIC; \var{Enabled} FALSE runs the preset speed. \\
-\var{OxyConfig[i].FlowController}, \var{.FlowMax} & $K_p$ 0.3 \%/(kg/h), $T_i$ 5 s; 104.2 kg/h & FIC; most flow of the line. \\
-\var{OxyConfig[i].ValveRampTime} & 2 s & FIC output to the valve at most 0--100 \% in this time (0 = no limit). \\
-\var{OxyConfig[i].ValveOpenPressure} & 3.0 bar & The valve may open only with the pump running and the pressure after it above this (same scale as \var{PressureSetpoint}). \\
-\var{OxyConfig[i].OxyPump.DriveThermalWarning_pct} & 100 \% & THD at or above: \var{DriveTemperatureHigh} (the drive trips OHF near 118 \%). \\
-\var{OxyConfig[i].OxyStartupTime}, \var{.OxyShutdownTime} & 10 s, 10 s & Drive start (not turning) and stop (still turning) alarms. \\
+\var{Pen.Config.OxySetpoint} & 8.0 mg/L & OIC01 setpoint (placeholder until [FD] gives it). \\
+\var{Pen.Config.OxyController} & $K_p$ 50, $T_i$ 1800 s & OIC01, (kg/h)/(mg/L); \var{MaxOutput} 0 = what the lines can deliver. \\
+\var{InletRIO[i].Config.DriveIP}, \var{.DrivePort}, \var{.DriveUnitId}, \var{.DriveEnabled} & 10.1.2.101, 5131--5133, 0, TRUE & ATV320 of line $i$ on InletRIO $i$'s second channel (simulator on the test rig). \\
+\var{OxySystem[i].Config.OxyPump.Min/MaxSpeed_Hz}, \var{.PresetSpeed_Hz} & 20, 50, 40 Hz & PIC output range; speed while starting or in manual. \\
+\var{OxySystem[i].Config.OxyPump.RunDelay} & 30 s & Pump at speed this long before oxygen is added. \\
+\var{OxySystem[i].Config.PressureController}, \var{.PressureSetpoint} & $K_p$ 2 Hz/bar, $T_i$ 5 s; 4.0 bar & PIC; \var{Enabled} FALSE runs the preset speed. \\
+\var{OxySystem[i].Config.FlowController}, \var{.FlowMax} & $K_p$ 0.3 \%/(kg/h), $T_i$ 5 s; 104.2 kg/h & FIC; most flow of the line. \\
+\var{OxySystem[i].Config.ValveRampTime} & 2 s & FIC output to the valve at most 0--100 \% in this time (0 = no limit). \\
+\var{OxySystem[i].Config.ValveOpenPressure} & 3.0 bar & The valve may open only with the pump running and the pressure after it above this (same scale as \var{PressureSetpoint}). \\
+\var{OxySystem[i].Config.OxyPump.DriveThermalWarning_pct} & 100 \% & THD at or above: \var{DriveTemperatureHigh} (the drive trips OHF near 118 \%). \\
+\var{OxySystem[i].Config.OxyStartupTime}, \var{.OxyShutdownTime} & 10 s, 10 s & Drive start (not turning) and stop (still turning) alarms. \\
 \var{GVLRetain.OxyPumpPressureConfig[i]}, \var{OxynatorOutletPressureConfig[i]}, \var{OxygenFlowConfig[i]} & 0--10 bar, 0--10 bar, 0--150 kg/h & Sensor ranges, filters, quality alarms. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 Commands: \var{Pen.Command.OxygenStart} / \var{OxygenStop} switch oxygenation for the pen; line $i$
-takes part when \var{OxyConfig[i].Enable} (retained);
+takes part when \var{OxySystem[i].Config.Enable} (retained);
 \var{OxySystem[i].OxyPump.Command.Manual/Auto/Start/Stop/Reset/Setpoint} run the oxy pump by hand;
 \var{OxySystem[i].OxyValve.Command.Manual/Auto} (pulses, mode in \var{.Status.Manual}) and
 \var{.ManualSetpoint} hold the valve by hand (the line then
@@ -989,7 +989,7 @@ D10 & \var{AnalogSensor.TaskIntervalUs} was a constant 10\,000~µs. &
   \var{AnalogSensor} and \var{Butterworth2} read it once; fallback 10~ms (\var{AnalogSensor}) or the
   measured call interval (\var{Butterworth2}) if the runtime gives none (event task). All filter
   instances are called from \var{Main} in \var{Task}. \\
-D11 & \var{ConfigValues} had \code{PenConfig.LevelController.Ti := 600}, the [FD] start value. The
+D11 & \var{ConfigValues} had \code{Pen.Config.LevelController.Ti := 600}, the [FD] start value. The
   site test used 60~s [DES \S7]. & \textbf{Fixed} 2026-10-15 (in review): \code{Ti := 60} in
   \var{PFC200_Sim} \var{ConfigValues}. Applies on a fresh download; check the retained value. \\
 D12 & \var{AnalogSensor.Input} was \var{VAR_IN_OUT}; \var{ScaleInput} wrote the masked word back. &

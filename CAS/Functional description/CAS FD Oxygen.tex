@@ -421,7 +421,7 @@ of lines running; one parameter set is enough (the three sets of [FD] table~13 a
         (CAS-FD-10 rev~B1), while the pen is started and lines are in auto: auto$\to$manual sets the
         manual output to the current total flow output, so the \Otwo{} flow does not jump (before, it
         went to the last \var{ManualOutput}, 0 if never set); manual$\to$auto sets the \Otwo{} setpoint
-        (\var{PenConfig.OxySetpoint}) to the pen \Otwo{} (PV), if the measurement is valid, and restarts
+        (\var{Pen.Config.OxySetpoint}) to the pen \Otwo{} (PV), if the measurement is valid, and restarts
         the PID from the manual output with a cleared integral (\var{RESET}, \var{Y\_OFFSET}). The
         operator then moves the setpoint to where it should be.
   \item \textbf{Bad \Otwo{} measurement}: the output is frozen at its last value (interlock I7
@@ -474,7 +474,7 @@ sequence.
 \begin{enumerate}[nosep]
   \item The operator gives Oxygen Start (\var{Pen.Command.OxygenStart}, accepted while the pen is Starting or
         Running; \var{Pen.Status.OxygenOn}). Pen Stop or Oxygen Stop turns it off.
-  \item The line is \emph{started} when oxygenation is on AND the line is enabled (\var{OxyConfig[i].Enable},
+  \item The line is \emph{started} when oxygenation is on AND the line is enabled (\var{OxySystem[i].Config.Enable},
         retained) AND the inlet pump of the same line is
         in REMOTE with a live heartbeat (\var{Inlet[i].InletPump.Status.OxyPermit}, interlock
         I5) AND no emergency stop\open{22}\textsuperscript{,}\open{23}.
@@ -794,8 +794,8 @@ Parameter & Default & Meaning \\
 \endhead
 \bottomrule
 \endfoot
-\var{PenConfig.OxySetpoint} & 8.0 mg/L & OIC01 setpoint (placeholder)\open{13} \\
-\var{PenConfig.OxyController} & $K_p$ 50, $T_i$ 1800 s, Min 0, Max 0 & OIC01; Max 0 = what the lines can deliver \\
+\var{Pen.Config.OxySetpoint} & 8.0 mg/L & OIC01 setpoint (placeholder)\open{13} \\
+\var{Pen.Config.OxyController} & $K_p$ 50, $T_i$ 1800 s, Min 0, Max 0 & OIC01; Max 0 = what the lines can deliver \\
 \var{Orbit864SensorConfig[k]} & slaves 1--6; EnableForAutoControl for 1--3 & sensor address, polling, selection for OIC01 \\
 \var{OxySystemConfig[i].OxyPump.MinSpeed_Hz / MaxSpeed_Hz} & 20 / 50 Hz & PIC output range\open{19} \\
 \var{.OxyPump.PresetSpeed_Hz} & 40 Hz & speed while starting, with bad PT, or PIC disabled \\
@@ -811,7 +811,7 @@ Parameter & Default & Meaning \\
 \var{OxyPumpPressureConfig[i]} & 0--10 bar, $f_c$ 1 Hz & PT4$n$ scaling, filter, quality \\
 \var{OxynatorOutletPressureConfig[i]} & 0--10 bar, $f_c$ 1 Hz & PT4($n$+3) \\
 \var{OxygenFlowConfig[i]} & 0--150 kg/h, $f_c$ 1 Hz & FT4$n$\open{3} \\
-\var{InletRIOConfig[i].DriveIP / DrivePort / DriveUnitId} & sim 10.1.2.101 / 5131--5133 / 0 & drive address\open{19} \\
+\var{InletRIO[i].Config.DriveIP / DrivePort / DriveUnitId} & sim 10.1.2.101 / 5131--5133 / 0 & drive address\open{19} \\
 \end{longtable}
 \end{small}
 
@@ -879,13 +879,13 @@ Function & PLC variable & [FD] \\
 \bottomrule
 \endfoot
 Oxygen Start / Stop (pen) & \var{Pen.Command.OxygenStart}, \var{.OxygenStop}; \var{Pen.Status.OxygenOn} & pulses; enabled lines follow their inlet pumps \\
-Enable / disable oxygen line $n$ & \var{OxyConfig[i].Enable} & retained \\
+Enable / disable oxygen line $n$ & \var{OxySystem[i].Config.Enable} & retained \\
 Pump auto / manual, start, stop, speed, reset & \var{OxySystem[i].OxyPump.Command.Auto/Manual/Start/Stop/Setpoint/Reset} & manual start allowed \\
 Valve auto / manual, manual position & \var{OxySystem[i].OxyValve.Command.Manual/Auto} (pulses; mode in \var{.Status.Manual}), \var{.ManualSetpoint} & -- \\
-OIC01 setpoint & \var{PenConfig.OxySetpoint} & \% or mg/L?\open{13} \\
+OIC01 setpoint & \var{Pen.Config.OxySetpoint} & \% or mg/L?\open{13} \\
 OIC01 manual output & \var{OxyController.Command.Manual/ManualOutput} & -- \\
 Select sensors for control & \var{Orbit864SensorConfig[k].EnableForAutoControl} & selector; inactive sensors yellow \\
-Preset speed, run delay, tuning & \var{OxySystemConfig[i]}, \var{PenConfig} & preset speed from HMI \\
+Preset speed, run delay, tuning & \var{OxySystemConfig[i]}, \var{Pen.Config} & preset speed from HMI \\
 Drive info panel & \var{OxyPump.Input}: ready, remote, running, power, warning, error, speed, current, LFT & table 12 \\
 Alarm limits (deviation, L/H, $\Delta p$) & not yet in PLC & tables 15, 17\open{11}\textsuperscript{,}\open{12} \\
 \end{longtable}

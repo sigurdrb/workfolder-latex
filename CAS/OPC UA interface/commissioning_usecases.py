@@ -81,14 +81,14 @@ uc(id="UC-01", name="Configure and verify field communication", level="user goal
    includes=["UC-00"], extends=[],
    pre=["Network installed; IP plan known (register IN-25).", "Devices powered."],
    start="The engineer opens the communication settings.",
-   main=[("Engineer", "Writes the CommonRIO address: `CommonRIOConfig.IP`, `CommonRIOConfig.Port` (502), then "
-                      "`CommonRIOConfig.Enabled` := TRUE."),
-         ("Engineer", "For each inlet station i (0..2): `InletRIOConfig[i].IP`, `InletRIOConfig[i].Port`, "
-                      "`InletRIOConfig[i].Enabled` := TRUE."),
-         ("Engineer", "For each oxy pump drive: `InletRIOConfig[i].DriveIP`, `InletRIOConfig[i].DrivePort`, "
-                      "`InletRIOConfig[i].DriveUnitId`, then `InletRIOConfig[i].DriveEnabled` := TRUE."),
-         ("Engineer", "For each Framo controller: `InletConfig[i].FramoIP`, `InletConfig[i].FramoPort`, "
-                      "`InletConfig[i].FramoUpdateRate`."),
+   main=[("Engineer", "Writes the CommonRIO address: `CommonRIO.Config.IP`, `CommonRIO.Config.Port` (502), then "
+                      "`CommonRIO.Config.Enabled` := TRUE."),
+         ("Engineer", "For each inlet station i (0..2): `InletRIO[i].Config.IP`, `InletRIO[i].Config.Port`, "
+                      "`InletRIO[i].Config.Enabled` := TRUE."),
+         ("Engineer", "For each oxy pump drive: `InletRIO[i].Config.DriveIP`, `InletRIO[i].Config.DrivePort`, "
+                      "`InletRIO[i].Config.DriveUnitId`, then `InletRIO[i].Config.DriveEnabled` := TRUE."),
+         ("Engineer", "For each Framo controller: `Inlet[i].Config.FramoIP`, `Inlet[i].Config.FramoPort`, "
+                      "`Inlet[i].Config.FramoUpdateRate`."),
          ("PLC", "Connects. Settings are retained (survive a restart); a changed IP or port makes the master "
                  "reconnect."),
          ("Engineer", "Verifies: drive `OxySystem[i].OxyPump.Status.CommunicationOK` TRUE; Framo "
@@ -105,10 +105,10 @@ uc(id="UC-01", name="Configure and verify field communication", level="user goal
                   "the PCC with Framo (IN-02).")])],
    exc=[("Device not reachable", [("Engineer", "Checks cabling, IP and port. FINISH (abandoned) for that device.")])],
    finish="All devices connected; no communication alarm.",
-   write=["CommonRIOConfig.IP", "CommonRIOConfig.Port", "CommonRIOConfig.Enabled", "InletRIOConfig[i].IP",
-          "InletRIOConfig[i].Port", "InletRIOConfig[i].Enabled", "InletRIOConfig[i].DriveIP",
-          "InletRIOConfig[i].DrivePort", "InletRIOConfig[i].DriveUnitId", "InletRIOConfig[i].DriveEnabled",
-          "InletConfig[i].FramoIP", "InletConfig[i].FramoPort", "InletConfig[i].FramoUpdateRate"],
+   write=["CommonRIO.Config.IP", "CommonRIO.Config.Port", "CommonRIO.Config.Enabled", "InletRIO[i].Config.IP",
+          "InletRIO[i].Config.Port", "InletRIO[i].Config.Enabled", "InletRIO[i].Config.DriveIP",
+          "InletRIO[i].Config.DrivePort", "InletRIO[i].Config.DriveUnitId", "InletRIO[i].Config.DriveEnabled",
+          "Inlet[i].Config.FramoIP", "Inlet[i].Config.FramoPort", "Inlet[i].Config.FramoUpdateRate"],
    read=["OxySystem[i].OxyPump.Status.CommunicationOK", "Inlet[i].InletPump.Status.FramoConnected",
          "Inlet[i].InletPump.Status.CommunicationOK", "Inlet[i].InletPump.Status.FramoEndpoint",
          "Inlet[i].InletPump.Status.FramoRestarts", "OxySystem[i].OxyPump.Status.AutoResets"],
@@ -211,8 +211,8 @@ uc(id="UC-04", name="Commission an inlet pump in manual", level="user goal",
    pre=["Framo has commissioned the pump locally; PCC in remote.", "Outlet open (UC-03) so the pen is not "
         "overfilled.", "Framo link up (UC-01)."],
    start="The engineer selects inlet pump i.",
-   main=[("Engineer", "Checks the supervision times: `InletConfig[i].StartupTime`, `InletConfig[i].ShutdownTime`, "
-                      "`InletConfig[i].SpeedDeviationLimit`, `InletConfig[i].SpeedDeviationDelay`."),
+   main=[("Engineer", "Checks the supervision times: `Inlet[i].Config.StartupTime`, `Inlet[i].Config.ShutdownTime`, "
+                      "`Inlet[i].Config.SpeedDeviationLimit`, `Inlet[i].Config.SpeedDeviationDelay`."),
          ("Engineer", "Pulse `Inlet[i].InletPump.Command.Manual`; checks `Inlet[i].InletPump.Status.Manual` TRUE."),
          ("Engineer", "Writes the speed `Inlet[i].InletPump.Command.Setpoint` (rpm, 40..130)."),
          ("Engineer", "Writes `Inlet[i].InletPump.Command.Start` := TRUE (the PLC clears it once the pump starts)."),
@@ -235,7 +235,7 @@ uc(id="UC-04", name="Commission an inlet pump in manual", level="user goal",
    read=["Inlet[i].InletPump.State", "Inlet[i].InletPump.Status.Manual", "Inlet[i].InletPump.Status.ActualSpeed",
          "Inlet[i].InletPump.Input.MotorCurrent", "Inlet[i].InletPump.Alarm.StartUpTimeout",
          "Inlet[i].InletPump.Alarm.SpeedDeviation"],
-   config=["InletConfig[i].StartupTime", "InletConfig[i].ShutdownTime", "InletConfig[i].SpeedDeviationLimit"],
+   config=["Inlet[i].Config.StartupTime", "Inlet[i].Config.ShutdownTime", "Inlet[i].Config.SpeedDeviationLimit"],
    open=["IN-42: Framo has removed the pump state machine; the states above will be derived by the PLC from "
          "status bits", "IN-41 (heartbeat loss stops the pump)", "IN-43 (start timing)", "GEN-13 (a Start "
          "written in auto stays set)"])
@@ -246,13 +246,13 @@ uc(id="UC-05", name="Start the pen and commission level control", level="user go
    includes=["UC-00", "UC-02"], extends=[],
    pre=["UC-03 and UC-04 finished for the pumps in service.", "Outlet in auto at the chosen mode."],
    start="The engineer prepares the pumps for automatic operation.",
-   main=[("Engineer", "Per pump in service: `InletConfig[i].InletPumpEnable` := TRUE and pulse "
+   main=[("Engineer", "Per pump in service: `Inlet[i].Config.InletPumpEnable` := TRUE and pulse "
                       "`Inlet[i].InletPump.Command.Auto`."),
          ("Engineer", "Sets `Pen.Command.LevelSetpoint` (m over-height, e.g. 0.06) and checks LIC01 tuning "
-                      "`PenConfig.LevelController.Kp`, `PenConfig.LevelController.Ti`, "
-                      "`PenConfig.LevelController.MinOutput`, `PenConfig.LevelController.MaxOutput`."),
-         ("Engineer", "Checks the pump count settings `PenConfig.PumpTargetSpeed`, `PenConfig.PumpAddSpeed`, "
-                      "`PenConfig.PumpRemoveDelay`, `PenConfig.PumpAddDelay`, `PenConfig.PumpCycleTime`."),
+                      "`Pen.Config.LevelController.Kp`, `Pen.Config.LevelController.Ti`, "
+                      "`Pen.Config.LevelController.MinOutput`, `Pen.Config.LevelController.MaxOutput`."),
+         ("Engineer", "Checks the pump count settings `Pen.Config.PumpTargetSpeed`, `Pen.Config.PumpAddSpeed`, "
+                      "`Pen.Config.PumpRemoveDelay`, `Pen.Config.PumpAddDelay`, `Pen.Config.PumpCycleTime`."),
          ("Engineer", "Waits for `Pen.Status.Ready` TRUE (a pump in auto is Available AND a valid level pair)."),
          ("Engineer", "Pulse `Pen.Command.Start`."),
          ("PLC", "`Pen.Status.State` Stopped (0) -> Starting (1): all candidate pumps start, LIC01 tracks their "
@@ -267,20 +267,20 @@ uc(id="UC-05", name="Start the pen and commission level control", level="user go
                                                                         "level quality, starts again.")]),
         ("Level outside the band for the delay", [("PLC", "`Pen.Alarm.LevelDeviationHigh` / "
                                                           "`Pen.Alarm.LevelDeviationLow` "
-                                                          "(`PenConfig.LevelDeviationLimit`, `PenConfig.LevelDeviationDelay`).")])],
+                                                          "(`Pen.Config.LevelDeviationLimit`, `Pen.Config.LevelDeviationDelay`).")])],
    exc=[("All level pairs lost", [("PLC", "`Pen.Alarm.LevelMeasurementLost`, LIC01 to its safe output. Engineer "
                                           "stops the pen (UC-10). FINISH (abandoned).")])],
    finish="Pen Running, level at setpoint, pump count and rotation active.",
-   write=["InletConfig[i].InletPumpEnable", "Inlet[i].InletPump.Command.Auto", "Pen.Command.LevelSetpoint",
+   write=["Inlet[i].Config.InletPumpEnable", "Inlet[i].InletPump.Command.Auto", "Pen.Command.LevelSetpoint",
           "Pen.Command.Start", "LevelController.Command.Manual", "LevelController.Command.ManualOutput",
           "LevelController.Command.Auto"],
    read=["Pen.Status.Ready", "Pen.Status.State", "Pen.Status.CommandRejected", "Pen.Status.OverHeight",
          "LevelController.Output.OUT", "LevelController.Status.Manual", "PenInletSupervisor.AutoSpeedSetpoint",
          "PenInletSupervisor.PumpsWanted", "PenInletSupervisor.PumpRotationActive", "Inlet[i].InletPump.State",
          "Pen.Alarm.LevelDeviationHigh", "Pen.Alarm.LevelMeasurementLost"],
-   config=["PenConfig.LevelController.Kp", "PenConfig.LevelController.Ti", "PenConfig.PumpTargetSpeed",
-           "PenConfig.PumpAddSpeed", "PenConfig.PumpRemoveDelay", "PenConfig.PumpAddDelay",
-           "PenConfig.PumpCycleTime", "PenConfig.LevelDeviationLimit"],
+   config=["Pen.Config.LevelController.Kp", "Pen.Config.LevelController.Ti", "Pen.Config.PumpTargetSpeed",
+           "Pen.Config.PumpAddSpeed", "Pen.Config.PumpRemoveDelay", "Pen.Config.PumpAddDelay",
+           "Pen.Config.PumpCycleTime", "Pen.Config.LevelDeviationLimit"],
    open=["IN-47 (pump count timers and next pump not visible)", "IN-22 (setpoint per mode)", "IN-23 (restart "
          "after power failure)", "IN-20 (interlocks I2 / I3)"])
 
@@ -291,10 +291,10 @@ uc(id="UC-06", name="Commission an oxygen line", level="user goal",
    pre=["Normex O2 supply commissioned, manual valves open.", "Inlet pump i in Remote (UC-05): oxygen is added "
         "only while the inlet pump runs.", "Pen Running."],
    start="The engineer selects oxygen line i.",
-   main=[("Engineer", "Checks the line settings: `OxyConfig[i].PressureSetpoint` (bar), "
-                      "`OxyConfig[i].OxyPump.MinSpeed_Hz`, `OxyConfig[i].OxyPump.MaxSpeed_Hz`, "
-                      "`OxyConfig[i].OxyPump.PresetSpeed_Hz`, `OxyConfig[i].OxyPump.RunDelay`, "
-                      "`OxyConfig[i].ValveOpenPressure`, `OxyConfig[i].FlowMax`."),
+   main=[("Engineer", "Checks the line settings: `OxySystem[i].Config.PressureSetpoint` (bar), "
+                      "`OxySystem[i].Config.OxyPump.MinSpeed_Hz`, `OxySystem[i].Config.OxyPump.MaxSpeed_Hz`, "
+                      "`OxySystem[i].Config.OxyPump.PresetSpeed_Hz`, `OxySystem[i].Config.OxyPump.RunDelay`, "
+                      "`OxySystem[i].Config.ValveOpenPressure`, `OxySystem[i].Config.FlowMax`."),
          ("Engineer", "Oxy pump test in manual: pulse `OxySystem[i].OxyPump.Command.Manual`, write "
                       "`OxySystem[i].OxyPump.Command.Setpoint` (Hz), write `OxySystem[i].OxyPump.Command.Start` := TRUE; "
                       "checks `OxySystem[i].OxyPump.State`, `OxySystem[i].OxyPump.Status.ActualSpeed`, "
@@ -302,7 +302,7 @@ uc(id="UC-06", name="Commission an oxygen line", level="user goal",
                       "inlet permit (GEN-13)."),
          ("Engineer", "Writes `OxySystem[i].OxyPump.Command.Stop` := TRUE, then pulse "
                       "`OxySystem[i].OxyPump.Command.Auto`."),
-         ("Engineer", "Enables the line: `OxyConfig[i].Enable` := TRUE; checks the permit "
+         ("Engineer", "Enables the line: `OxySystem[i].Config.Enable` := TRUE; checks the permit "
                       "`Inlet[i].InletPump.Status.OxyPermit` TRUE."),
          ("Engineer", "Pulse `Pen.Command.OxygenStart` (UC-07 step 1)."),
          ("PLC", "Oxy pump starts at preset speed, PIC takes the pressure to the setpoint; after RunDelay with "
@@ -323,16 +323,16 @@ uc(id="UC-06", name="Commission an oxygen line", level="user goal",
    finish="Line in auto, adding the flow OIC01 asks for.",
    write=["OxySystem[i].OxyPump.Command.Manual", "OxySystem[i].OxyPump.Command.Setpoint",
           "OxySystem[i].OxyPump.Command.Start", "OxySystem[i].OxyPump.Command.Stop", "OxySystem[i].OxyPump.Command.Auto",
-          "OxySystem[i].OxyPump.Command.Reset", "OxyConfig[i].Enable", "OxySystem[i].OxyValve.Command.Manual",
+          "OxySystem[i].OxyPump.Command.Reset", "OxySystem[i].Config.Enable", "OxySystem[i].OxyValve.Command.Manual",
           "OxySystem[i].OxyValve.Command.ManualSetpoint", "OxySystem[i].OxyValve.Command.Auto"],
    read=["OxySystem[i].OxyPump.State", "OxySystem[i].OxyPump.Status.ActualSpeed",
          "OxySystem[i].Input.OxyPumpPressure.Filtered", "Inlet[i].InletPump.Status.OxyPermit",
          "OxySystem[i].Status.ValvePermit", "OxySystem[i].Status.OxygenationActive", "OxySystem[i].Status.InAuto",
          "OxySystem[i].Status.FlowSetpoint", "OxySystem[i].Status.OxyFlow", "OxySystem[i].Status.OxyValvePosition",
          "OxySystem[i].OxyPump.Input.LastFault", "OxySystem[i].Alarm.ValvePressureLow"],
-   config=["OxyConfig[i].PressureSetpoint", "OxyConfig[i].OxyPump.MinSpeed_Hz", "OxyConfig[i].OxyPump.MaxSpeed_Hz",
-           "OxyConfig[i].OxyPump.PresetSpeed_Hz", "OxyConfig[i].OxyPump.RunDelay", "OxyConfig[i].ValveOpenPressure",
-           "OxyConfig[i].FlowMax"],
+   config=["OxySystem[i].Config.PressureSetpoint", "OxySystem[i].Config.OxyPump.MinSpeed_Hz", "OxySystem[i].Config.OxyPump.MaxSpeed_Hz",
+           "OxySystem[i].Config.OxyPump.PresetSpeed_Hz", "OxySystem[i].Config.OxyPump.RunDelay", "OxySystem[i].Config.ValveOpenPressure",
+           "OxySystem[i].Config.FlowMax"],
    open=["OX-32 (permit without a Framo REMOTE state)", "OX-35 (O2 per line vs water flow)", "OX-37 (injection "
          "point)", "GEN-12 (`OxySystem[i].Status.State` is never written)", "GEN-13"])
 
@@ -343,8 +343,8 @@ uc(id="UC-07", name="Commission pen oxygen control", level="user goal",
    start="The engineer switches oxygenation on.",
    main=[("Engineer", "Pulse `Pen.Command.OxygenStart` (accepted in Starting / Running); checks "
                       "`Pen.Status.OxygenOn` TRUE (after a PLC restart it is FALSE again, OX-33)."),
-         ("Engineer", "Sets `PenConfig.OxySetpoint` (mg/L) and checks OIC01 tuning `PenConfig.OxyController.Kp`, "
-                      "`PenConfig.OxyController.Ti`."),
+         ("Engineer", "Sets `Pen.Config.OxySetpoint` (mg/L) and checks OIC01 tuning `Pen.Config.OxyController.Kp`, "
+                      "`Pen.Config.OxyController.Ti`."),
          ("Engineer", "Monitors `Pen.Status.PenOxygenLevel`, `OxyController.Output.OUT` (total kg/h), "
                       "`PenInletSupervisor.NumberOfInletsEnabledForOxyControl`, and per line "
                       "`OxySystem[i].Status.FlowSetpoint` / `OxySystem[i].Status.OxyFlow`."),
@@ -358,12 +358,12 @@ uc(id="UC-07", name="Commission pen oxygen control", level="user goal",
                                                                               "(OX-08). Engineer fixes the sensors. "
                                                                               "FINISH (abandoned).")])],
    finish="Oxygenation on in auto.",
-   write=["Pen.Command.OxygenStart", "PenConfig.OxySetpoint", "OxyController.Command.Manual",
+   write=["Pen.Command.OxygenStart", "Pen.Config.OxySetpoint", "OxyController.Command.Manual",
           "OxyController.Command.ManualOutput", "OxyController.Command.Auto"],
    read=["Pen.Status.OxygenOn", "Pen.Status.PenOxygenLevel", "Pen.Status.OxyControlOK", "OxyController.Output.OUT",
          "OxyController.Status.Manual", "PenInletSupervisor.NumberOfInletsEnabledForOxyControl",
          "OxySystem[i].Status.FlowSetpoint", "OxySystem[i].Status.OxyFlow"],
-   config=["PenConfig.OxySetpoint", "PenConfig.OxyController.Kp", "PenConfig.OxyController.Ti"],
+   config=["Pen.Config.OxySetpoint", "Pen.Config.OxyController.Kp", "Pen.Config.OxyController.Ti"],
    open=["OX-33 (oxygenation not restored after a restart)", "OX-34 (emergency oxygenation)", "OX-06 / OX-35 "
          "(high O2 limits)", "OX-07 (setpoint and unit)"])
 
