@@ -365,8 +365,8 @@ INTRO = [
      "The server publishes the application's Symbol Configuration. Node ids are CODESYS string ids, "
      "ns=4;s=|var|<device>.Application.<GVL>.<path>, e.g. ...Application.GVLMain.Inlet[0].InletPump.Command.Reset. "
      "Device name and namespace index differ between PLCs: find GVLMain by browsing once per session. "
-     "Whole structures are exported, so every member below is a node. Access: GVLMain read/write, GVLIO and "
-     "ModbusRTUData read only. The real PLC needs a user login (no anonymous access)."),
+     "GVLMain is the only node structure exposed to clients; it is exported whole and read/write, so every "
+     "member below is a node. The real PLC needs a user login (no anonymous access)."),
     ("Structure of a device",
      "Most devices use the same sub-structures: Command (client writes: requests and setpoints), "
      "Status (PLC result: state, mode, permits), Input (measured values, after scaling), Output "
@@ -507,6 +507,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("repo", help="checkout of scaleaq/heimdall-plc")
     ap.add_argument("--app", default="pfc200_sim", help="application folder prefix (default pfc200_sim)")
+    ap.add_argument("--gvl", default=["GVLMain"], nargs="+",
+                    help="published GVLs to document (default GVLMain, the only interface exposed to clients)")
     args = ap.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -514,6 +516,10 @@ def main(argv=None) -> int:
     if not roots:
         print("No Symbol Configuration found for", args.app, file=sys.stderr)
         return 1
+    others = sorted({r.gvl for r in roots if r.gvl not in args.gvl})
+    roots = [r for r in roots if r.gvl in args.gvl]
+    if others:
+        print("Also published in the Symbol Configuration, left out of the page:", ", ".join(others))
     order, enum_order = reachable(roots, structs, enums, consts)
     notes = json.load(open(NOTES, encoding="utf-8")) if os.path.exists(NOTES) else {}
     try:
@@ -529,7 +535,7 @@ def main(argv=None) -> int:
     keys = {f"{n}.{m.name}" for n in order for m in structs[n].members}
     keys |= {f"{r.gvl}.{r.name}" for r in roots}
     unused = sorted(k for k in notes if not k.startswith("_") and k not in keys
-                    and k.split(".")[0] not in enum_order)
+                    and k.split(".")[0] in set(order) | {"GVLMain"})
     missing_types = sorted({base_type(array_info(m.type, consts)[1]) for n in order for m in structs[n].members}
                            - set(structs) - set(enums) - ELEMENTARY)
     print(f"{len(roots)} root nodes, {len(order)} structures, {len(enum_order)} enumerations, "

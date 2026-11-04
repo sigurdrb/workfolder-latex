@@ -1,16 +1,15 @@
 <!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>CAS OPC UA interface</title><style>body{font-family:system-ui,sans-serif;max-width:1200px;margin:24px auto;padding:0 16px;color:#1f2328;background:#fff}table{border-collapse:collapse;width:100%;margin:8px 0 20px}th,td{border:1px solid #d0d7de;padding:4px 8px;vertical-align:top;font-size:13px;text-align:left}th{background:#f6f8fa}tr.write td:nth-child(3){color:#0969da;font-weight:600}tr.config td:nth-child(3){color:#9a6700}tr.internal td:nth-child(3){color:#cf222e}.gen{color:#57606a}h2{border-top:1px solid #d0d7de;padding-top:12px}</style></head><body><h1>CAS (Heimdall) PLC: OPC UA interface</h1><p class='gen'>Generated 2026-11-04 from scaleaq/heimdall-plc 7d6180d 2026-11-03 grafted, HEAD -&gt; inletControl, origin/inletControl, application pfc200_sim.</p>
 <h1>How to use this page</h1>
 <p><b>What this page is.</b> The variables the CAS (Heimdall) PLC publishes on its OPC UA server: every node, its data type, and what it does when you read or write it. It is generated from the CODESYS project (scaleaq/heimdall-plc) and the notes in workfolder-latex/CAS/OPC UA interface, so it follows the program. Do not edit the page by hand: change notes.json or the PLC and regenerate.</p>
-<p><b>Address space.</b> The server publishes the application&#x27;s Symbol Configuration. Node ids are CODESYS string ids, ns=4;s=|var|&lt;device&gt;.Application.&lt;GVL&gt;.&lt;path&gt;, e.g. ...Application.GVLMain.Inlet[0].InletPump.Command.Reset. Device name and namespace index differ between PLCs: find GVLMain by browsing once per session. Whole structures are exported, so every member below is a node. Access: GVLMain read/write, GVLIO and ModbusRTUData read only. The real PLC needs a user login (no anonymous access).</p>
+<p><b>Address space.</b> The server publishes the application&#x27;s Symbol Configuration. Node ids are CODESYS string ids, ns=4;s=|var|&lt;device&gt;.Application.&lt;GVL&gt;.&lt;path&gt;, e.g. ...Application.GVLMain.Inlet[0].InletPump.Command.Reset. Device name and namespace index differ between PLCs: find GVLMain by browsing once per session. GVLMain is the only node structure exposed to clients; it is exported whole and read/write, so every member below is a node. The real PLC needs a user login (no anonymous access).</p>
 <p><b>Structure of a device.</b> Most devices use the same sub-structures: Command (client writes: requests and setpoints), Status (PLC result: state, mode, permits), Input (measured values, after scaling), Output (what the PLC drives), Alarm (one AlarmState per alarm), AlarmAck (client writes to acknowledge), Config (settings; many are retained) and InternalCommand (between PLC blocks: never write). The column &#x27;Client&#x27; says what a client may do with a node. Status, Input, Output, State and Alarm members are written by the PLC every scan; client writes are overwritten. Quality: analog sensors (AnalogSensorDUT) have Status.BadQuality (750-455 diagnostic bits set, value out of range, or for level transmitters the InletRIO link down); control uses Filtered only when quality is good and Config.Enable is TRUE. Links: InletRIO/CommonRIO Status.CommOK = connected AND data fresh (a watched spare word must be rewritten within 2 s), DataStale = connected but no fresh data, Restarts counts automatic reconnects (every 10 s while stale). Inlet pumps: Status.CommunicationOK = Framo data source connected AND heartbeat answered; without it State is forced to Unavailable. Oxy pumps: Status.CommunicationOK = drive channel connected and fresh. Units: inlet pump speeds rpm; oxy pump Hz; levels and over-height m; oxy pressures bar (absolute as the transmitter reads); O2 flow kg/h; pen O2 mg/L; saturation %; valve and outlet/cylinder positions %.</p>
 <p><b>Commands.</b> Commands are pulses unless stated otherwise: write TRUE, hold at least 1 s or until the PLC clears it, then write FALSE. Mode commands (Manual / Auto) are cleared by the PLC. A command the PLC cannot accept is ignored or reported (e.g. Pen.Status.CommandRejected); check the Status member named in the behaviour column for the result. Write only Command members, AlarmAck bits and the named settings; never Status, Input, Output, Alarm or InternalCommand. Command members are written by the client. Two kinds. Pulses (Manual, Auto, Reset, Pen Start/Stop/OxygenStart/OxygenStop, Cylinder CalibrateClosed/CalibrateOpen, Outlet FaultReset, HydraulicPump Start/Stop/Reset): write TRUE once; the PLC acts on the level it sees and writes FALSE itself, mostly in the same scan. Requests that the PLC keeps until done (InletPump/OxyPump Start and Stop): the PLC clears them only when the pump state confirms them. Levels (Setpoint, ManualSetpoint, ManualOutput, ManualPosition, Mode, LevelSetpoint, Cylinder Open/Close jog): the PLC reads the value every scan and does not clear it. Exceptions: OxyPump.Command.Reset is edge-triggered and never cleared by the PLC (write TRUE, then FALSE). Manual/Auto pairs set Status.Manual; if both arrive in the same scan Auto wins. On the switch to manual the PLC copies the active value into the manual setpoint (bumpless), so ManualSetpoint / ManualPosition / ManualOutput are written by both PLC and client. The PLC gives no explicit acknowledge per command; the client sees the effect in Status (Status.Manual, State, Pen.Status.CommandRejected).</p>
 <p><b>Alarms.</b> Each alarm is an AlarmState (0 Normal, 1 Unacknowledged, 2 Acknowledged, 3 RetainUnacknowledged, 4 Suppressed). Acknowledge with a rising edge on the matching AlarmAck bit. Every alarm is an AlarmState byte (enum AlarmState: 0 Normal, 1 UnacknowledgedAlarm, 2 AcknowledgedAlarm, 3 RetainUnacknowledged, 4 Suppressed) in an *AlarmDUT, with a BOOL of the same name in the matching *AlarmAckDUT. AlarmManagement acknowledges on the RISING EDGE of the AlarmAck bit; the PLC never clears AlarmAck bits, so the client must write TRUE and then FALSE (a bit left TRUE will not acknowledge the next alarm). Transitions: Normal -&gt; Unacknowledged when the condition appears; Unacknowledged -&gt; Acknowledged on ack, or -&gt; RetainUnacknowledged if the condition clears first; Acknowledged -&gt; Normal when the condition clears; RetainUnacknowledged -&gt; Normal on ack, back to Unacknowledged if the condition returns. Suppressed (alarm disabled in config) overrides everything and returns to Normal when unsuppressed. Notification alarms (inlet LowPower, HighPower, FailedToReset) are auto-acknowledged: they go straight to AcknowledgedAlarm and need no ack. Acknowledging only changes the alarm state; it never resets equipment. Equipment resets are separate commands (InletPump/OxyPump Command.Reset, HydraulicPump Command.Reset, Outlet Command.FaultReset). Exception: acknowledging Cylinder FlowSensorFault aborts a hanging counter set.</p>
 <p><b>Client rules.</b> Clients must follow &#x27;CAS requirements for OPC UA clients of the PLC&#x27; (workfolder-latex/CAS): one session, subscriptions instead of polling (&gt;= 1 s), reconnect with back-off, show values as unknown while the link is down, respect quality flags (BadQuality, CommOK).</p>
 <p><b>Config.</b> Config lives in GVLMain (PenConfig, InletConfig[i], OxyConfig[i], CommonRIOConfig, InletRIOConfig[i], Outlet.Config, Outlet.Cylinder[i].Config, sensor Configs). Main.UpdateRetain keeps a persistent copy in GVLRetain (VAR_GLOBAL PERSISTENT RETAIN): on the first scan after start the retained copy is copied into GVLMain; after that any change in GVLMain is copied to GVLRetain in the same scan. So a client change is retained and survives a restart. Defaults for a fresh download come from ConfigValues (pfc200_sim application) or, where it gives none, from the DUT initial values. Retained: InletConfig, InletRIOConfig, OxyConfig (OxySystemConfig), Outlet.Config, Cylinder Config, cylinder position counter and pressure sensor configs, CommonRIOConfig, PenConfig, Pen.Command.LevelSetpoint, Orbit864Sensor[i].Config, level inside/outside and over-height sensor configs, oxy line sensor configs. NOT retained (back to DUT defaults after a restart): Orbit864 item configs (alarm limits, FilterTime), OxyValve config, Pen CO2/TGP/Turbidity/pH sensor configs, EstimatedInletFlow config, PID Command/Status. FBs read GVLMain config every scan, so most changes act at once. Exceptions are noted per member (e.g. Orbit864 SlaveAddress is read once at start-up).</p>
-<p><b>Internal.</b> InletPumpDUT.InternalCommand (InletPumpInternalCommandDUT) is PLC-internal: InletSupervisor/PumpCount writes AutoStart/AutoStop, InletControl writes Start/Stop/Reset/VelocitySetpoint/HeartbeatToggle, and FramoDataProcessing copies them to the Framo controller over OPC UA (data source Framo_n). It is visible because it sits inside GVLMain.Inlet[i]; clients must not write it (the PLC overwrites it every scan, and a write between scans could reach the Framo controller). Also internal or unused despite being exported: GVLMain.InletSequence (PLC re-sorts it every scan), Pen.InletSupervisor (unused copy; the live one is GVLMain.PenInletSupervisor), GVLMain.LevelController.Config and OxyController.Config (unused; tuning is in PenConfig), GVLIO.InletRIO[i].Config and GVLIO.CommonRIO.Config (unused; the live settings are GVLMain.InletRIOConfig / CommonRIOConfig).</p>
+<p><b>Internal.</b> InletPumpDUT.InternalCommand (InletPumpInternalCommandDUT) is PLC-internal: InletSupervisor/PumpCount writes AutoStart/AutoStop, InletControl writes Start/Stop/Reset/VelocitySetpoint/HeartbeatToggle, and FramoDataProcessing copies them to the Framo controller over OPC UA (data source Framo_n). It is visible because it sits inside GVLMain.Inlet[i]; clients must not write it (the PLC overwrites it every scan, and a write between scans could reach the Framo controller). Also internal or unused despite being exported: GVLMain.InletSequence (PLC re-sorts it every scan), Pen.InletSupervisor (unused copy; the live one is GVLMain.PenInletSupervisor), GVLMain.LevelController.Config and OxyController.Config (unused; tuning is in PenConfig).</p>
 <h1>Root nodes</h1>
 <table><tr><th>GVL</th><th>Node</th><th>Type</th><th>Access</th><th>Description</th></tr>
-<tr><td>IO_Processing_RTU</td><td><b>ModbusRTUData</b></td><td><a href="#ModbusRTUData">ModbusRTUData</a></td><td>read</td><td>FB instance (IO_Processing_RTU) that polls the Orbit 864 sensors over the 750-652; exported read-only for its diagnostic counters.</td></tr>
 <tr><td>GVLMain</td><td><b>Pen</b></td><td><a href="#PenDUT">PenDUT</a></td><td>read/write</td><td>The pen (fish tank) as a whole: commands Start/Stop/OxygenStart/OxygenStop and level setpoint, pen state, level and O2 process values, pen alarms and the Orbit 864 sensors. Owned by InletSupervisor (PenSequence, PenLevelControl, PenOxygenControl) and PenControl.</td></tr>
 <tr><td>GVLMain</td><td><b>PenConfig</b></td><td><a href="#PenConfigDUT">PenConfigDUT</a></td><td>read/write</td><td>Pen tuning: LIC01 level controller, OIC01 oxygen controller and O2 setpoint, level deviation alarms, automatic pump count and rotation. Retained (GVLRetain.PenConfig). Read by InletSupervisor (PenLevelControl, PenOxygenControl, PumpCount).</td></tr>
 <tr><td>GVLMain</td><td><b>PenInletSupervisor</b></td><td><a href="#PenInletSupervisorDUT">PenInletSupervisorDUT</a></td><td>read/write</td><td>Read-only summary of the inlet supervision (GVLMain.PenInletSupervisor): pump counts, LIC01 share per pump, pumps wanted, rotation. Written by InletSupervisor.</td></tr>
@@ -25,34 +24,8 @@
 <tr><td>GVLMain</td><td><b>EmergencyStop</b></td><td>BOOL</td><td>read/write</td><td>Global emergency stop flag. Not implemented. Declared &#x27;not implemented&#x27;; no reader or writer found. The oxy lines use OxySystem[i].Input.EmergencyStop (also never written), the outlet uses its own emergency switch.</td></tr>
 <tr><td>GVLMain</td><td><b>LevelController</b></td><td><a href="#PIDControllerDUT">PIDControllerDUT</a></td><td>read/write</td><td>Operator interface of a pen controller: GVLMain.LevelController (LIC01, PenLevelControl) and GVLMain.OxyController (OIC01, PenOxygenControl). Command and Status.Manual are used; Config is NOT used (tuning is in PenConfig.LevelController / OxyController).</td></tr>
 <tr><td>GVLMain</td><td><b>OxyController</b></td><td><a href="#PIDControllerDUT">PIDControllerDUT</a></td><td>read/write</td><td>Operator interface of a pen controller: GVLMain.LevelController (LIC01, PenLevelControl) and GVLMain.OxyController (OIC01, PenOxygenControl). Command and Status.Manual are used; Config is NOT used (tuning is in PenConfig.LevelController / OxyController).</td></tr>
-<tr><td>GVLIO</td><td><b>InletRIO</b></td><td>ARRAY[0..2] OF <a href="#InletRIODUT">InletRIODUT</a></td><td>read</td><td>GVLIO.InletRIO[i]: status and alarms of inlet station i&#x27;s Wago coupler and of the oxy pump drive channel (InletRIO FB in IO_Processing). Its Config member is not used.</td></tr>
-<tr><td>GVLIO</td><td><b>CommonRIO</b></td><td><a href="#CommonRIODUT">CommonRIODUT</a></td><td>read</td><td>GVLIO.CommonRIO: status and alarms of the common Wago coupler (750-362) with the outlet I/O, O2 valve outputs, O2 flow inputs and the 750-652 serial module. Its Config member is not used.</td></tr>
 </table>
 <h1>Structures</h1>
-<h2 id='ModbusRTUData'>ModbusRTUData</h2>
-<p>FB instance (IO_Processing_RTU) that polls the Orbit 864 sensors over the 750-652; exported read-only for its diagnostic counters.</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>RTUTrigger</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>RTUUpdateData</b></td><td>BOOL</td><td>Read</td><td></td><td>Default TRUE.</td></tr>
-<tr class='read'><td><b>RTUTimeOut</b></td><td>TIME</td><td>Read</td><td>RTU transaction timeout, see body</td><td></td></tr>
-<tr class='read'><td><b>QueriesReady</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>RTUDataOK</b></td><td>ARRAY[0..2,0..5] OF BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>RTUSequence</b></td><td>ARRAY[0..3] OF UINT</td><td>Read</td><td>block per round: oxygen, conductivity, oxygen, pressure</td><td>Default [0, 1, 0, 2].</td></tr>
-<tr class='read'><td><b>RTUStep</b></td><td>UINT</td><td>Read</td><td>index into RTUSequence</td><td></td></tr>
-<tr class='read'><td><b>RTUBlock</b></td><td>UINT</td><td>Read</td><td>block being polled</td><td></td></tr>
-<tr class='read'><td><b>RTUSensor</b></td><td>UINT</td><td>Read</td><td>sensor being polled</td><td></td></tr>
-<tr class='read'><td><b>RTUWriting</b></td><td>BOOL</td><td>Read</td><td>the request in progress is the stay-awake write</td><td></td></tr>
-<tr class='read'><td><b>RTURetry</b></td><td>UINT</td><td>Read</td><td>retries used for the request in progress</td><td></td></tr>
-<tr class='read'><td><b>StayAwakeDone</b></td><td>ARRAY[0..5] OF BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>StayAwakeOK</b></td><td>ARRAY[0..5] OF BOOL</td><td>Read</td><td>Per sensor: stay-awake write accepted.</td><td></td></tr>
-<tr class='read'><td><b>RTUReplies</b></td><td>UDINT</td><td>Read</td><td>Completed RTU transactions.</td><td>RTUErrors: failed after retries; RTURetries: resends; RTUMismatches: discarded late replies.</td></tr>
-<tr class='read'><td><b>RTUErrors</b></td><td>UDINT</td><td>Read</td><td>diagnostics: failed transactions after retries (timeout, exception, CRC)</td><td></td></tr>
-<tr class='read'><td><b>RTURetries</b></td><td>UDINT</td><td>Read</td><td>diagnostics: requests sent again</td><td></td></tr>
-<tr class='read'><td><b>RTUMismatches</b></td><td>UDINT</td><td>Read</td><td>diagnostics: replies from another slave or function (a late reply to an earlier request), discarded</td><td></td></tr>
-<tr class='read'><td><b>RTUValid</b></td><td>BOOL</td><td>Read</td><td>the transaction just ended with a reply that matches its request</td><td></td></tr>
-<tr class='read'><td><b>SensorId</b></td><td>ARRAY[0..2] OF WORD</td><td>Read</td><td>sub-sensor id at index 0 of each block: oxygen, conductivity, pressure</td><td>Default [42, 85, 84].</td></tr>
-<tr class='read'><td><b>i</b></td><td>UINT</td><td>Read</td><td></td><td></td></tr>
-</table>
 <h2 id='PenDUT'>PenDUT</h2>
 <p>The pen (fish tank) as a whole: commands Start/Stop/OxygenStart/OxygenStop and level setpoint, pen state, level and O2 process values, pen alarms and the Orbit 864 sensors. Owned by InletSupervisor (PenSequence, PenLevelControl, PenOxygenControl) and PenControl.</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
@@ -1081,72 +1054,6 @@
 <h2 id='PIDOutputDUT'>PIDOutputDUT</h2>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
 <tr class='read'><td><b>OUT</b></td><td>REAL</td><td>Read</td><td>Controller output. [rpm sum / kg/h]</td><td>LIC01: total speed of counted pumps (sum rpm), 0 when idle. OIC01: total O2 flow.</td></tr>
-</table>
-<h2 id='InletRIODUT'>InletRIODUT</h2>
-<p>GVLIO.InletRIO[i]: status and alarms of inlet station i&#x27;s Wago coupler and of the oxy pump drive channel (InletRIO FB in IO_Processing). Its Config member is not used.</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>Alarm</b></td><td><a href="#InletRIOAlarmDUT">InletRIOAlarmDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>AlarmAck</b></td><td><a href="#InletRIOAlarmAckDUT">InletRIOAlarmAckDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='internal'><td><b>Config</b></td><td><a href="#InletRIOConfigDUT">InletRIOConfigDUT</a></td><td></td><td>Unused copy; the live config is GVLMain.InletRIOConfig[i].</td><td></td></tr>
-<tr class='read'><td><b>Status</b></td><td><a href="#InletRIOStatusDUT">InletRIOStatusDUT</a></td><td></td><td></td><td></td></tr>
-</table>
-<h2 id='InletRIOAlarmDUT'>InletRIOAlarmDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>CommError</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>FuseError</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>PowerSupplyError</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>MissingIPaddress</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-</table>
-<h2 id='InletRIOAlarmAckDUT'>InletRIOAlarmAckDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='write'><td><b>CommError</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-<tr class='write'><td><b>FuseError</b></td><td>BOOL</td><td>Command (client writes)</td><td>Not implemented.</td><td>No alarm logic for FuseError or PowerSupplyError; only CommError and MissingIPaddress are raised.</td></tr>
-<tr class='write'><td><b>PowerSupplyError</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-<tr class='write'><td><b>MissingIPaddress</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-</table>
-<h2 id='InletRIOStatusDUT'>InletRIOStatusDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>CommOK</b></td><td>BOOL</td><td>Read</td><td>RIO connected and data fresh.</td><td>FALSE removes the inlet&#x27;s level pair from LIC01.</td></tr>
-<tr class='read'><td><b>FieldPowerOK</b></td><td>BOOL</td><td>Read</td><td>24 V field power breaker not tripped.</td><td></td></tr>
-<tr class='read'><td><b>MissingIP</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>DataStale</b></td><td>BOOL</td><td>Read</td><td>Connected, no fresh data.</td><td>Restarts counts reconnects; DriveDataStale/DriveRestarts for the drive.</td></tr>
-<tr class='read'><td><b>Restarts</b></td><td>UDINT</td><td>Read</td><td>RIO master restarts by the freshness watchdog</td><td></td></tr>
-<tr class='read'><td><b>DriveDataStale</b></td><td>BOOL</td><td>Read</td><td>the same for the oxy pump drive&#x27;s master</td><td></td></tr>
-<tr class='read'><td><b>DriveRestarts</b></td><td>UDINT</td><td>Read</td><td></td><td></td></tr>
-</table>
-<h2 id='CommonRIODUT'>CommonRIODUT</h2>
-<p>GVLIO.CommonRIO: status and alarms of the common Wago coupler (750-362) with the outlet I/O, O2 valve outputs, O2 flow inputs and the 750-652 serial module. Its Config member is not used.</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>Alarm</b></td><td><a href="#CommonRIOAlarmDUT">CommonRIOAlarmDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>AlarmAck</b></td><td><a href="#CommonRIOAlarmAckDUT">CommonRIOAlarmAckDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='internal'><td><b>Config</b></td><td><a href="#CommonRIOConfigDUT">CommonRIOConfigDUT</a></td><td></td><td>Unused copy; the live config is GVLMain.CommonRIOConfig.</td><td></td></tr>
-<tr class='read'><td><b>Status</b></td><td><a href="#CommonRIOStatusDUT">CommonRIOStatusDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Serial652</b></td><td><a href="#Serial652ImageDUT">Serial652ImageDUT</a></td><td></td><td>750-652 process image (Modbus words 0-11)</td><td></td></tr>
-</table>
-<h2 id='CommonRIOAlarmDUT'>CommonRIOAlarmDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>CommError</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>MissingIPaddress</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-</table>
-<h2 id='CommonRIOAlarmAckDUT'>CommonRIOAlarmAckDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='write'><td><b>CommError</b></td><td>BOOL</td><td>Command (client writes)</td><td>Acknowledge CommonRIO communication error.</td><td>Rising edge. Raised when Config.Enabled and Status.CommOK is FALSE. InletRIO CommError likewise.</td></tr>
-<tr class='write'><td><b>MissingIPaddress</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-</table>
-<h2 id='CommonRIOStatusDUT'>CommonRIOStatusDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>CommOK</b></td><td>BOOL</td><td>Read</td><td>CommonRIO connected and data fresh.</td><td>Outlet counter values trusted 1 s after.</td></tr>
-<tr class='read'><td><b>MissingIP</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>DataStale</b></td><td>BOOL</td><td>Read</td><td>Connected, no fresh data.</td><td></td></tr>
-<tr class='read'><td><b>Restarts</b></td><td>UDINT</td><td>Read</td><td>connection restarts by the freshness watchdog</td><td></td></tr>
-</table>
-<h2 id='Serial652ImageDUT'>Serial652ImageDUT</h2>
-<p>Process image of the 750-652 serial module carried over CommonRIO&#x27;s Modbus TCP client; diagnostic.</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>ViaCommonRIO</b></td><td>BOOL</td><td>Read</td><td>TRUE: CommonRIO&#x27;s own Modbus TCP client exchanges words 0-11 with this image. FALSE: words 0-11 belong to another client (device tree); CommonRIO does not write them.</td><td></td></tr>
-<tr class='read'><td><b>Input</b></td><td>ARRAY[0..11] OF WORD</td><td>Read</td><td>from the coupler: S0/S1 + received data</td><td></td></tr>
-<tr class='read'><td><b>Output</b></td><td>ARRAY[0..11] OF WORD</td><td>Read</td><td>to the coupler:   C0/C1 + data to send</td><td></td></tr>
-<tr class='read'><td><b>Exchanges</b></td><td>UDINT</td><td>Read</td><td>Modbus transactions that carried the 750-652 image.</td><td></td></tr>
 </table>
 <h1>Enumerations</h1>
 <h2 id='AlarmState'>AlarmState</h2>
