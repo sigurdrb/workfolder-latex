@@ -174,6 +174,7 @@ B4 & 2026-11-05 & LIC01 manual$\to$auto: the active setpoint (\var{Input.Setpoin
 B5 & 2026-11-05 & Pen level limits (configurable): WL 0.03, AL 0.02, WH 0.08, AH 0.09, AHH 0.10~m (ALL 0.01~m, close the outlet, not implemented); warnings clear by themselves, alarms are acknowledged; AHH trips the inlet pumps and stops the pen (I8). The level setpoint is kept within WL..WH. \\
 B6 & 2026-11-05 & Framo has no HOLD any more ([FRAMO-FD] rev.~04, [FRAMO-SCD] A03): on heartbeat loss the PCC keeps the pump running at its last setpoint $\times$ 0.8 (stand-alone: the last setpoint) and follows the setpoint again when the link is back, with no Reset. PLC state 4 is now LINK LOST (a pump that was starting or running when the link went); it counts in LIC01's total at the estimated speed (last setpoint $\times$ \var{Config.CommLossFactor}). Reset only for LOCKDOWN. Oxygenation still stops on link loss. \\
 B7 & 2026-11-05 & Section~\ref{sec:scdstate}, planned: Framo has no pump states any more; the PLC will work out the pump state from the SCD signals (Unavailable, Available, Starting, Remote, Local, Stopping, Link lost, Fault). Summary of the SCD's start, stop, setpoint selection, commands and trips; what it asks of the PLC (Remote held TRUE, 30~s at 40~rpm after start, bumpless setpoint after a restart, Inhibit start from the start interlocks). Not implemented. \\
+B8 & 2026-11-05 & Section~\ref{sec:scdstate} prepared in the PLC: \var{PumpStateFromScd}, the SCD signals in \var{InletPump.Input}, the commands Remote, Local, StandAlone and InhibitStart, selected by \var{Config.ScdInterface} (default FALSE, signals not mapped). Remote and Local are requests held until Framo reports the setpoint in use or \var{RemoteRequestTime}. PLC state 5 is now Fault (was Lockdown), new state 6 Local. After a PLC restart LIC01 tracks one cycle and a pump in REMOTE gets its actual speed until LIC01 has a setpoint. \\
 \end{tabularx}
 \end{small}
 
@@ -708,7 +709,7 @@ START & actual speed & yes & yes & LIC01 tracks the summed speed of the starting
 REMOTE & share of LIC01's total (auto) or operator setpoint (manual) & yes & yes & The only state in which the PLC sets the speed. Oxygenation permit I1 with a live link. \\
 LINK LOST & last setpoint (sent again when the link is back) & no & yes & Heartbeat lost while starting or running. The PCC runs the pump at last setpoint $\times$ 0.8 ([FRAMO-FD] rev.~04; in stand-alone the last setpoint); the PLC counts it in LIC01's total at that estimate (\var{ActualSpeed}), the pumps in REMOTE correct for it (DEC9); oxygenation stops; no Reset needed. \\
 STOP & 0 & no & yes & \\
-LOCKDOWN & 0 & no & no & Needs Reset after the fault is cleared\open{3}. The only state in which the PLC sends Reset. \\
+LOCKDOWN (PLC: Fault) & 0 & no & no & Needs Reset after the fault is cleared\open{3}. The only state in which the PLC sends Reset. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -753,9 +754,11 @@ baseline must be agreed with Framo\open{1}.
 \label{fig:hb}
 \end{figure}
 
-\subsection{Planned: pump state from the SCD signals}
+\subsection{Pump state from the SCD signals (prepared)}
 \label{sec:scdstate}
-\textbf{Status: planned, not implemented.} [FRAMO-FD] rev.~04 and [FRAMO-SCD] A03 are taken as the
+\textbf{Status: prepared in the PLC, not in use.} \var{PumpStateFromScd} works out the state below and
+\var{InletControl} the new commands; \var{Inlet[i].InletPump.Config.ScdInterface} (default FALSE) selects it
+instead of the state flags. The signals are not mapped yet. [FRAMO-FD] rev.~04 and [FRAMO-SCD] A03 are taken as the
 description of the Framo pump control system. They have no pump states any more (no UNAVAILABLE,
 AVAILABLE, START, STOP, REMOTE, HOLD or LOCKDOWN); LOCKDOWN remains only as Framo's reaction to a
 system-wide failure. The PLC therefore works out the pump state itself from the signals of the SCD. Until
@@ -783,12 +786,14 @@ rev.~B (Section~\ref{sec:sm}) and the simulator keeps that node set.
         start inhibit (U03).
 \end{itemize}
 
-\textbf{Planned PLC pump state} (Table~\ref{tab:scdstate}). The state names used by LIC01, the pump
-count and the oxygen permit stay; LOCKDOWN becomes \emph{Fault} and a \emph{Local} state is added.
+\textbf{PLC pump state} (Table~\ref{tab:scdstate}, \texttt{ENUM.InletPumpState}). The state names used
+by LIC01, the pump count and the oxygen permit stay; LOCKDOWN is now \emph{Fault} (5), also with the rev.~B
+flags, and \emph{Local} (6) is added. A Local pump counts in LIC01's total at its actual speed and is not
+controlled.
 
 \begin{table}[htbp]
 \centering\small
-\caption{Planned PLC pump state from the SCD signals ([FRAMO-SCD] A03; signals to be confirmed on the interface).}
+\caption{PLC pump state from the SCD signals, \var{PumpStateFromScd} ([FRAMO-SCD] A03; signals to be confirmed on the interface).}
 \label{tab:scdstate}
 \begin{tabularx}{\textwidth}{@{}P{24mm}L@{}}
 \toprule
@@ -808,13 +813,18 @@ Fault & drive tripped or failed to start (replaces LOCKDOWN); leaves with Reset 
 
 \textbf{What the SCD asks of the PLC.}
 \begin{itemize}[nosep]
-  \item Write Remote control TRUE continuously while CAS controls the pump; after a reconnect or PLC restart,
-        control returns without a new command if Remote is still TRUE and the pump is ready (to be confirmed by Framo).
+  \item \textbf{Remote and Local as requests.} A pump in service (pump count or manual) that is ready for
+        remote control but not on the remote setpoint gets a Remote request: Remote is held TRUE until Framo
+        reports the remote setpoint in use, at most \var{RemoteRequestTime} (10~s; then \var{RemoteFailed}).
+        A pump on the remote setpoint that is taken out of service gets a Local request the same way, until
+        Framo reports the local setpoint. A new request needs a new edge of its condition. Whether Framo
+        latches Remote and has a Local command is asked.
   \item Expect at least 30~s at 40~rpm after each start before the pump takes the CAS setpoint; LIC01 tracks meanwhile.
-  \item After a PLC restart, write a setpoint that starts from the pump's actual speed, so the first cycles
-        with Remote and ready do not step the pump.
-  \item Drive Inhibit start from the start interlocks: pen level AHH trip, pump out of service; outlet
-        closed and pen stopped to be decided (they also block a local start for service).
+  \item After a PLC restart the setpoint starts from the pump's actual speed: LIC01 tracks for one cycle
+        when it leaves Idle, and a pump in REMOTE without a setpoint yet is sent its actual speed
+        (implemented, also with the rev.~B flags).
+  \item Inhibit start from the start interlocks: pen level AHH trip, pump out of service (implemented);
+        outlet closed and pen stopped to be decided (they also block a local start for service).
   \item Send Reset after a drive trip; decide when to use Stand-alone.
   \item Keep the history of the pumps: [FRAMO-FD] leaves historical logging to CAS.
 \end{itemize}
