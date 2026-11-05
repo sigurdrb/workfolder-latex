@@ -22,6 +22,8 @@ SchedulerResolution=50
 | `ItemMinSamplingRate=500` | The server never samples faster than 500 ms, whatever a client asks | Limit CPU. The HMI uses 1 s; 500 keeps the HMI wave view usable |
 | `SchedulerResolution=50` | The OPC UA scheduler ticks every 50 ms | Fewer wake-ups, less CPU |
 
+Result: total CPU load (htop) went from about 91 % to 53 % after the reboot.
+
 Not used, from the same forum tip: `TraceLevel=1023` (trace logging, costs CPU), large stack buffers,
 fixed worker pool, thread priority. Add them only if needed.
 
