@@ -450,7 +450,7 @@ the valve is on (Servi's suggestion in [QNA]). The PLC does not implement this.
 \subsection{Operating modes}
 The operating mode sets the water flow through the pen. The dampers get a fixed opening per mode, and
 the level controller LIC01 gets the level setpoint for the mode [FD Tabell~10]. The mode is chosen on
-the HMI and retained in \var{Outlet.Config.Mode}.
+the HMI (\var{Outlet.Command.Mode}) and kept over a restart (\var{GVLRetain.OutletMode}).
 
 \begin{table}[htbp]
 \centering
