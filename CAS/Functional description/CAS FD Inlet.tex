@@ -511,7 +511,9 @@ $\Delta H_\text{avg}$ stays more than \var{LevelDeviationLimit} (0.02~m) above (
 speed with no pump left to stop. Only in Auto.
 
 \textbf{Level limits} (\var{Pen.Config}, on $\Delta H_\text{avg}$, with a valid measurement, each for
-\var{LevelAlarmDelay} 10~s). Warnings clear by themselves, alarms are acknowledged:
+\var{LevelAlarmDelay} 10~s, on the over-height filtered at 0.05~Hz per pair, so waves do not reach
+them; an active limit clears only \var{LevelAlarmHysteresis} 0.005~m back inside it). Warnings clear by
+themselves, alarms are acknowledged:
 WL 0.03~m, AL 0.02~m (ALL 0.01~m, close the outlet valve, not implemented), WH 0.08~m, AH 0.09~m and
 AHH 0.10~m. AHH trips: all inlet pumps stop, also in manual, and the pen stops
 (\var{Pen.Status.LevelHighTrip}); the pen cannot be started again until the level is below WH. The level
@@ -1076,6 +1078,7 @@ Parameter & Default & Unit & Meaning \\
 \var{Pen.Config.LevelDeviationLimit} / \var{LevelDeviationDelay} & 0.02 / 5 & m / min & level deviation alarms; limit 0 = off \\
 \var{Pen.Config.LevelWL / AL / WH / AH / AHH} & 0.03 / 0.02 / 0.08 / 0.09 / 0.10 & m & level limits; WL..WH is the setpoint range; AHH trips the inlet pumps \\
 \var{Pen.Config.LevelAlarmDelay} & 10 & s & delay of the level limits \\
+\var{Pen.Config.LevelAlarmHysteresis} & 0.005 & m & a level limit clears only this far back inside \\
 \var{Pen.Config.PumpTargetSpeed} & 85 & rpm & stop a pump when the others would run at or below this; 0 = never \\
 \var{Pen.Config.PumpAddSpeed} & 115 & rpm & start a pump when the share is at or above this; above \var{PumpTargetSpeed}; 0 = never \\
 \var{Pen.Config.PumpRemoveDelay} / \var{PumpAddDelay} & 15 / 2 & min & how long the stop / start condition must hold \\

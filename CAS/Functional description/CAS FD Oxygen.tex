@@ -807,6 +807,7 @@ Parameter & Default & Meaning \\
 \var{Pen.Config.OxygenDeviationLimit / Delay} & 0 (off) / 15 min & OIC01 deviation alarms \\
 \var{Pen.Config.OxygenWL / AL / WH / AH / AHH} & 6 / 5 / 10 / 11 / 12 mg/L & pen \Otwo{} limits; AHH trips oxygenation \\
 \var{Pen.Config.OxygenTripReset / OxygenAlarmDelay} & 6 mg/L / 30 s & oxygenation on again below; delay of the limits \\
+\var{Pen.Config.OxygenAlarmHysteresis} & 0.2 mg/L & an \Otwo{} limit clears only this far back inside \\
 \var{Pen.Config.OxygenSensorSpread / SpreadDelay} & 0 (off) / 5 min & \Otwo{} sensor disagreement alarm \\
 \var{OxySystem[i].Config.InjectorDpLow / InjectorDpDelay} & 0 (off) / 30 s & low pressure drop over the injector \\
 \var{Orbit864SensorConfig[k]} & slaves 1--6; EnableForAutoControl for 1--3 & sensor address, polling, selection for OIC01 \\
