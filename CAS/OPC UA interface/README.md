@@ -10,6 +10,7 @@ request/response). Structures and enumerations are linked.
 | `notes.json` | Hand-maintained behaviour notes, keyed `<DUT>.<Member>` (also `GVLMain.<var>`, `ModbusRTUData.<var>`, `<ENUM>.<value>`), plus `_general` and `_structs`. |
 | `CAS OPC UA interface.confluence.txt` | Output: Confluence wiki markup. |
 | `CAS OPC UA interface.html` | Output: the same page for review in a browser. |
+| `PFC runtime config.md` | OPC UA server settings in the PFC's `CODESYSControl_User.cfg` (not in the CODESYS project). |
 
 ## Regenerate
 
