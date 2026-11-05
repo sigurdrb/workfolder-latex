@@ -1,330 +1,193 @@
-<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>CAS commissioning use cases</title><style>body{font-family:system-ui,sans-serif;max-width:1200px;margin:24px auto;padding:0 16px;color:#1f2328;background:#fff}table{border-collapse:collapse;width:100%;margin:6px 0 16px}th,td{border:1px solid #d0d7de;padding:4px 8px;vertical-align:top;font-size:13px;text-align:left}th{background:#f6f8fa}code{font-size:12px;background:#f6f8fa;padding:0 3px;border-radius:3px}.gen{color:#57606a}h2{border-top:1px solid #d0d7de;padding-top:12px}</style></head><body><h1>CAS (Heimdall): commissioning use cases</h1><p class='gen'>Generated 2026-11-04, nodes checked against scaleaq/heimdall-plc f3b20bb 2026-11-04.</p>
-<h1>Purpose</h1><p>Use cases for field test and commissioning of the CAS (Heimdall) control system: for each, the OPC UA nodes to write and to read, in order, with the expected PLC response and the error scenarios. Structured after J. Cooling, Software Engineering for Real-Time Systems (2020), sec. 3.4.5: use case model (actors, use cases), text descriptions from START to FINISH, normal scenario, alternatives (errors handled in the interaction) and exceptions (the goal is abandoned), and include / extend relationships. Node paths are relative to GVLMain (the only node structure exposed over OPC UA) and checked against the PLC program; indices are 0-based (Inlet[0] = inlet 1). Node details: page &#x27;CAS OPC UA interface&#x27;. Command convention: pulses (Manual, Auto, Start/Stop of the pen, Reset of an inlet pump, calibrations) are written TRUE and cleared by the PLC; InletPump / OxyPump Start and Stop are held by the PLC until the state confirms them; OxyPump Reset and AlarmAck bits are edges the client sets TRUE and then FALSE itself; setpoints are levels.</p>
-<h1>Use case model</h1>
-<h2>Actors</h2><table><tr><th>Actor</th><th>Kind</th><th>Role</th></tr>
-<tr><td><b>Commissioning engineer</b></td><td>primary</td><td>Runs field test / commissioning. Works through an OPC UA client: the CAS HMI, UaExpert, or a SiteControl service. Direct actor of the PLC is the OPC UA client; the engineer is the indirect actor (Cooling 3.4.5 c).</td></tr>
-<tr><td><b>Operator</b></td><td>primary</td><td>Runs the pen after commissioning (same use cases UC-05 to UC-07, without the tests).</td></tr>
-<tr><td><b>SiteControl</b></td><td>external system</td><td>Reads plant values and alarms, may send commands. Must follow &#x27;CAS requirements for OPC UA clients of the PLC&#x27; (one session, subscriptions, reconnect, read-only mode).</td></tr>
-<tr><td><b>Framo pump controller (PCC 1..3)</b></td><td>external system</td><td>Inlet pump controllers; the PLC is their OPC UA client (data sources Framo_1..3).</td></tr>
-<tr><td><b>Remote I/O and drives</b></td><td>external system</td><td>CommonRIO and InletRIO 1..3 (Wago 750-362, Modbus TCP), oxy pump drives (ATV650, Modbus TCP), Orbit 864 O2 sensors (Modbus RTU via the 750-652).</td></tr>
-<tr><td><b>Supplier technicians</b></td><td>secondary</td><td>Framo (inlet pumps), Servi / Østerbø (outlet hydraulics), Normex (O2 supply): present when their equipment is commissioned.</td></tr>
+<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>CAS commissioning use cases</title><style>body{font-family:system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px;color:#1f2328;background:#fff}table{border-collapse:collapse;width:100%;margin:6px 0 16px}th,td{border:1px solid #d0d7de;padding:4px 8px;vertical-align:top;font-size:13px;text-align:left}th{background:#f6f8fa}code{font-size:12px;background:#f6f8fa;padding:0 3px;border-radius:3px}.gen{color:#57606a}h2{border-top:1px solid #d0d7de;padding-top:12px}table.card td:nth-child(2){white-space:nowrap}th.settings{background:#eef6ee}th.commands{background:#fff4e5}th.status{background:#eef3fb}</style></head><body><h1>CAS (Heimdall): commissioning, system by system</h1><p class='gen'>Generated 2026-11-05, nodes checked against scaleaq/heimdall-plc 2e8ebeb 2026-11-05.</p>
+<h1>How to read this</h1><p>One card per system: the top-level branches of GVLMain to open, the settings, commands and status nodes in one table, and a short sequence to start and verify the system. Paths are relative to GVLMain and checked against the PLC program; [i] is 0-based (Inlet[0] = inlet 1). Every node&#x27;s type and behaviour: page &#x27;CAS OPC UA interface&#x27;.</p>
+<h2>Commands</h2><table><tr><th>Kind</th><th>How</th></tr>
+<tr><td><b>Pulse</b></td><td>Write TRUE; the PLC clears it. All Manual / Auto, <code>Pen.Command.Start</code> / Stop / OxygenStart / OxygenStop, <code>Inlet[i].InletPump.Command.Reset</code> (cleared when the pump state changes), calibrations, <code>Outlet.Command.FaultReset</code>.</td></tr>
+<tr><td><b>Held</b></td><td>Write TRUE; the PLC holds it until the state confirms, then clears it: InletPump, OxyPump and HydraulicPump Start / Stop (in manual).</td></tr>
+<tr><td><b>Edge</b></td><td>Write TRUE, then FALSE yourself: <code>OxySystem[i].OxyPump.Command.Reset</code>, every AlarmAck bit.</td></tr>
+<tr><td><b>Value</b></td><td>Setpoints and modes: write the value, it stays (Setpoint, ManualOutput, ManualPosition, Mode).</td></tr>
+<tr><td><b>Setting</b></td><td>Config members: retained over a restart (GVLRetain). Change only during commissioning.</td></tr>
 </table>
-<h2>Use cases, in commissioning order</h2><table><tr><th>ID</th><th>Use case</th><th>Goal</th><th>Level</th><th>Includes</th><th>Extends</th></tr>
-<tr><td><a href='#UC00'>UC-00</a></td><td><b>Connect to the PLC</b></td><td>An OPC UA session to the PLC with GVLMain found and a monitoring list running.</td><td>subfunction (included by all)</td><td></td><td></td></tr>
-<tr><td><a href='#UC01'>UC-01</a></td><td><b>Configure and verify field communication</b></td><td>Every remote I/O, oxy pump drive and Framo controller connected, with fresh data.</td><td>user goal</td><td>UC-00</td><td></td></tr>
-<tr><td><a href='#UC02'>UC-02</a></td><td><b>Verify instruments</b></td><td>Every transmitter reads a plausible value with good quality and the right scaling.</td><td>user goal</td><td>UC-00, UC-01</td><td></td></tr>
-<tr><td><a href='#UC03'>UC-03</a></td><td><b>Commission the outlet dampers</b></td><td>All four cylinders calibrated, moving in both directions, and the outlet following the operation mode.</td><td>user goal</td><td>UC-00, UC-01</td><td></td></tr>
-<tr><td><a href='#UC04'>UC-04</a></td><td><b>Commission an inlet pump in manual</b></td><td>Inlet pump i starts, runs at the speed set from the PLC, and stops, under PLC control.</td><td>user goal</td><td>UC-00, UC-01</td><td></td></tr>
-<tr><td><a href='#UC05'>UC-05</a></td><td><b>Start the pen and commission level control</b></td><td>The pen running with the inlet pumps in auto and LIC01 holding the over-height at the setpoint.</td><td>user goal</td><td>UC-00, UC-02</td><td></td></tr>
-<tr><td><a href='#UC06'>UC-06</a></td><td><b>Commission an oxygen line</b></td><td>Oxygen line i: oxy pump holding pressure, valve and flow controller adding O2 on demand.</td><td>user goal</td><td>UC-00, UC-01, UC-02</td><td></td></tr>
-<tr><td><a href='#UC07'>UC-07</a></td><td><b>Commission pen oxygen control</b></td><td>OIC01 holding the pen O2 at the setpoint by sharing the O2 flow over the lines.</td><td>user goal</td><td>UC-00, UC-02</td><td></td></tr>
-<tr><td><a href='#UC10'>UC-10</a></td><td><b>Stop the pen</b></td><td>Oxygen off, inlet pumps stopped, outlet as planned.</td><td>user goal</td><td>UC-00</td><td></td></tr>
-<tr><td><a href='#UC08'>UC-08</a></td><td><b>Check and acknowledge alarms</b></td><td>Every alarm raised during a test is seen, understood and acknowledged.</td><td>subfunction (extends UC-01 to UC-07)</td><td>UC-00</td><td>UC-01 .. UC-07</td></tr>
-<tr><td><a href='#UC09'>UC-09</a></td><td><b>Fault tests</b></td><td>The planned failures give the designed reaction.</td><td>user goal (extends UC-05 to UC-07)</td><td>UC-00, UC-08</td><td>UC-05 .. UC-07</td></tr>
+<h1>Systems, in commissioning order</h1><table><tr><th>System</th><th>Open these branches</th><th>Settings</th><th>Commands</th><th>Status</th></tr>
+<tr><td><a href='#s1'>S1 Field links: remote I/O, drives, Framo</a></td><td><code>CommonRIO</code>, <code>InletRIO[i]</code>, <code>Inlet[i]</code>, <code>OxySystem[i]</code></td><td>4</td><td>0</td><td>7</td></tr>
+<tr><td><a href='#s2'>S2 Instruments</a></td><td><code>Pen</code>, <code>Inlet[i]</code>, <code>OxySystem[i]</code></td><td>1</td><td>0</td><td>8</td></tr>
+<tr><td><a href='#s3'>S3 Inlet pump i (Framo)</a></td><td><code>Inlet[i]</code></td><td>5</td><td>4</td><td>5</td></tr>
+<tr><td><a href='#s4'>S4 Oxygen line i</a></td><td><code>OxySystem[i]</code></td><td>6</td><td>6</td><td>7</td></tr>
+<tr><td><a href='#s7'>S7 Outlet (dampers and hydraulics)</a></td><td><code>Outlet</code></td><td>3</td><td>6</td><td>3</td></tr>
+<tr><td><a href='#s5'>S5 Pen and level control (LIC01)</a></td><td><code>Pen</code>, <code>LevelController</code>, <code>PenInletSupervisor</code></td><td>4</td><td>4</td><td>7</td></tr>
+<tr><td><a href='#s6'>S6 Pen oxygen control (OIC01)</a></td><td><code>Pen</code>, <code>OxyController</code>, <code>OxySystem[i]</code></td><td>3</td><td>3</td><td>5</td></tr>
 </table>
-<h1>Use case descriptions</h1>
-<h2 id='UC00'>UC-00 Connect to the PLC</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>An OPC UA session to the PLC with GVLMain found and a monitoring list running.</td><td>subfunction (included by all)</td><td>Commissioning engineer, SiteControl</td><td>-</td><td>-</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>PLC powered, application running (CODESYS: RUN).</li>
-<li>Client has its own PLC user account (anonymous access is off, register GEN-11).</li>
-</ul>
-<p><b>START:</b> The engineer starts the OPC UA client and connects to opc.tcp://&lt;PLC IP&gt;:4840.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Client</td><td>Logs in with its user (SecurityPolicy None today: password unencrypted, test network only).</td></tr>
-<tr><td>2</td><td>Client</td><td>Browses once for GVLMain (node id ns=4;s=|var|&lt;device&gt;.Application.GVLMain); derives all other paths from it.</td></tr>
-<tr><td>3</td><td>Client</td><td>Creates one subscription (&gt;= 1 s, queue size 1) with the monitoring list of the use case at hand; always includes <code>Pen.Status.State</code>, <code>Pen.Status.Ready</code>, <code>Pen.Status.CommandRejected</code>.</td></tr>
-<tr><td>4</td><td>Client</td><td>Writes FALSE to every command bit it may have left TRUE in an earlier session.</td></tr>
+<h2 id='s1'>S1 Field links: remote I/O, drives, Framo</h2>
+<p>Modbus TCP to CommonRIO and InletRIO 1..3 (Wago 750-362), the oxy pump drives (ATV650) behind each InletRIO, and OPC UA to the Framo pump controllers (PCC 1..3). Check these first.</p>
+<p><b>Open:</b> <code>CommonRIO</code>, <code>InletRIO[i]</code>, <code>Inlet[i]</code>, <code>OxySystem[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>CommonRIO.Alarm</code>, <code>InletRIO[i].Alarm</code></p>
+<table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
+<tr><th rowspan='4' class='settings'>Settings</th><td><code>CommonRIO.Config.IP</code></td><td>IP and Port of the common coupler</td></tr>
+<tr><td><code>InletRIO[i].Config.IP</code></td><td>coupler of inlet station i, with Port</td></tr>
+<tr><td><code>InletRIO[i].Config.DriveIP</code></td><td>oxy pump drive, with DrivePort, DriveUnitId, DriveEnabled</td></tr>
+<tr><td><code>Inlet[i].Config.FramoIP</code></td><td>Framo PCC i, with FramoPort, FramoUpdateRate</td></tr>
+<tr><th rowspan='1' class='commands'>Commands</th><td></td><td>none</td></tr>
+<tr><th rowspan='7' class='status'>Status</th><td><code>CommonRIO.Status.CommOK</code></td><td>link up and data fresh</td></tr>
+<tr><td><code>InletRIO[i].Status.CommOK</code></td><td>same per inlet station; DataStale = answers but no new data</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Status.CommunicationOK</code></td><td>drive link</td></tr>
+<tr><td><code>Inlet[i].InletPump.Status.FramoConnected</code></td><td>OPC UA data source connected</td></tr>
+<tr><td><code>Inlet[i].InletPump.Status.CommunicationOK</code></td><td>Framo heartbeat answered</td></tr>
+<tr><td><code>InletRIO[i].Status.Restarts</code></td><td>link restarts; also DriveRestarts, CommonRIO.Status.Restarts, Inlet[i].InletPump.Status.FramoRestarts</td></tr>
+<tr><td><code>InletRIO[i].Status.Watchdog</code></td><td>coupler Modbus watchdog: State, Expiries</td></tr>
 </table>
-<p><b>Alternatives (errors handled in the interaction)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Node not found</td><td>Client</td><td>Logs it once, shows it as &#x27;not available&#x27;, looks it up again after a download or every 10 min (client requirements CON-05).</td></tr>
+<p><b>Start and verify</b></p><ol>
+<li>Check the IP settings; 0.0.0.0 means not configured (<code>InletRIO[i].Status.MissingIP</code>).</li>
+<li>All CommOK / CommunicationOK / FramoConnected TRUE.</li>
+<li>Over a few minutes: the restart counters do not count and <code>InletRIO[i].Status.DataStale</code> stays FALSE.</li>
+</ol>
+<h2 id='s2'>S2 Instruments</h2>
+<p>Every measurement is an AnalogSensor (or DigitalSensor): .Filtered is the value in engineering units, .ScaledRaw the unfiltered value, .Status.BadQuality the quality, .Config the range and filter.</p>
+<p><b>Open:</b> <code>Pen</code>, <code>Inlet[i]</code>, <code>OxySystem[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Inlet[i].Input.LevelInsidePen.Alarm</code>, <code>Pen.Input.Orbit864Sensor[i].Alarm</code></p>
+<table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
+<tr><th rowspan='1' class='settings'>Settings</th><td><code>Inlet[i].Input.LevelInsidePen.Config</code></td><td>range, filter, alarm limits (same layout for every sensor)</td></tr>
+<tr><th rowspan='1' class='commands'>Commands</th><td></td><td>none</td></tr>
+<tr><th rowspan='8' class='status'>Status</th><td><code>Inlet[i].Input.LevelInsidePen.Filtered</code></td><td>level transmitters per inlet, also LevelOutsidePen, PenOverHeight</td></tr>
+<tr><td><code>Pen.Input.AverageLevelInside.Filtered</code></td><td>pen averages: AverageLevelOutside, AverageOverHeight</td></tr>
+<tr><td><code>Pen.Input.Orbit864Sensor[i].OxygenConcentration.Filtered</code></td><td>O2 sensors; also OxygenSaturation, Temperature, Salinity</td></tr>
+<tr><td><code>Pen.Input.Orbit864Sensor[i].Status.CommOK</code></td><td>Orbit 864 on Modbus RTU</td></tr>
+<tr><td><code>Pen.Input.AverageOxygenForControl.Filtered</code></td><td>O2 used by OIC01</td></tr>
+<tr><td><code>OxySystem[i].Input.OxyPumpPressure.Filtered</code></td><td>oxy line pressures: OxynatorOutletPressure, OxyInjectionPressure</td></tr>
+<tr><td><code>OxySystem[i].Input.OxygenFlow.Filtered</code></td><td>O2 flow per line</td></tr>
+<tr><td><code>Inlet[i].Input.LevelInsidePen.Status.BadQuality</code></td><td>quality of any sensor</td></tr>
 </table>
-<p><b>Exceptions (goal abandoned)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Login refused (BadUserAccessDenied / BadIdentityTokenInvalid)</td><td>Engineer</td><td>Checks user, password and the user&#x27;s symbol rights in CODESYS. FINISH (abandoned).</td></tr>
+<p><b>Start and verify</b></p><ol>
+<li>Per transmitter: compare .Filtered with the local reading; .Status.BadQuality FALSE.</li>
+<li>Disconnect one transmitter: BadQuality TRUE, its pair leaves the pen average.</li>
+<li>O2 sensors: <code>Pen.Input.Orbit864Sensor[i].Status.CommOK</code> TRUE before reading values.</li>
+</ol>
+<h2 id='s3'>S3 Inlet pump i (Framo)</h2>
+<p>Framo pump controller PCC i over OPC UA. In auto the pen (S5) starts and stops it and sets its speed.</p>
+<p><b>Open:</b> <code>Inlet[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Inlet[i].InletPump.Alarm</code></p>
+<table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
+<tr><th rowspan='5' class='settings'>Settings</th><td><code>Inlet[i].Config.InletPumpEnable</code></td><td>takes part in the automatic pump count</td></tr>
+<tr><td><code>Inlet[i].Config.StartupTime</code></td><td>start / stop supervision, with ShutdownTime</td></tr>
+<tr><td><code>Inlet[i].Config.HeartbeatTimeout</code></td><td>link supervision, with HeartbeatInterval</td></tr>
+<tr><td><code>Inlet[i].Config.SpeedDeviationLimit</code></td><td>speed deviation alarm, with SpeedDeviationDelay</td></tr>
+<tr><td><code>Inlet[i].Config.ResetExpectedTime</code></td><td>time for a Reset to change the pump state</td></tr>
+<tr><th rowspan='4' class='commands'>Commands</th><td><code>Inlet[i].InletPump.Command.Manual</code></td><td>pulse; Auto back</td></tr>
+<tr><td><code>Inlet[i].InletPump.Command.Setpoint</code></td><td>manual speed, rpm 40..130</td></tr>
+<tr><td><code>Inlet[i].InletPump.Command.Start</code></td><td>held, in manual; Stop the same</td></tr>
+<tr><td><code>Inlet[i].InletPump.Command.Reset</code></td><td>pulse, after a trip (Hold / Lockdown)</td></tr>
+<tr><th rowspan='5' class='status'>Status</th><td><code>Inlet[i].InletPump.State</code></td><td>Available 0, Starting 1, Remote 2 (running), Stopping 3, Hold 4, Lockdown 5, Unavailable 9</td></tr>
+<tr><td><code>Inlet[i].InletPump.Status.Manual</code></td><td>mode</td></tr>
+<tr><td><code>Inlet[i].InletPump.Status.ActualSpeed</code></td><td>rpm</td></tr>
+<tr><td><code>Inlet[i].InletPump.Status.CommunicationOK</code></td><td>heartbeat AND FramoConnected</td></tr>
+<tr><td><code>Inlet[i].InletPump.Input.MotorCurrent</code></td><td>also MotorPower, MotorTemperatureHH</td></tr>
 </table>
-<p><b>FINISH:</b> Session up, GVLMain found, monitoring list running.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td></td><td></td><td><code>Pen.Status.State</code><br><code>Pen.Status.Ready</code><br><code>Pen.Status.CommandRejected</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>GEN-11 (encryption before site)</li>
-<li>GEN-06 (PLC CPU load and state in GVLMain)</li>
-</ul>
-<h2 id='UC01'>UC-01 Configure and verify field communication</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>Every remote I/O, oxy pump drive and Framo controller connected, with fresh data.</td><td>user goal</td><td>Commissioning engineer, Remote I/O and drives, Framo pump controller (PCC 1..3)</td><td>UC-00</td><td>-</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>Network installed; IP plan known (register IN-25).</li>
-<li>Devices powered.</li>
-</ul>
-<p><b>START:</b> The engineer opens the communication settings.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Engineer</td><td>Writes the CommonRIO address: <code>CommonRIOConfig.IP</code>, <code>CommonRIOConfig.Port</code> (502), then <code>CommonRIOConfig.Enabled</code> := TRUE.</td></tr>
-<tr><td>2</td><td>Engineer</td><td>For each inlet station i (0..2): <code>InletRIOConfig[i].IP</code>, <code>InletRIOConfig[i].Port</code>, <code>InletRIOConfig[i].Enabled</code> := TRUE.</td></tr>
-<tr><td>3</td><td>Engineer</td><td>For each oxy pump drive: <code>InletRIOConfig[i].DriveIP</code>, <code>InletRIOConfig[i].DrivePort</code>, <code>InletRIOConfig[i].DriveUnitId</code>, then <code>InletRIOConfig[i].DriveEnabled</code> := TRUE.</td></tr>
-<tr><td>4</td><td>Engineer</td><td>For each Framo controller: <code>InletConfig[i].FramoIP</code>, <code>InletConfig[i].FramoPort</code>, <code>InletConfig[i].FramoUpdateRate</code>.</td></tr>
-<tr><td>5</td><td>PLC</td><td>Connects. Settings are retained (survive a restart); a changed IP or port makes the master reconnect.</td></tr>
-<tr><td>6</td><td>Engineer</td><td>Verifies: drive <code>OxySystem[i].OxyPump.Status.CommunicationOK</code> TRUE; Framo <code>Inlet[i].InletPump.Status.FramoConnected</code> and <code>Inlet[i].InletPump.Status.CommunicationOK</code> TRUE, <code>Inlet[i].InletPump.Status.FramoEndpoint</code> shows the address in use.</td></tr>
-<tr><td>7</td><td>Engineer</td><td>Verifies the RIO links indirectly: the station&#x27;s sensors leave bad quality, e.g. <code>Inlet[i].Input.LevelInsidePen.Status.BadQuality</code> FALSE; CommonRIO: <code>OxySystem[i].Input.OxygenFlow.Status.BadQuality</code> FALSE.</td></tr>
+<p><b>Start and verify</b></p><ol>
+<li><code>Inlet[i].InletPump.Status.CommunicationOK</code> TRUE, State Available (0).</li>
+<li>Pulse Manual, write Setpoint 60, Start: State 1 then 2, ActualSpeed follows.</li>
+<li>Change Setpoint; Stop: State 3 then 0. Pulse Auto.</li>
+</ol>
+<h2 id='s4'>S4 Oxygen line i</h2>
+<p>Oxy pump (ATV650 drive) on the side stream, the O2 control valve and its pressure and flow control. In auto the line follows Pen OxygenStart / OxygenStop and OIC01 (S6).</p>
+<p><b>Open:</b> <code>OxySystem[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>OxySystem[i].Alarm</code>, <code>OxySystem[i].OxyPump.Alarm</code></p>
+<table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
+<tr><th rowspan='6' class='settings'>Settings</th><td><code>OxySystem[i].Config.Enable</code></td><td>the line takes part in oxygenation</td></tr>
+<tr><td><code>OxySystem[i].Config.ValveOpenPressure</code></td><td>the valve may open above this pump pressure</td></tr>
+<tr><td><code>OxySystem[i].Config.PressureSetpoint</code></td><td>pressure control (PressureController)</td></tr>
+<tr><td><code>OxySystem[i].Config.FlowMax</code></td><td>max O2 flow per line (FlowController)</td></tr>
+<tr><td><code>OxySystem[i].Config.OxyPump</code></td><td>MinSpeed_Hz, MaxSpeed_Hz, PresetSpeed_Hz</td></tr>
+<tr><td><code>OxySystem[i].Config.OxyStartupTime</code></td><td>with OxyShutdownTime, ValveRampTime</td></tr>
+<tr><th rowspan='6' class='commands'>Commands</th><td><code>OxySystem[i].OxyPump.Command.Manual</code></td><td>pulse; Auto back</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Command.Setpoint</code></td><td>manual speed, Hz</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Command.Start</code></td><td>held, in manual; Stop the same</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Command.Reset</code></td><td>edge: drive fault reset</td></tr>
+<tr><td><code>OxySystem[i].OxyValve.Command.Manual</code></td><td>pulse; Auto back</td></tr>
+<tr><td><code>OxySystem[i].OxyValve.Command.ManualSetpoint</code></td><td>valve %, used while permitted</td></tr>
+<tr><th rowspan='7' class='status'>Status</th><td><code>OxySystem[i].Status.State</code></td><td>Stopped 0, Starting 1, Running 2, Faulted 9</td></tr>
+<tr><td><code>OxySystem[i].Status.ValvePermit</code></td><td>pump running and pressure above ValveOpenPressure</td></tr>
+<tr><td><code>OxySystem[i].Status.OxyFlow</code></td><td>with FlowSetpoint, OxyValvePosition, OxyPumpSpeed</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.State</code></td><td>Available 0, Starting 1, Running 2, Stopping 3, Unavailable 4</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Status.AutoResets</code></td><td>automatic drive resets after a link fault</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Input.LastFault</code></td><td>drive fault code (LFT)</td></tr>
+<tr><td><code>OxySystem[i].Input.OxyPumpPressure.Filtered</code></td><td>pump pressure</td></tr>
 </table>
-<p><b>Alternatives (errors handled in the interaction)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>A drive reports a communication-loss fault after connecting (LFT 150 EtHF)</td><td>PLC</td><td>Resets it automatically once per link recovery (<code>OxySystem[i].OxyPump.Status.AutoResets</code> counts up). Other faults: UC-06 step &#x27;reset drive&#x27;.</td></tr>
-<tr><td>Framo link up but heartbeat not answered</td><td>PLC</td><td><code>Inlet[i].InletPump.Alarm.HeartbeatTimeout</code> raised, pump shown Unavailable. Engineer checks the PCC with Framo (IN-02).</td></tr>
+<p><b>Start and verify</b></p><ol>
+<li>Config.Enable TRUE; pulse OxyPump Manual, Setpoint 30, Start: OxyPump.State 2.</li>
+<li>OxyPumpPressure above ValveOpenPressure: Status.ValvePermit TRUE.</li>
+<li>Pulse OxyValve Manual, ManualSetpoint 20: OxyFlow rises. Then both back to Auto.</li>
+</ol>
+<h2 id='s7'>S7 Outlet (dampers and hydraulics)</h2>
+<p>Four cylinders open the outlet to a position per operation mode, driven by the hydraulic pump.</p>
+<p><b>Open:</b> <code>Outlet</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Outlet.Alarm</code>, <code>Outlet.Cylinder[i].Alarm</code>, <code>Outlet.HydraulicPump.Alarm</code></p>
+<table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
+<tr><th rowspan='3' class='settings'>Settings</th><td><code>Outlet.Config.ModePosition</code></td><td>opening per mode O35, O45, O60, S75 (%)</td></tr>
+<tr><td><code>Outlet.Config.MaxTravelTimeOpen</code></td><td>with MaxTravelTimeClose, RampRateOpen, RampRateClose</td></tr>
+<tr><td><code>Outlet.Cylinder[i].Config.OpenPosition</code></td><td>calibration counts, with ClosedPosition</td></tr>
+<tr><th rowspan='6' class='commands'>Commands</th><td><code>Outlet.Command.Mode</code></td><td>value: O35 0, O45 1, O60 2, S75 3</td></tr>
+<tr><td><code>Outlet.Command.Manual</code></td><td>pulse; Auto back; ManualPosition % in manual</td></tr>
+<tr><td><code>Outlet.HydraulicPump.Command.Start</code></td><td>held, in manual; Stop the same</td></tr>
+<tr><td><code>Outlet.Cylinder[i].Command.Open</code></td><td>jog, held while pressed; Close the same</td></tr>
+<tr><td><code>Outlet.Cylinder[i].Command.CalibrateClosed</code></td><td>pulse; CalibrateOpen the same</td></tr>
+<tr><td><code>Outlet.Command.FaultReset</code></td><td>pulse: resets the emergency stop latch</td></tr>
+<tr><th rowspan='3' class='status'>Status</th><td><code>Outlet.Status.Position</code></td><td>with Setpoint, Mode, Fault, EmergencyStop</td></tr>
+<tr><td><code>Outlet.HydraulicPump.Status.Running</code></td><td>with Available, FeedbackFault</td></tr>
+<tr><td><code>Outlet.Cylinder[i].Status.Position</code></td><td>with Calibrated, CurrentState, Fault</td></tr>
 </table>
-<p><b>Exceptions (goal abandoned)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Device not reachable</td><td>Engineer</td><td>Checks cabling, IP and port. FINISH (abandoned) for that device.</td></tr>
+<p><b>Start and verify</b></p><ol>
+<li><code>Outlet.Status.EmergencyStop</code> FALSE, <code>Outlet.HydraulicPump.Status.Available</code> TRUE.</li>
+<li>Per cylinder: jog Open / Close, calibrate closed and open: Status.Calibrated TRUE.</li>
+<li>Auto, write Mode: all cylinders move to ModePosition; Status.Position follows.</li>
+</ol>
+<h2 id='s5'>S5 Pen and level control (LIC01)</h2>
+<p>The pen sequence starts the inlet pumps in auto, shares the speed between them and keeps the level at the setpoint (LIC01). Needs S1 and S3 with the pumps in auto.</p>
+<p><b>Open:</b> <code>Pen</code>, <code>LevelController</code>, <code>PenInletSupervisor</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Pen.Alarm</code>, <code>LevelController.Alarm</code></p>
+<table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
+<tr><th rowspan='4' class='settings'>Settings</th><td><code>Pen.Config.LevelController</code></td><td>Kp, Ti, MinOutput, MaxOutput, SafeOutput</td></tr>
+<tr><td><code>Pen.Config.PumpAddSpeed</code></td><td>pump count: PumpTargetSpeed, PumpAddDelay, PumpRemoveDelay</td></tr>
+<tr><td><code>Pen.Config.PumpCycleTime</code></td><td>rotation</td></tr>
+<tr><td><code>Pen.Config.LevelDeviationLimit</code></td><td>with LevelDeviationDelay</td></tr>
+<tr><th rowspan='4' class='commands'>Commands</th><td><code>Pen.Command.LevelSetpoint</code></td><td>value, m</td></tr>
+<tr><td><code>Pen.Command.Start</code></td><td>pulse; Stop the same</td></tr>
+<tr><td><code>LevelController.Command.Manual</code></td><td>pulse; Auto back</td></tr>
+<tr><td><code>LevelController.Command.ManualOutput</code></td><td>rpm per pump, in manual</td></tr>
+<tr><th rowspan='7' class='status'>Status</th><td><code>Pen.Status.State</code></td><td>Stopped 0, Starting 1, Running 2, Stopping 3</td></tr>
+<tr><td><code>Pen.Status.Ready</code></td><td>start allowed; PumpReady: a pump can start</td></tr>
+<tr><td><code>Pen.Status.CommandRejected</code></td><td>last command did not fit the state</td></tr>
+<tr><td><code>Pen.Status.OverHeight</code></td><td>level inside minus outside</td></tr>
+<tr><td><code>LevelController.Input.ProcessValue</code></td><td>with Setpoint, LimitsActive</td></tr>
+<tr><td><code>LevelController.Output.OUT</code></td><td>speed share</td></tr>
+<tr><td><code>PenInletSupervisor.PumpsWanted</code></td><td>with NumberOfInletsRunning, NumberOfInletsInAuto</td></tr>
 </table>
-<p><b>FINISH:</b> All devices connected; no communication alarm.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td><code>CommonRIOConfig.IP</code><br><code>CommonRIOConfig.Port</code><br><code>CommonRIOConfig.Enabled</code><br><code>InletRIOConfig[i].IP</code><br><code>InletRIOConfig[i].Port</code><br><code>InletRIOConfig[i].Enabled</code><br><code>InletRIOConfig[i].DriveIP</code><br><code>InletRIOConfig[i].DrivePort</code><br><code>InletRIOConfig[i].DriveUnitId</code><br><code>InletRIOConfig[i].DriveEnabled</code><br><code>InletConfig[i].FramoIP</code><br><code>InletConfig[i].FramoPort</code><br><code>InletConfig[i].FramoUpdateRate</code></td><td></td><td><code>OxySystem[i].OxyPump.Status.CommunicationOK</code><br><code>Inlet[i].InletPump.Status.FramoConnected</code><br><code>Inlet[i].InletPump.Status.CommunicationOK</code><br><code>Inlet[i].InletPump.Status.FramoEndpoint</code><br><code>Inlet[i].InletPump.Status.FramoRestarts</code><br><code>OxySystem[i].OxyPump.Status.AutoResets</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>GEN-14: the RIO link status (CommOK, DataStale, ChannelError) and its alarms are only in GVLIO, which is to be removed from the OPC server; they must move to GVLMain before that, else clients cannot see a RIO link</li>
-<li>IN-40 (frozen links, watchdog)</li>
-<li>IN-25 (IP plan)</li>
-</ul>
-<h2 id='UC02'>UC-02 Verify instruments</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>Every transmitter reads a plausible value with good quality and the right scaling.</td><td>user goal</td><td>Commissioning engineer</td><td>UC-00, UC-01</td><td>-</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>UC-01 finished.</li>
-<li>Instrument data sheets at hand (range, signal direction).</li>
-</ul>
-<p><b>START:</b> The engineer selects an instrument.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Engineer</td><td>Level transmitters (inside / outside per inlet): checks the range <code>Inlet[i].Input.LevelInsidePen.Config.MinValue</code> / <code>Inlet[i].Input.LevelInsidePen.Config.MaxValue</code> (and the same for <code>Inlet[i].Input.LevelOutsidePen</code>) against the data sheet; reads <code>Inlet[i].Input.LevelInsidePen.ScaledRaw</code>, <code>Inlet[i].Input.LevelInsidePen.Filtered</code> and <code>Inlet[i].Input.LevelInsidePen.Status.BadQuality</code>; compares with a manual measurement.</td></tr>
-<tr><td>2</td><td>Engineer</td><td>Checks the pen values the controllers use: <code>Pen.Input.AverageOverHeight.Filtered</code>, <code>Pen.Status.OverHeight</code>, <code>Pen.Status.LevelControlOK</code>.</td></tr>
-<tr><td>3</td><td>Engineer</td><td>O2 sensors (Orbit 864): <code>Pen.Input.Orbit864Sensor[i].Config.SlaveAddress</code>, <code>Pen.Input.Orbit864Sensor[i].Config.Enabled</code>, <code>Pen.Input.Orbit864Sensor[i].Config.StayAwake</code>; verifies <code>Pen.Input.Orbit864Sensor[i].Status.CommOK</code> and the values <code>Pen.Input.OxyConcentration[i].Filtered</code>, <code>Pen.Input.Temperature[i].Filtered</code>.</td></tr>
-<tr><td>4</td><td>Engineer</td><td>Chooses the O2 sensors for control: <code>Pen.Input.Orbit864Sensor[i].Config.EnableForAutoControl</code>; checks <code>Pen.Status.PenOxygenLevel</code> and <code>Pen.Status.OxyControlOK</code>.</td></tr>
-<tr><td>5</td><td>Engineer</td><td>Oxygen line instruments: <code>OxySystem[i].Input.OxyPumpPressure.Filtered</code>, <code>OxySystem[i].Input.OxynatorOutletPressure.Filtered</code>, <code>OxySystem[i].Input.OxygenFlow.Filtered</code>.</td></tr>
-<tr><td>6</td><td>Engineer</td><td>Pen water quality: <code>Pen.Input.CO2.Filtered</code>, <code>Pen.Input.TotalGasPressure.Filtered</code>.</td></tr>
+<p><b>Start and verify</b></p><ol>
+<li>Pumps in auto with <code>Inlet[i].Config.InletPumpEnable</code>; <code>Pen.Status.Ready</code> TRUE.</li>
+<li>Write LevelSetpoint, pulse Start: State 1 then 2, pumps start one by one.</li>
+<li>ProcessValue settles at Setpoint; PumpsWanted follows the load. Stop: State 3 then 0.</li>
+</ol>
+<h2 id='s6'>S6 Pen oxygen control (OIC01)</h2>
+<p>Controls the pen O2 to its setpoint by sharing the O2 flow over the lines in auto. Needs S2 (O2 sensors), S4 and the pen running (S5).</p>
+<p><b>Open:</b> <code>Pen</code>, <code>OxyController</code>, <code>OxySystem[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>OxyController.Alarm</code></p>
+<table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
+<tr><th rowspan='3' class='settings'>Settings</th><td><code>Pen.Config.OxySetpoint</code></td><td>mg/L</td></tr>
+<tr><td><code>Pen.Config.OxyController</code></td><td>Kp, Ti, MinOutput, MaxOutput</td></tr>
+<tr><td><code>Pen.Input.Orbit864Sensor[i].Config.EnableForAutoControl</code></td><td>sensor used for the control value</td></tr>
+<tr><th rowspan='3' class='commands'>Commands</th><td><code>Pen.Command.OxygenStart</code></td><td>pulse; OxygenStop the same</td></tr>
+<tr><td><code>OxyController.Command.Manual</code></td><td>pulse; Auto back</td></tr>
+<tr><td><code>OxyController.Command.ManualOutput</code></td><td>total O2 flow kg/h, in manual</td></tr>
+<tr><th rowspan='5' class='status'>Status</th><td><code>Pen.Status.OxygenOn</code></td><td>oxygenation started</td></tr>
+<tr><td><code>Pen.Status.OxyControlOK</code></td><td>control value valid</td></tr>
+<tr><td><code>Pen.Input.AverageOxygenForControl.Filtered</code></td><td>control value</td></tr>
+<tr><td><code>OxyController.Output.OUT</code></td><td>total O2 flow</td></tr>
+<tr><td><code>OxySystem[i].Status.InAuto</code></td><td>line follows OIC01; FlowSetpoint per line</td></tr>
 </table>
-<p><b>Alternatives (errors handled in the interaction)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Reading inverted or offset</td><td>Engineer</td><td>Corrects MinValue / MaxValue (signal direction, IN-24), checks again.</td></tr>
-<tr><td>An Orbit 864 address changed</td><td>Engineer</td><td>SlaveAddress is read only at PLC start-up: restart the PLC (or download), then verify.</td></tr>
-</table>
-<p><b>Exceptions (goal abandoned)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Transmitter dead or wired wrong</td><td>Engineer</td><td>BadQuality stays TRUE: raise a deviation in the register. FINISH (abandoned) for that instrument.</td></tr>
-</table>
-<p><b>FINISH:</b> All instruments verified; deviations in the register.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td><code>Inlet[i].Input.LevelInsidePen.Config.MinValue</code><br><code>Inlet[i].Input.LevelInsidePen.Config.MaxValue</code><br><code>Pen.Input.Orbit864Sensor[i].Config.SlaveAddress</code><br><code>Pen.Input.Orbit864Sensor[i].Config.Enabled</code><br><code>Pen.Input.Orbit864Sensor[i].Config.EnableForAutoControl</code></td><td></td><td><code>Inlet[i].Input.LevelInsidePen.Filtered</code><br><code>Inlet[i].Input.LevelInsidePen.Status.BadQuality</code><br><code>Inlet[i].Input.LevelOutsidePen.Filtered</code><br><code>Pen.Status.OverHeight</code><br><code>Pen.Status.LevelControlOK</code><br><code>Pen.Input.Orbit864Sensor[i].Status.CommOK</code><br><code>Pen.Input.OxyConcentration[i].Filtered</code><br><code>Pen.Status.PenOxygenLevel</code><br><code>OxySystem[i].Input.OxyPumpPressure.Filtered</code><br><code>OxySystem[i].Input.OxygenFlow.Filtered</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>IN-24 (level transmitter signal direction)</li>
-<li>IN-39 (level span for waves)</li>
-<li>OX-36 (total gas pressure)</li>
-<li>IN-48 (CO2)</li>
-</ul>
-<h2 id='UC03'>UC-03 Commission the outlet dampers</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>All four cylinders calibrated, moving in both directions, and the outlet following the operation mode.</td><td>user goal</td><td>Commissioning engineer, Supplier technicians</td><td>UC-00, UC-01</td><td>-</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>Hydraulic unit filled and checked by Servi / Østerbø.</li>
-<li>Emergency stop released.</li>
-<li>Cylinder pressure transmitters and flow counters verified (UC-02).</li>
-</ul>
-<p><b>START:</b> The engineer puts the hydraulic pump in manual.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Engineer</td><td>Hydraulic pump: pulse <code>Outlet.HydraulicPump.Command.Manual</code>, check <code>Outlet.HydraulicPump.Status.Available</code>, pulse <code>Outlet.HydraulicPump.Command.Start</code>, check <code>Outlet.HydraulicPump.Status.Running</code>; pulse <code>Outlet.HydraulicPump.Command.Stop</code>; then <code>Outlet.HydraulicPump.Command.Auto</code> (in auto it runs on cylinder demand).</td></tr>
-<tr><td>2</td><td>Engineer</td><td>Per cylinder i (0..3): pulse <code>Outlet.Cylinder[i].Command.Manual</code>; jog closed with <code>Outlet.Cylinder[i].Command.Close</code> held TRUE until the closed end, then FALSE.</td></tr>
-<tr><td>3</td><td>Engineer</td><td>At the closed end: pulse <code>Outlet.Cylinder[i].Command.CalibrateClosed</code>; wait until <code>Outlet.Cylinder[i].Status.CounterSetRequest</code> is FALSE and <code>Outlet.Cylinder[i].Status.Calibrated</code> TRUE.</td></tr>
-<tr><td>4</td><td>Engineer</td><td>Jog open with <code>Outlet.Cylinder[i].Command.Open</code> held TRUE until <code>Outlet.Cylinder[i].Status.CurrentState</code> = Opened (pressure-confirmed end), then FALSE; pulse <code>Outlet.Cylinder[i].Command.CalibrateOpen</code>.</td></tr>
-<tr><td>5</td><td>Engineer</td><td>Tests positioning: <code>Outlet.Cylinder[i].Command.ManualSetpoint</code> := 50, checks <code>Outlet.Cylinder[i].Status.Position</code>; then pulse <code>Outlet.Cylinder[i].Command.Auto</code>.</td></tr>
-<tr><td>6</td><td>Engineer</td><td>Outlet as a whole: sets the openings per mode <code>Outlet.Config.ModePosition</code> (register OUT-10), selects <code>Outlet.Command.Mode</code> (0 O-35, 1 O-45, 2 O-60, 3 S-75), pulse <code>Outlet.Command.Auto</code>; checks <code>Outlet.Status.Setpoint</code>, <code>Outlet.Status.Position</code>, <code>Outlet.Status.Mode</code>.</td></tr>
-</table>
-<p><b>Alternatives (errors handled in the interaction)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Emergency stop was pressed</td><td>Engineer</td><td>Releases it, pulse <code>Outlet.Command.FaultReset</code>, checks <code>Outlet.Status.EmergencyStop</code> FALSE.</td></tr>
-<tr><td>Hydraulic pump feedback fault</td><td>Engineer</td><td>Pulse <code>Outlet.HydraulicPump.Command.Reset</code>.</td></tr>
-<tr><td>Counter set not confirmed (<code>Outlet.Cylinder[i].Status.CounterSetFailed</code>)</td><td>Engineer</td><td>Acknowledge <code>Outlet.Cylinder[i].AlarmAck.FlowSensorFault</code> (TRUE then FALSE), repeat CalibrateClosed.</td></tr>
-</table>
-<p><b>Exceptions (goal abandoned)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Cylinder moves the wrong way or travel timeout</td><td>Engineer</td><td>Stops (release jog), checks valves and wiring with Servi. FINISH (abandoned).</td></tr>
-</table>
-<p><b>FINISH:</b> Cylinders calibrated and in auto; outlet follows the mode.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td><code>Outlet.HydraulicPump.Command.Manual</code><br><code>Outlet.HydraulicPump.Command.Start</code><br><code>Outlet.HydraulicPump.Command.Stop</code><br><code>Outlet.HydraulicPump.Command.Auto</code><br><code>Outlet.Cylinder[i].Command.Manual</code><br><code>Outlet.Cylinder[i].Command.Open</code><br><code>Outlet.Cylinder[i].Command.Close</code><br><code>Outlet.Cylinder[i].Command.CalibrateClosed</code><br><code>Outlet.Cylinder[i].Command.CalibrateOpen</code><br><code>Outlet.Cylinder[i].Command.ManualSetpoint</code><br><code>Outlet.Cylinder[i].Command.Auto</code><br><code>Outlet.Config.ModePosition</code><br><code>Outlet.Command.Mode</code><br><code>Outlet.Command.Auto</code><br><code>Outlet.Command.FaultReset</code></td><td><code>Outlet.Config.ModePosition</code><br><code>Outlet.Cylinder[i].Config.MaxPressureOpen</code></td><td><code>Outlet.HydraulicPump.Status.Available</code><br><code>Outlet.HydraulicPump.Status.Running</code><br><code>Outlet.Cylinder[i].Status.Calibrated</code><br><code>Outlet.Cylinder[i].Status.CurrentState</code><br><code>Outlet.Cylinder[i].Status.Position</code><br><code>Outlet.Cylinder[i].Input.PressureOpen</code><br><code>Outlet.Cylinder[i].Input.PressureClose</code><br><code>Outlet.Status.Setpoint</code><br><code>Outlet.Status.Position</code><br><code>Outlet.Status.Fault</code><br><code>Outlet.Status.EmergencyStop</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>OUT-10 (mode openings)</li>
-<li>OUT-13 (outputs on comm loss)</li>
-<li>Outlet logic is Bjørn&#x27;s (OutletControl)</li>
-</ul>
-<h2 id='UC04'>UC-04 Commission an inlet pump in manual</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>Inlet pump i starts, runs at the speed set from the PLC, and stops, under PLC control.</td><td>user goal</td><td>Commissioning engineer, Framo pump controller (PCC 1..3), Supplier technicians</td><td>UC-00, UC-01</td><td>-</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>Framo has commissioned the pump locally; PCC in remote.</li>
-<li>Outlet open (UC-03) so the pen is not overfilled.</li>
-<li>Framo link up (UC-01).</li>
-</ul>
-<p><b>START:</b> The engineer selects inlet pump i.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Engineer</td><td>Checks the supervision times: <code>InletConfig[i].StartupTime</code>, <code>InletConfig[i].ShutdownTime</code>, <code>InletConfig[i].SpeedDeviationLimit</code>, <code>InletConfig[i].SpeedDeviationDelay</code>.</td></tr>
-<tr><td>2</td><td>Engineer</td><td>Pulse <code>Inlet[i].InletPump.Command.Manual</code>; checks <code>Inlet[i].InletPump.Status.Manual</code> TRUE.</td></tr>
-<tr><td>3</td><td>Engineer</td><td>Writes the speed <code>Inlet[i].InletPump.Command.Setpoint</code> (rpm, 40..130).</td></tr>
-<tr><td>4</td><td>Engineer</td><td>Writes <code>Inlet[i].InletPump.Command.Start</code> := TRUE (the PLC clears it once the pump starts).</td></tr>
-<tr><td>5</td><td>PLC/Framo</td><td><code>Inlet[i].InletPump.State</code> goes Available (0) -&gt; Starting (1) -&gt; Remote (2); <code>Inlet[i].InletPump.Status.ActualSpeed</code> follows the setpoint in Remote.</td></tr>
-<tr><td>6</td><td>Engineer</td><td>Changes the setpoint in steps; checks speed and <code>Inlet[i].InletPump.Input.MotorCurrent</code>, <code>Inlet[i].InletPump.Input.MotorPower</code>.</td></tr>
-<tr><td>7</td><td>Engineer</td><td>Writes <code>Inlet[i].InletPump.Command.Stop</code> := TRUE; State -&gt; Stopping (3) -&gt; Available (0) (the PLC clears Stop).</td></tr>
-<tr><td>8</td><td>Engineer</td><td>Pulse <code>Inlet[i].InletPump.Command.Auto</code> (or leaves it in manual until UC-05).</td></tr>
-</table>
-<p><b>Alternatives (errors handled in the interaction)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Pump in Hold (4) or Lockdown (5)</td><td>Engineer</td><td>Fixes the cause with Framo, pulse <code>Inlet[i].InletPump.Command.Reset</code>; the PLC holds the reset until the state changes, else <code>Inlet[i].InletPump.Alarm.FailedToReset</code>.</td></tr>
-<tr><td>Pump does not start within StartupTime</td><td>PLC</td><td><code>Inlet[i].InletPump.Alarm.StartUpTimeout</code>.</td></tr>
-</table>
-<p><b>Exceptions (goal abandoned)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Unavailable (9): link or PCC not ready</td><td>Engineer</td><td>Back to UC-01. FINISH (abandoned).</td></tr>
-</table>
-<p><b>FINISH:</b> Pump verified in manual; left in auto or manual as planned.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td><code>Inlet[i].InletPump.Command.Manual</code><br><code>Inlet[i].InletPump.Command.Setpoint</code><br><code>Inlet[i].InletPump.Command.Start</code><br><code>Inlet[i].InletPump.Command.Stop</code><br><code>Inlet[i].InletPump.Command.Reset</code><br><code>Inlet[i].InletPump.Command.Auto</code></td><td><code>InletConfig[i].StartupTime</code><br><code>InletConfig[i].ShutdownTime</code><br><code>InletConfig[i].SpeedDeviationLimit</code></td><td><code>Inlet[i].InletPump.State</code><br><code>Inlet[i].InletPump.Status.Manual</code><br><code>Inlet[i].InletPump.Status.ActualSpeed</code><br><code>Inlet[i].InletPump.Input.MotorCurrent</code><br><code>Inlet[i].InletPump.Alarm.StartUpTimeout</code><br><code>Inlet[i].InletPump.Alarm.SpeedDeviation</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>IN-42: Framo has removed the pump state machine; the states above will be derived by the PLC from status bits</li>
-<li>IN-41 (heartbeat loss stops the pump)</li>
-<li>IN-43 (start timing)</li>
-<li>GEN-13 (a Start written in auto stays set)</li>
-</ul>
-<h2 id='UC05'>UC-05 Start the pen and commission level control</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>The pen running with the inlet pumps in auto and LIC01 holding the over-height at the setpoint.</td><td>user goal</td><td>Commissioning engineer, Operator, Framo pump controller (PCC 1..3)</td><td>UC-00, UC-02</td><td>-</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>UC-03 and UC-04 finished for the pumps in service.</li>
-<li>Outlet in auto at the chosen mode.</li>
-</ul>
-<p><b>START:</b> The engineer prepares the pumps for automatic operation.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Engineer</td><td>Per pump in service: <code>InletConfig[i].InletPumpEnable</code> := TRUE and pulse <code>Inlet[i].InletPump.Command.Auto</code>.</td></tr>
-<tr><td>2</td><td>Engineer</td><td>Sets <code>Pen.Command.LevelSetpoint</code> (m over-height, e.g. 0.06) and checks LIC01 tuning <code>PenConfig.LevelController.Kp</code>, <code>PenConfig.LevelController.Ti</code>, <code>PenConfig.LevelController.MinOutput</code>, <code>PenConfig.LevelController.MaxOutput</code>.</td></tr>
-<tr><td>3</td><td>Engineer</td><td>Checks the pump count settings <code>PenConfig.PumpTargetSpeed</code>, <code>PenConfig.PumpAddSpeed</code>, <code>PenConfig.PumpRemoveDelay</code>, <code>PenConfig.PumpAddDelay</code>, <code>PenConfig.PumpCycleTime</code>.</td></tr>
-<tr><td>4</td><td>Engineer</td><td>Waits for <code>Pen.Status.Ready</code> TRUE (a pump in auto is Available AND a valid level pair).</td></tr>
-<tr><td>5</td><td>Engineer</td><td>Pulse <code>Pen.Command.Start</code>.</td></tr>
-<tr><td>6</td><td>PLC</td><td><code>Pen.Status.State</code> Stopped (0) -&gt; Starting (1): all candidate pumps start, LIC01 tracks their speed; -&gt; Running (2) when a pump is in Remote; LIC01 to auto, bumpless.</td></tr>
-<tr><td>7</td><td>Engineer</td><td>Monitors <code>Pen.Status.OverHeight</code> against <code>Pen.Command.LevelSetpoint</code>, <code>LevelController.Output.OUT</code> (total rpm), <code>PenInletSupervisor.AutoSpeedSetpoint</code> (rpm per pump), <code>PenInletSupervisor.PumpsWanted</code>.</td></tr>
-<tr><td>8</td><td>Engineer</td><td>Tests LIC01 manual: pulse <code>LevelController.Command.Manual</code>, write <code>LevelController.Command.ManualOutput</code> (rpm per pump), then pulse <code>LevelController.Command.Auto</code> (the PLC sets the setpoint to the current level, bumpless).</td></tr>
-</table>
-<p><b>Alternatives (errors handled in the interaction)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td><code>Pen.Status.CommandRejected</code> TRUE after Start</td><td>Engineer</td><td>Ready was FALSE: checks pumps in auto and level quality, starts again.</td></tr>
-<tr><td>Level outside the band for the delay</td><td>PLC</td><td><code>Pen.Alarm.LevelDeviationHigh</code> / <code>Pen.Alarm.LevelDeviationLow</code> (<code>PenConfig.LevelDeviationLimit</code>, <code>PenConfig.LevelDeviationDelay</code>).</td></tr>
-</table>
-<p><b>Exceptions (goal abandoned)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>All level pairs lost</td><td>PLC</td><td><code>Pen.Alarm.LevelMeasurementLost</code>, LIC01 to its safe output. Engineer stops the pen (UC-10). FINISH (abandoned).</td></tr>
-</table>
-<p><b>FINISH:</b> Pen Running, level at setpoint, pump count and rotation active.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td><code>InletConfig[i].InletPumpEnable</code><br><code>Inlet[i].InletPump.Command.Auto</code><br><code>Pen.Command.LevelSetpoint</code><br><code>Pen.Command.Start</code><br><code>LevelController.Command.Manual</code><br><code>LevelController.Command.ManualOutput</code><br><code>LevelController.Command.Auto</code></td><td><code>PenConfig.LevelController.Kp</code><br><code>PenConfig.LevelController.Ti</code><br><code>PenConfig.PumpTargetSpeed</code><br><code>PenConfig.PumpAddSpeed</code><br><code>PenConfig.PumpRemoveDelay</code><br><code>PenConfig.PumpAddDelay</code><br><code>PenConfig.PumpCycleTime</code><br><code>PenConfig.LevelDeviationLimit</code></td><td><code>Pen.Status.Ready</code><br><code>Pen.Status.State</code><br><code>Pen.Status.CommandRejected</code><br><code>Pen.Status.OverHeight</code><br><code>LevelController.Output.OUT</code><br><code>LevelController.Status.Manual</code><br><code>PenInletSupervisor.AutoSpeedSetpoint</code><br><code>PenInletSupervisor.PumpsWanted</code><br><code>PenInletSupervisor.PumpRotationActive</code><br><code>Inlet[i].InletPump.State</code><br><code>Pen.Alarm.LevelDeviationHigh</code><br><code>Pen.Alarm.LevelMeasurementLost</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>IN-47 (pump count timers and next pump not visible)</li>
-<li>IN-22 (setpoint per mode)</li>
-<li>IN-23 (restart after power failure)</li>
-<li>IN-20 (interlocks I2 / I3)</li>
-</ul>
-<h2 id='UC06'>UC-06 Commission an oxygen line</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>Oxygen line i: oxy pump holding pressure, valve and flow controller adding O2 on demand.</td><td>user goal</td><td>Commissioning engineer, Supplier technicians, Remote I/O and drives</td><td>UC-00, UC-01, UC-02</td><td>-</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>Normex O2 supply commissioned, manual valves open.</li>
-<li>Inlet pump i in Remote (UC-05): oxygen is added only while the inlet pump runs.</li>
-<li>Pen Running.</li>
-</ul>
-<p><b>START:</b> The engineer selects oxygen line i.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Engineer</td><td>Checks the line settings: <code>OxyConfig[i].PressureSetpoint</code> (bar), <code>OxyConfig[i].OxyPump.MinSpeed_Hz</code>, <code>OxyConfig[i].OxyPump.MaxSpeed_Hz</code>, <code>OxyConfig[i].OxyPump.PresetSpeed_Hz</code>, <code>OxyConfig[i].OxyPump.RunDelay</code>, <code>OxyConfig[i].ValveOpenPressure</code>, <code>OxyConfig[i].FlowMax</code>.</td></tr>
-<tr><td>2</td><td>Engineer</td><td>Oxy pump test in manual: pulse <code>OxySystem[i].OxyPump.Command.Manual</code>, write <code>OxySystem[i].OxyPump.Command.Setpoint</code> (Hz), write <code>OxySystem[i].OxyPump.Command.Start</code> := TRUE; checks <code>OxySystem[i].OxyPump.State</code>, <code>OxySystem[i].OxyPump.Status.ActualSpeed</code>, <code>OxySystem[i].Input.OxyPumpPressure.Filtered</code>. Caution: in manual the pump runs without the inlet permit (GEN-13).</td></tr>
-<tr><td>3</td><td>Engineer</td><td>Writes <code>OxySystem[i].OxyPump.Command.Stop</code> := TRUE, then pulse <code>OxySystem[i].OxyPump.Command.Auto</code>.</td></tr>
-<tr><td>4</td><td>Engineer</td><td>Enables the line: <code>OxyConfig[i].Enable</code> := TRUE; checks the permit <code>Inlet[i].InletPump.Status.OxyPermit</code> TRUE.</td></tr>
-<tr><td>5</td><td>Engineer</td><td>Pulse <code>Pen.Command.OxygenStart</code> (UC-07 step 1).</td></tr>
-<tr><td>6</td><td>PLC</td><td>Oxy pump starts at preset speed, PIC takes the pressure to the setpoint; after RunDelay with pressure: <code>OxySystem[i].Status.ValvePermit</code> and <code>OxySystem[i].Status.OxygenationActive</code> TRUE.</td></tr>
-<tr><td>7</td><td>Engineer</td><td>Valve test in manual (only now the valve may open): pulse <code>OxySystem[i].OxyValve.Command.Manual</code>, write <code>OxySystem[i].OxyValve.Command.ManualSetpoint</code> (%), checks <code>OxySystem[i].Status.OxyValvePosition</code> and <code>OxySystem[i].Status.OxyFlow</code>; then pulse <code>OxySystem[i].OxyValve.Command.Auto</code>.</td></tr>
-<tr><td>8</td><td>Engineer</td><td>Checks the line in auto: <code>OxySystem[i].Status.InAuto</code> TRUE, <code>OxySystem[i].Status.FlowSetpoint</code> (its share of OIC01) followed by <code>OxySystem[i].Status.OxyFlow</code>.</td></tr>
-</table>
-<p><b>Alternatives (errors handled in the interaction)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Drive in fault</td><td>Engineer</td><td>Fixes the cause, writes <code>OxySystem[i].OxyPump.Command.Reset</code> TRUE then FALSE (edge; the PLC does not clear it). Acknowledging DriveError does not reset the drive.</td></tr>
-<tr><td>Pressure not reached</td><td>PLC</td><td>Valve stays closed, <code>OxySystem[i].Alarm.ValvePressureLow</code>. Engineer checks the pump and the PressureSetpoint against the pump head (OX-19).</td></tr>
-</table>
-<p><b>Exceptions (goal abandoned)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Inlet pump stops</td><td>PLC</td><td>Permit lost: valve closed, oxy pump stopped (auto). FINISH (abandoned) until the inlet pump runs again.</td></tr>
-</table>
-<p><b>FINISH:</b> Line in auto, adding the flow OIC01 asks for.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td><code>OxySystem[i].OxyPump.Command.Manual</code><br><code>OxySystem[i].OxyPump.Command.Setpoint</code><br><code>OxySystem[i].OxyPump.Command.Start</code><br><code>OxySystem[i].OxyPump.Command.Stop</code><br><code>OxySystem[i].OxyPump.Command.Auto</code><br><code>OxySystem[i].OxyPump.Command.Reset</code><br><code>OxyConfig[i].Enable</code><br><code>OxySystem[i].OxyValve.Command.Manual</code><br><code>OxySystem[i].OxyValve.Command.ManualSetpoint</code><br><code>OxySystem[i].OxyValve.Command.Auto</code></td><td><code>OxyConfig[i].PressureSetpoint</code><br><code>OxyConfig[i].OxyPump.MinSpeed_Hz</code><br><code>OxyConfig[i].OxyPump.MaxSpeed_Hz</code><br><code>OxyConfig[i].OxyPump.PresetSpeed_Hz</code><br><code>OxyConfig[i].OxyPump.RunDelay</code><br><code>OxyConfig[i].ValveOpenPressure</code><br><code>OxyConfig[i].FlowMax</code></td><td><code>OxySystem[i].OxyPump.State</code><br><code>OxySystem[i].OxyPump.Status.ActualSpeed</code><br><code>OxySystem[i].Input.OxyPumpPressure.Filtered</code><br><code>Inlet[i].InletPump.Status.OxyPermit</code><br><code>OxySystem[i].Status.ValvePermit</code><br><code>OxySystem[i].Status.OxygenationActive</code><br><code>OxySystem[i].Status.InAuto</code><br><code>OxySystem[i].Status.FlowSetpoint</code><br><code>OxySystem[i].Status.OxyFlow</code><br><code>OxySystem[i].Status.OxyValvePosition</code><br><code>OxySystem[i].OxyPump.Input.LastFault</code><br><code>OxySystem[i].Alarm.ValvePressureLow</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>OX-32 (permit without a Framo REMOTE state)</li>
-<li>OX-35 (O2 per line vs water flow)</li>
-<li>OX-37 (injection point)</li>
-<li>GEN-12 (<code>OxySystem[i].Status.State</code> is never written)</li>
-<li>GEN-13</li>
-</ul>
-<h2 id='UC07'>UC-07 Commission pen oxygen control</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>OIC01 holding the pen O2 at the setpoint by sharing the O2 flow over the lines.</td><td>user goal</td><td>Commissioning engineer, Operator</td><td>UC-00, UC-02</td><td>-</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>UC-06 finished for the lines in service.</li>
-<li>Control sensors chosen (UC-02).</li>
-</ul>
-<p><b>START:</b> The engineer switches oxygenation on.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Engineer</td><td>Pulse <code>Pen.Command.OxygenStart</code> (accepted in Starting / Running); checks <code>Pen.Status.OxygenOn</code> TRUE (after a PLC restart it is FALSE again, OX-33).</td></tr>
-<tr><td>2</td><td>Engineer</td><td>Sets <code>PenConfig.OxySetpoint</code> (mg/L) and checks OIC01 tuning <code>PenConfig.OxyController.Kp</code>, <code>PenConfig.OxyController.Ti</code>.</td></tr>
-<tr><td>3</td><td>Engineer</td><td>Monitors <code>Pen.Status.PenOxygenLevel</code>, <code>OxyController.Output.OUT</code> (total kg/h), <code>PenInletSupervisor.NumberOfInletsEnabledForOxyControl</code>, and per line <code>OxySystem[i].Status.FlowSetpoint</code> / <code>OxySystem[i].Status.OxyFlow</code>.</td></tr>
-<tr><td>4</td><td>Engineer</td><td>Tests OIC01 manual: pulse <code>OxyController.Command.Manual</code>, write <code>OxyController.Command.ManualOutput</code> (kg/h total), then pulse <code>OxyController.Command.Auto</code> (the PLC sets the setpoint to the current O2, bumpless).</td></tr>
-<tr><td>5</td><td>Engineer</td><td>Ends the test with the setpoint wanted for operation.</td></tr>
-</table>
-<p><b>Alternatives (errors handled in the interaction)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td><code>Pen.Status.CommandRejected</code> after OxygenStart</td><td>Engineer</td><td>The pen was not Starting / Running: UC-05 first.</td></tr>
-</table>
-<p><b>Exceptions (goal abandoned)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>No good control sensor (<code>Pen.Status.OxyControlOK</code> FALSE)</td><td>PLC</td><td>OIC01 holds its output (OX-08). Engineer fixes the sensors. FINISH (abandoned).</td></tr>
-</table>
-<p><b>FINISH:</b> Oxygenation on in auto.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td><code>Pen.Command.OxygenStart</code><br><code>PenConfig.OxySetpoint</code><br><code>OxyController.Command.Manual</code><br><code>OxyController.Command.ManualOutput</code><br><code>OxyController.Command.Auto</code></td><td><code>PenConfig.OxySetpoint</code><br><code>PenConfig.OxyController.Kp</code><br><code>PenConfig.OxyController.Ti</code></td><td><code>Pen.Status.OxygenOn</code><br><code>Pen.Status.PenOxygenLevel</code><br><code>Pen.Status.OxyControlOK</code><br><code>OxyController.Output.OUT</code><br><code>OxyController.Status.Manual</code><br><code>PenInletSupervisor.NumberOfInletsEnabledForOxyControl</code><br><code>OxySystem[i].Status.FlowSetpoint</code><br><code>OxySystem[i].Status.OxyFlow</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>OX-33 (oxygenation not restored after a restart)</li>
-<li>OX-34 (emergency oxygenation)</li>
-<li>OX-06 / OX-35 (high O2 limits)</li>
-<li>OX-07 (setpoint and unit)</li>
-</ul>
-<h2 id='UC10'>UC-10 Stop the pen</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>Oxygen off, inlet pumps stopped, outlet as planned.</td><td>user goal</td><td>Commissioning engineer, Operator</td><td>UC-00</td><td>-</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>Pen Starting or Running.</li>
-</ul>
-<p><b>START:</b> The engineer decides to stop.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Engineer</td><td>Pulse <code>Pen.Command.OxygenStop</code>: <code>Pen.Status.OxygenOn</code> FALSE, lines in auto stop and close.</td></tr>
-<tr><td>2</td><td>Engineer</td><td>Pulse <code>Pen.Command.Stop</code>: <code>Pen.Status.State</code> -&gt; Stopping (3) -&gt; Stopped (0); pumps in auto stop (pumps in manual are NOT stopped: stop them with <code>Inlet[i].InletPump.Command.Stop</code>).</td></tr>
-<tr><td>3</td><td>Engineer</td><td>Checks every <code>Inlet[i].InletPump.State</code> Available and every <code>OxySystem[i].OxyPump.State</code> not running; outlet as planned (the outlet does not close by itself, OUT-01).</td></tr>
-</table>
-<p><b>FINISH:</b> Pen Stopped.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td><code>Pen.Command.OxygenStop</code><br><code>Pen.Command.Stop</code><br><code>Inlet[i].InletPump.Command.Stop</code></td><td></td><td><code>Pen.Status.OxygenOn</code><br><code>Pen.Status.State</code><br><code>Inlet[i].InletPump.State</code><br><code>OxySystem[i].OxyPump.State</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>IN-04 (stop accepted only in REMOTE)</li>
-<li>IN-15 (auto outlet close on pump stop)</li>
-</ul>
-<h2 id='UC08'>UC-08 Check and acknowledge alarms</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>Every alarm raised during a test is seen, understood and acknowledged.</td><td>subfunction (extends UC-01 to UC-07)</td><td>Commissioning engineer, Operator, SiteControl</td><td>UC-00</td><td>UC-01 .. UC-07</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>Session up (UC-00).</li>
-</ul>
-<p><b>START:</b> An alarm changes state.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Client</td><td>Reads the alarm byte, e.g. <code>Inlet[i].InletPump.Alarm.StartUpTimeout</code> (AlarmState: 0 Normal, 1 Unacknowledged, 2 Acknowledged, 3 RetainUnacknowledged, 4 Suppressed).</td></tr>
-<tr><td>2</td><td>Engineer</td><td>Finds and fixes the cause.</td></tr>
-<tr><td>3</td><td>Engineer</td><td>Acknowledges with a rising edge on the matching ack bit, e.g. <code>Inlet[i].InletPump.AlarmAck.StartUpTimeout</code> TRUE, then FALSE (the PLC never clears ack bits).</td></tr>
-<tr><td>4</td><td>PLC</td><td>1 -&gt; 2 while the condition is present, -&gt; 0 once it is gone.</td></tr>
-</table>
-<p><b>Alternatives (errors handled in the interaction)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Oxy pump drive fault</td><td>Engineer</td><td>Ack does not reset the drive: <code>OxySystem[i].OxyPump.Command.Reset</code> (UC-06).</td></tr>
-<tr><td>Hydraulic pump feedback fault</td><td>Engineer</td><td>Needs <code>Outlet.HydraulicPump.Command.Reset</code>, not an ack.</td></tr>
-</table>
-<p><b>FINISH:</b> No unacknowledged alarm; causes recorded.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td><code>Inlet[i].InletPump.AlarmAck.StartUpTimeout</code></td><td></td><td><code>Inlet[i].InletPump.Alarm.StartUpTimeout</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>GEN-02 (alarm priorities and ack classes)</li>
-<li>GEN-12 (alarms that can never be raised)</li>
-</ul>
-<h2 id='UC09'>UC-09 Fault tests</h2>
-<table class='meta'><tr><th>Goal</th><th>Level</th><th>Actors</th><th>Includes</th><th>Extends</th></tr><tr><td>The planned failures give the designed reaction.</td><td>user goal (extends UC-05 to UC-07)</td><td>Commissioning engineer, Supplier technicians</td><td>UC-00, UC-08</td><td>UC-05 .. UC-07</td></tr></table>
-<p><b>Preconditions</b></p><ul>
-<li>Pen Running with oxygenation (UC-05..07).</li>
-<li>Test plan agreed (who pulls which cable, when).</li>
-</ul>
-<p><b>START:</b> The engineer announces the test.</p>
-<p><b>Normal scenario</b></p><table><tr><th>Step</th><th>Who</th><th>Action, nodes, expected response</th></tr>
-<tr><td>1</td><td>Engineer</td><td>Framo link of one pump down: expects <code>Inlet[i].InletPump.Alarm.HeartbeatTimeout</code>, <code>Inlet[i].InletPump.Status.CommunicationOK</code> FALSE, oxygen line i stops (<code>Inlet[i].InletPump.Status.OxyPermit</code> FALSE), the other pumps take over in LIC01. Note the Framo behaviour on heartbeat loss (IN-41).</td></tr>
-<tr><td>2</td><td>Engineer</td><td>Inlet RIO link down: expects the station&#x27;s level pair invalid (<code>Inlet[i].Input.LevelInsidePen.Status.BadQuality</code>) and LIC01 continuing on the other pairs.</td></tr>
-<tr><td>3</td><td>Engineer</td><td>Oxy pump drive link down: expects <code>OxySystem[i].OxyPump.Status.CommunicationOK</code> FALSE, line stops; on return the comm-loss fault is reset automatically.</td></tr>
-<tr><td>4</td><td>Engineer</td><td>Inlet pump trip (Framo): expects Lockdown, the others take its share; Reset after the fix (UC-04 alternative).</td></tr>
-<tr><td>5</td><td>Engineer</td><td>Emergency stop: expects the designed stop of pumps and oxygen (open: IN-14, IN-28, OX-21).</td></tr>
-<tr><td>6</td><td>Engineer</td><td>Records results; deviations go into the register.</td></tr>
-</table>
-<p><b>Exceptions (goal abandoned)</b></p><table><tr><th>Condition</th><th>Who</th><th>Action</th></tr>
-<tr><td>Unexpected reaction that endangers the fish</td><td>Engineer</td><td>Stops the test, restores normal operation. FINISH (abandoned).</td></tr>
-</table>
-<p><b>FINISH:</b> All tests done and recorded.</p>
-<p><b>Nodes</b></p><table><tr><th>Write (commands, in order)</th><th>Settings to check</th><th>Monitor</th></tr><tr><td></td><td></td><td><code>Inlet[i].InletPump.Alarm.HeartbeatTimeout</code><br><code>Inlet[i].InletPump.Status.CommunicationOK</code><br><code>Inlet[i].InletPump.Status.OxyPermit</code><br><code>Inlet[i].Input.LevelInsidePen.Status.BadQuality</code><br><code>OxySystem[i].OxyPump.Status.CommunicationOK</code></td></tr></table>
-<p><b>Open points (register)</b></p><ul>
-<li>IN-41, IN-14, IN-28, OX-21, IN-40, OX-34</li>
-</ul></body></html>
+<p><b>Start and verify</b></p><ol>
+<li>Pen running, lines with Config.Enable and pump and valve in auto.</li>
+<li>Pulse OxygenStart: OxygenOn TRUE, lines Running (<code>OxySystem[i].Status.State</code> 2).</li>
+<li>AverageOxygenForControl moves toward OxySetpoint; OxygenStop closes the valves.</li>
+</ol>
+<h1>Suggestions for node placement</h1><p>Changes to the PLC's node structure that would let one system be started and verified in one branch. Not implemented; a proposal for the PLC project. Proposed paths do not exist yet.</p><table><tr><th>#</th><th>Now</th><th>Proposal</th><th>Why</th></tr>
+<tr><td>1</td><td><code>InletRIO[i]</code> top level, next to <code>Inlet[i]</code> and <code>OxySystem[i]</code></td><td><code>Inlet[i].RIO</code> (or keep the array, but name it after the station)</td><td>Inlet station i is one cabinet: its coupler, oxy pump drive link and the inlet sensors. Starting an inlet now needs three branches.</td></tr>
+<tr><td>2</td><td>Drive link status in <code>InletRIO[i].Status.DriveDataStale</code> / DriveRestarts</td><td><code>OxySystem[i].OxyPump.Status</code> (next to CommunicationOK and AutoResets)</td><td>Everything about the oxy pump drive in one place.</td></tr>
+<tr><td>3</td><td><code>LevelController</code> and <code>OxyController</code> top level, their settings in <code>Pen.Config.LevelController</code> / <code>Pen.Config.OxyController</code></td><td><code>Pen.LevelController</code> and <code>Pen.OxyController</code>, settings in their own .Config</td><td>LIC01 / OIC01 belong to the pen. <code>LevelController.Config</code> and <code>OxyController.Config</code> exist as well, but no reference to them was found in the program: two places for the same gains.</td></tr>
+<tr><td>4</td><td><code>PenInletSupervisor</code> top level and <code>Pen.InletSupervisor</code></td><td>keep <code>Pen.InletSupervisor</code> only (and <code>InletSequence</code> inside it)</td><td>Same type twice; no reference to <code>Pen.InletSupervisor</code> was found in the program.</td></tr>
+<tr><td>5</td><td><code>Pen.Input.OxyConcentration[i]</code>, OxySaturation[i], Temperature[i], Salinity[i], TotalDissolvedSolids[i], Depth[i]</td><td>remove; the values are in <code>Pen.Input.Orbit864Sensor[i]</code></td><td>No reference found in the program; a client reading them gets zeros.</td></tr>
+<tr><td>6</td><td><code>Pen.Command.InitModbusRTU</code> / <code>Pen.Status.ModbusRTUInitialised</code></td><td><code>CommonRIO.Command</code> / <code>CommonRIO.Status</code> (the RTU settings are already in <code>CommonRIO.Config</code>)</td><td>The serial bus to the Orbit sensors is CommonRIO&#x27;s, not the pen&#x27;s.</td></tr>
+<tr><td>7</td><td><code>Inlet[i].InletPump.Input</code> holds Start, Stop, Reset, VelocitySetpoint, HeartbeatToggle</td><td>only measurements in Input; the outgoing signals in <code>Inlet[i].InletPump.InternalCommand</code> (already exists)</td><td>Input reads like &#x27;from the field&#x27;; commands there are easy to write by mistake.</td></tr>
+<tr><td>8</td><td><code>OxySystem[i].OxyValve.Command.AutoSetpoint</code> / Open / Close / SuppressAlarms written by the PLC</td><td>an InternalCommand branch as for the inlet pump; Command for the operator only</td><td>An operator writing AutoSetpoint is overwritten or fights the controller (GEN-13).</td></tr>
+<tr><td>9</td><td>Mains / battery inputs in both <code>Pen.Input</code> and <code>Inlet[i].Input</code> (MainCircuitBreakerTripped, BackupPowerOn, BatteryFault)</td><td>one place: the cabinet they are wired in (inlet station i)</td><td>Two nodes for one signal; the Pen copies are not filled.</td></tr>
+<tr><td>10</td><td><code>EmergencyStop</code> (BOOL, not implemented) top level</td><td>remove</td><td>A node that never changes looks like a healthy signal (GEN-12).</td></tr>
+</table></body></html>

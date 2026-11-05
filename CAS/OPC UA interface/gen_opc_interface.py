@@ -229,7 +229,7 @@ def read_project(repo: str, app: str):
                     enums[name] = parse_enum(name, t)
             elif ts.startswith("FUNCTION_BLOCK"):
                 fbs[name] = (folder, t)
-            elif ts.startswith("VAR_GLOBAL"):
+            elif re.match(r"(//.*\n\s*)*VAR_GLOBAL", ts):
                 gvl_decl[name] = t
                 if name == "GVL_CONSTANT":
                     for m in re.finditer(r"(\w+)\s*:\s*\w+\s*:=\s*(\d+)\s*;", t):
@@ -242,6 +242,13 @@ def read_project(repo: str, app: str):
                 for var in sv["SignVariables"]["@Value"]:
                     vv = var["@Value"]
                     roots.append(Root(gvl, vv["VarName"][8:], vv["VarType"][8:], int(vv["VarAccess"][5:])))
+    # The Symbol Configuration keeps variables removed from the GVL until it is built again: leave them out.
+    declared = {g: set(re.findall(r"^\s*(\w+)\s*:", strip_attrs(t), re.M)) for g, t in gvl_decl.items()}
+    stale = [r for r in roots if r.gvl in declared and r.name not in declared[r.gvl]]
+    for r in stale:
+        print(f"Symbol Configuration lists {r.gvl}.{r.name}, which the GVL no longer declares: left out",
+              file=sys.stderr)
+    roots = [r for r in roots if r not in stale]
     # A published function block instance: its own variables are nodes. Library internals are left out.
     for r in roots:
         t = base_type(array_info(r.type, consts)[1])

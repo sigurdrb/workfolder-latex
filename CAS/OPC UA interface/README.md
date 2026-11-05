@@ -32,11 +32,16 @@ Deviations found while writing the notes go into `../Outstanding items.xlsx` (GE
 
 ## Commissioning use cases
 
-`commissioning_usecases.py` writes `CAS commissioning use cases.confluence.txt` / `.html`: use cases
-for field test and commissioning (structure after J. Cooling, *Software Engineering for Real-Time
-Systems*, 2020, sec. 3.4.5), with the OPC UA nodes to write and read in order, the expected PLC
-response and the error scenarios. Every node in it is checked against GVLMain (`opc_paths.py`); the
-script fails and lists the references that do not exist, so a PLC rename shows up at once.
+`commissioning_usecases.py` writes `CAS commissioning use cases.confluence.txt` / `.html`: one card per
+system (field links, instruments, inlet pump, oxygen line, outlet, pen and LIC01, OIC01) with the
+top-level branches to open, its settings, commands and status nodes in one table, and a short
+start-and-verify sequence; then suggestions for moving nodes so that a system needs fewer branches.
+Every node in it is checked against GVLMain (`opc_paths.py`; proposed paths in the suggestions are not);
+the script fails and lists the references that do not exist, so a PLC rename shows up at once.
+
+The Symbol Configuration keeps variables that were removed from GVLMain until it is built again; the
+generators leave those out and print them (2026-11-05: InletConfig, OxyConfig, PenConfig,
+CommonRIOConfig, InletRIOConfig).
 
 ```bash
 py commissioning_usecases.py /tmp/hplc
