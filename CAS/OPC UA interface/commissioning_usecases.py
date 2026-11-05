@@ -2,10 +2,10 @@
 
     py commissioning_usecases.py <heimdall-plc checkout>
 
-For each system: which top-level branches of GVLMain to open, the settings (Config), commands and status nodes in
-one table, and a short start-and-verify sequence. Ends with suggestions for moving nodes so that one system needs
-fewer branches. Every node written in backticks, and every node in the tables, is checked against the PLC project
-(opc_paths.py); the script lists the references that do not exist and exits with 1.
+For each system: which branch of GVLMain to open, the settings (Config), commands and status nodes in one table,
+and a short start-and-verify sequence. Ends with the nodes that moved in the 2026-11 restructure (old -> new).
+Every node written in backticks, and every node in the tables, is checked against the PLC project (opc_paths.py);
+the old paths in the 'moved' table are not. The script lists the references that do not exist and exits with 1.
 
 Writes next to this script:
     CAS commissioning use cases.confluence.txt   Confluence wiki markup (Insert > Markup > Confluence wiki)
@@ -27,9 +27,11 @@ OUT_WIKI = os.path.join(HERE, "CAS commissioning use cases.confluence.txt")
 OUT_HTML = os.path.join(HERE, "CAS commissioning use cases.html")
 
 INTRO = (
-    "One card per system: the top-level branches of GVLMain to open, the settings, commands and status nodes in one "
-    "table, and a short sequence to start and verify the system. Paths are relative to GVLMain and checked against the "
-    "PLC program; [i] is 0-based (Inlet[0] = inlet 1). Every node's type and behaviour: page 'CAS OPC UA interface'.")
+    "One card per system: the branch of GVLMain to open, the settings, commands and status nodes in one table, and a "
+    "short sequence to start and verify the system. Each system is one branch: Pen (with LIC01, OIC01 and the inlet "
+    "supervisor), Inlet[i] (with its pump and the station's remote I/O), OxySystem[i] (with its pump and valve), "
+    "Outlet and CommonRIO. Paths are relative to GVLMain and checked against the PLC program; [i] is 0-based "
+    "(Inlet[0] = inlet 1). Every node's type and behaviour: page 'CAS OPC UA interface'.")
 
 CONVENTIONS = [
     ("Pulse", "Write TRUE; the PLC clears it. All Manual / Auto, `Pen.Command.Start` / Stop / OxygenStart / "
@@ -38,7 +40,8 @@ CONVENTIONS = [
     ("Held", "Write TRUE; the PLC holds it until the state confirms, then clears it: InletPump, OxyPump and "
              "HydraulicPump Start / Stop (in manual)."),
     ("Edge", "Write TRUE, then FALSE yourself: `OxySystem[i].OxyPump.Command.Reset`, every AlarmAck bit."),
-    ("Value", "Setpoints and modes: write the value, it stays (Setpoint, ManualOutput, ManualPosition, Mode)."),
+    ("Value", "Setpoints and modes: write the value, it stays (Setpoint, ManualOutput, ManualPosition, Mode). The "
+              "controller setpoints are kept over a restart."),
     ("Setting", "Config members: retained over a restart (GVLRetain). Change only during commissioning."),
 ]
 
@@ -51,27 +54,28 @@ def system(**k):
 
 
 system(
-    id="S1", name="Field links: remote I/O, drives, Framo",
-    what="Modbus TCP to CommonRIO and InletRIO 1..3 (Wago 750-362), the oxy pump drives (ATV650) behind each "
-         "InletRIO, and OPC UA to the Framo pump controllers (PCC 1..3). Check these first.",
-    branches=["CommonRIO", "InletRIO[i]", "Inlet[i]", "OxySystem[i]"],
+    id="S1", name="Field links: overview",
+    what="All links at a glance: Modbus TCP to CommonRIO and the three inlet stations (Wago 750-362), to the oxy pump "
+         "drives (ATV650) and OPC UA to the Framo pump controllers (PCC 1..3). Each system card below has its own link "
+         "status too.",
+    branches=["CommonRIO", "Inlet[i]", "OxySystem[i]"],
     settings=[("CommonRIO.Config.IP", "IP and Port of the common coupler"),
-              ("InletRIO[i].Config.IP", "coupler of inlet station i, with Port"),
-              ("InletRIO[i].Config.DriveIP", "oxy pump drive, with DrivePort, DriveUnitId, DriveEnabled"),
-              ("Inlet[i].Config.FramoIP", "Framo PCC i, with FramoPort, FramoUpdateRate")],
+              ("Inlet[i].RIO.Config.IP", "coupler of inlet station i, with Port"),
+              ("OxySystem[i].OxyPump.Config.DriveIP", "oxy pump drive, with DrivePort, DriveUnitId, DriveEnabled"),
+              ("Inlet[i].InletPump.Config.FramoIP", "Framo PCC i, with FramoPort, FramoUpdateRate")],
     commands=[],
     status=[("CommonRIO.Status.CommOK", "link up and data fresh"),
-            ("InletRIO[i].Status.CommOK", "same per inlet station; DataStale = answers but no new data"),
-            ("OxySystem[i].OxyPump.Status.CommunicationOK", "drive link"),
+            ("Inlet[i].RIO.Status.CommOK", "same per inlet station; DataStale = answers but no new data"),
+            ("OxySystem[i].OxyPump.Status.CommunicationOK", "drive link; DriveDataStale, DriveRestarts"),
             ("Inlet[i].InletPump.Status.FramoConnected", "OPC UA data source connected"),
             ("Inlet[i].InletPump.Status.CommunicationOK", "Framo heartbeat answered"),
-            ("InletRIO[i].Status.Restarts", "link restarts; also DriveRestarts, CommonRIO.Status.Restarts, "
-                                            "Inlet[i].InletPump.Status.FramoRestarts"),
-            ("InletRIO[i].Status.Watchdog", "coupler Modbus watchdog: State, Expiries")],
-    steps=["Check the IP settings; 0.0.0.0 means not configured (`InletRIO[i].Status.MissingIP`).",
+            ("Inlet[i].RIO.Status.Restarts", "link restarts; also CommonRIO.Status.Restarts, "
+                                             "Inlet[i].InletPump.Status.FramoRestarts"),
+            ("Inlet[i].RIO.Status.Watchdog", "coupler Modbus watchdog: State, Expiries")],
+    steps=["Check the IP settings; 0.0.0.0 means not configured (`Inlet[i].RIO.Status.MissingIP`).",
            "All CommOK / CommunicationOK / FramoConnected TRUE.",
-           "Over a few minutes: the restart counters do not count and `InletRIO[i].Status.DataStale` stays FALSE."],
-    alarms=["CommonRIO.Alarm", "InletRIO[i].Alarm"])
+           "Over a few minutes: the restart counters do not count and `Inlet[i].RIO.Status.DataStale` stays FALSE."],
+    alarms=["CommonRIO.Alarm", "Inlet[i].RIO.Alarm"])
 
 system(
     id="S2", name="Instruments",
@@ -86,7 +90,7 @@ system(
             ("Pen.Input.Orbit864Sensor[i].OxygenConcentration.Filtered", "O2 sensors; also OxygenSaturation, "
                                                                          "Temperature, Salinity"),
             ("Pen.Input.Orbit864Sensor[i].Status.CommOK", "Orbit 864 on Modbus RTU"),
-            ("Pen.Input.AverageOxygenForControl.Filtered", "O2 used by OIC01"),
+            ("Pen.Input.AverageOxygenInside.Filtered", "O2 used by OIC01"),
             ("OxySystem[i].Input.OxyPumpPressure.Filtered", "oxy line pressures: OxynatorOutletPressure, "
                                                             "OxyInjectionPressure"),
             ("OxySystem[i].Input.OxygenFlow.Filtered", "O2 flow per line"),
@@ -99,21 +103,22 @@ system(
 system(
     id="S3", name="Inlet pump i (Framo)",
     what="Framo pump controller PCC i over OPC UA. In auto the pen (S5) starts and stops it and sets its speed.",
-    branches=["Inlet[i]"],
-    settings=[("Inlet[i].Config.InletPumpEnable", "takes part in the automatic pump count"),
-              ("Inlet[i].Config.StartupTime", "start / stop supervision, with ShutdownTime"),
-              ("Inlet[i].Config.HeartbeatTimeout", "link supervision, with HeartbeatInterval"),
-              ("Inlet[i].Config.SpeedDeviationLimit", "speed deviation alarm, with SpeedDeviationDelay"),
-              ("Inlet[i].Config.ResetExpectedTime", "time for a Reset to change the pump state")],
+    branches=["Inlet[i].InletPump"],
+    settings=[("Inlet[i].InletPump.Config.InletPumpEnable", "takes part in the automatic pump count"),
+              ("Inlet[i].InletPump.Config.FramoIP", "PCC endpoint, with FramoPort, FramoUpdateRate"),
+              ("Inlet[i].InletPump.Config.StartupTime", "start / stop supervision, with ShutdownTime"),
+              ("Inlet[i].InletPump.Config.HeartbeatTimeout", "link supervision, with HeartbeatInterval"),
+              ("Inlet[i].InletPump.Config.SpeedDeviationLimit", "speed deviation alarm, with SpeedDeviationDelay"),
+              ("Inlet[i].InletPump.Config.ResetExpectedTime", "time for a Reset to change the pump state")],
     commands=[("Inlet[i].InletPump.Command.Manual", "pulse; Auto back"),
               ("Inlet[i].InletPump.Command.Setpoint", "manual speed, rpm 40..130"),
               ("Inlet[i].InletPump.Command.Start", "held, in manual; Stop the same"),
               ("Inlet[i].InletPump.Command.Reset", "pulse, after a trip (Hold / Lockdown)")],
     status=[("Inlet[i].InletPump.State", "Available 0, Starting 1, Remote 2 (running), Stopping 3, Hold 4, "
                                          "Lockdown 5, Unavailable 9"),
+            ("Inlet[i].InletPump.Status.CommunicationOK", "link: heartbeat AND FramoConnected"),
             ("Inlet[i].InletPump.Status.Manual", "mode"),
             ("Inlet[i].InletPump.Status.ActualSpeed", "rpm"),
-            ("Inlet[i].InletPump.Status.CommunicationOK", "heartbeat AND FramoConnected"),
             ("Inlet[i].InletPump.Input.MotorCurrent", "also MotorPower, MotorTemperatureHH")],
     steps=["`Inlet[i].InletPump.Status.CommunicationOK` TRUE, State Available (0).",
            "Pulse Manual, write Setpoint 60, Start: State 1 then 2, ActualSpeed follows.",
@@ -129,8 +134,8 @@ system(
               ("OxySystem[i].Config.ValveOpenPressure", "the valve may open above this pump pressure"),
               ("OxySystem[i].Config.PressureSetpoint", "pressure control (PressureController)"),
               ("OxySystem[i].Config.FlowMax", "max O2 flow per line (FlowController)"),
-              ("OxySystem[i].Config.OxyPump", "MinSpeed_Hz, MaxSpeed_Hz, PresetSpeed_Hz"),
-              ("OxySystem[i].Config.OxyStartupTime", "with OxyShutdownTime, ValveRampTime")],
+              ("OxySystem[i].OxyPump.Config.MinSpeed_Hz", "with MaxSpeed_Hz, PresetSpeed_Hz, RunDelay"),
+              ("OxySystem[i].OxyPump.Config.DriveIP", "drive address, with DrivePort, DriveUnitId")],
     commands=[("OxySystem[i].OxyPump.Command.Manual", "pulse; Auto back"),
               ("OxySystem[i].OxyPump.Command.Setpoint", "manual speed, Hz"),
               ("OxySystem[i].OxyPump.Command.Start", "held, in manual; Stop the same"),
@@ -141,6 +146,7 @@ system(
             ("OxySystem[i].Status.ValvePermit", "pump running and pressure above ValveOpenPressure"),
             ("OxySystem[i].Status.OxyFlow", "with FlowSetpoint, OxyValvePosition, OxyPumpSpeed"),
             ("OxySystem[i].OxyPump.State", "Available 0, Starting 1, Running 2, Stopping 3, Unavailable 4"),
+            ("OxySystem[i].OxyPump.Status.CommunicationOK", "drive link; DriveDataStale, DriveRestarts"),
             ("OxySystem[i].OxyPump.Status.AutoResets", "automatic drive resets after a link fault"),
             ("OxySystem[i].OxyPump.Input.LastFault", "drive fault code (LFT)"),
             ("OxySystem[i].Input.OxyPumpPressure.Filtered", "pump pressure")],
@@ -153,51 +159,52 @@ system(
     id="S5", name="Pen and level control (LIC01)",
     what="The pen sequence starts the inlet pumps in auto, shares the speed between them and keeps the level at the "
          "setpoint (LIC01). Needs S1 and S3 with the pumps in auto.",
-    branches=["Pen", "LevelController", "PenInletSupervisor"],
-    settings=[("Pen.Config.LevelController", "Kp, Ti, MinOutput, MaxOutput, SafeOutput"),
+    branches=["Pen"],
+    settings=[("Pen.LevelController.Config", "Kp, Ti, MinOutput, MaxOutput, SafeOutput"),
               ("Pen.Config.PumpAddSpeed", "pump count: PumpTargetSpeed, PumpAddDelay, PumpRemoveDelay"),
               ("Pen.Config.PumpCycleTime", "rotation"),
               ("Pen.Config.LevelDeviationLimit", "with LevelDeviationDelay")],
-    commands=[("Pen.Command.LevelSetpoint", "value, m"),
+    commands=[("Pen.LevelController.Command.Setpoint", "value, m; kept over a restart"),
               ("Pen.Command.Start", "pulse; Stop the same"),
-              ("LevelController.Command.Manual", "pulse; Auto back"),
-              ("LevelController.Command.ManualOutput", "rpm per pump, in manual")],
+              ("Pen.LevelController.Command.Manual", "pulse; Auto back"),
+              ("Pen.LevelController.Command.ManualOutput", "rpm per pump, in manual")],
     status=[("Pen.Status.State", "Stopped 0, Starting 1, Running 2, Stopping 3"),
             ("Pen.Status.Ready", "start allowed; PumpReady: a pump can start"),
             ("Pen.Status.CommandRejected", "last command did not fit the state"),
-            ("Pen.Status.OverHeight", "level inside minus outside"),
-            ("LevelController.Input.ProcessValue", "with Setpoint, LimitsActive"),
-            ("LevelController.Output.OUT", "speed share"),
-            ("PenInletSupervisor.PumpsWanted", "with NumberOfInletsRunning, NumberOfInletsInAuto")],
-    steps=["Pumps in auto with `Inlet[i].Config.InletPumpEnable`; `Pen.Status.Ready` TRUE.",
-           "Write LevelSetpoint, pulse Start: State 1 then 2, pumps start one by one.",
+            ("Pen.LevelController.Input.ProcessValue", "over-height; with Setpoint, LimitsActive"),
+            ("Pen.LevelController.Output.OUT", "total speed"),
+            ("Pen.LevelController.Status.Manual", "mode"),
+            ("Pen.InletSupervisor.PumpsWanted", "with NumberOfInletsRunning, AutoSpeedSetpoint (per pump)")],
+    steps=["Pumps in auto with `Inlet[i].InletPump.Config.InletPumpEnable`; `Pen.Status.Ready` TRUE.",
+           "Write `Pen.LevelController.Command.Setpoint`, pulse Start: State 1 then 2, pumps start one by one.",
            "ProcessValue settles at Setpoint; PumpsWanted follows the load. Stop: State 3 then 0."],
-    alarms=["Pen.Alarm", "LevelController.Alarm"])
+    alarms=["Pen.Alarm", "Pen.LevelController.Alarm"])
 
 system(
     id="S6", name="Pen oxygen control (OIC01)",
     what="Controls the pen O2 to its setpoint by sharing the O2 flow over the lines in auto. Needs S2 (O2 sensors), "
          "S4 and the pen running (S5).",
-    branches=["Pen", "OxyController", "OxySystem[i]"],
-    settings=[("Pen.Config.OxySetpoint", "mg/L"),
-              ("Pen.Config.OxyController", "Kp, Ti, MinOutput, MaxOutput"),
+    branches=["Pen", "OxySystem[i]"],
+    settings=[("Pen.OxyController.Config", "Kp, Ti, MinOutput, MaxOutput"),
               ("Pen.Input.Orbit864Sensor[i].Config.EnableForAutoControl", "sensor used for the control value")],
-    commands=[("Pen.Command.OxygenStart", "pulse; OxygenStop the same"),
-              ("OxyController.Command.Manual", "pulse; Auto back"),
-              ("OxyController.Command.ManualOutput", "total O2 flow kg/h, in manual")],
+    commands=[("Pen.OxyController.Command.Setpoint", "mg/L; kept over a restart"),
+              ("Pen.Command.OxygenStart", "pulse; OxygenStop the same"),
+              ("Pen.OxyController.Command.Manual", "pulse; Auto back"),
+              ("Pen.OxyController.Command.ManualOutput", "total O2 flow kg/h, in manual")],
     status=[("Pen.Status.OxygenOn", "oxygenation started"),
             ("Pen.Status.OxyControlOK", "control value valid"),
-            ("Pen.Input.AverageOxygenForControl.Filtered", "control value"),
-            ("OxyController.Output.OUT", "total O2 flow"),
+            ("Pen.OxyController.Input.ProcessValue", "mean O2 of the sensors for control"),
+            ("Pen.OxyController.Output.OUT", "total O2 flow"),
             ("OxySystem[i].Status.InAuto", "line follows OIC01; FlowSetpoint per line")],
     steps=["Pen running, lines with Config.Enable and pump and valve in auto.",
            "Pulse OxygenStart: OxygenOn TRUE, lines Running (`OxySystem[i].Status.State` 2).",
-           "AverageOxygenForControl moves toward OxySetpoint; OxygenStop closes the valves."],
-    alarms=["OxyController.Alarm"])
+           "ProcessValue moves toward `Pen.OxyController.Command.Setpoint`; OxygenStop closes the valves."],
+    alarms=["Pen.OxyController.Alarm"])
 
 system(
     id="S7", name="Outlet (dampers and hydraulics)",
-    what="Four cylinders open the outlet to a position per operation mode, driven by the hydraulic pump.",
+    what="Four cylinders open the outlet to a position per operation mode, driven by the hydraulic pump. Its I/O is "
+         "on CommonRIO (link: `CommonRIO.Status.CommOK`).",
     branches=["Outlet"],
     settings=[("Outlet.Config.ModePosition", "opening per mode O35, O45, O60, S75 (%)"),
               ("Outlet.Config.MaxTravelTimeOpen", "with MaxTravelTimeClose, RampRateOpen, RampRateClose"),
@@ -218,43 +225,26 @@ system(
 
 ORDER = ["S1", "S2", "S3", "S4", "S7", "S5", "S6"]
 
-# Suggestions for node placement: (now, proposal, why)
-SUGGEST = [
-    ("`InletRIO[i]` top level, next to `Inlet[i]` and `OxySystem[i]`",
-     "`Inlet[i].RIO` (or keep the array, but name it after the station)",
-     "Inlet station i is one cabinet: its coupler, oxy pump drive link and the inlet sensors. Starting an inlet "
-     "now needs three branches."),
-    ("Drive link status in `InletRIO[i].Status.DriveDataStale` / DriveRestarts",
-     "`OxySystem[i].OxyPump.Status` (next to CommunicationOK and AutoResets)",
-     "Everything about the oxy pump drive in one place."),
-    ("`LevelController` and `OxyController` top level, their settings in `Pen.Config.LevelController` / "
-     "`Pen.Config.OxyController`",
-     "`Pen.LevelController` and `Pen.OxyController`, settings in their own .Config",
-     "LIC01 / OIC01 belong to the pen. `LevelController.Config` and `OxyController.Config` exist as well, but no "
-     "reference to them was found in the program: two places for the same gains."),
-    ("`PenInletSupervisor` top level and `Pen.InletSupervisor`",
-     "keep `Pen.InletSupervisor` only (and `InletSequence` inside it)",
-     "Same type twice; no reference to `Pen.InletSupervisor` was found in the program."),
-    ("`Pen.Input.OxyConcentration[i]`, OxySaturation[i], Temperature[i], Salinity[i], TotalDissolvedSolids[i], "
-     "Depth[i]",
-     "remove; the values are in `Pen.Input.Orbit864Sensor[i]`",
-     "No reference found in the program; a client reading them gets zeros."),
-    ("`Pen.Command.InitModbusRTU` / `Pen.Status.ModbusRTUInitialised`",
-     "`CommonRIO.Command` / `CommonRIO.Status` (the RTU settings are already in `CommonRIO.Config`)",
-     "The serial bus to the Orbit sensors is CommonRIO's, not the pen's."),
-    ("`Inlet[i].InletPump.Input` holds Start, Stop, Reset, VelocitySetpoint, HeartbeatToggle",
-     "only measurements in Input; the outgoing signals in `Inlet[i].InletPump.InternalCommand` (already exists)",
-     "Input reads like 'from the field'; commands there are easy to write by mistake."),
-    ("`OxySystem[i].OxyValve.Command.AutoSetpoint` / Open / Close / SuppressAlarms written by the PLC",
-     "an InternalCommand branch as for the inlet pump; Command for the operator only",
-     "An operator writing AutoSetpoint is overwritten or fights the controller (GEN-13)."),
-    ("Mains / battery inputs in both `Pen.Input` and `Inlet[i].Input` (MainCircuitBreakerTripped, BackupPowerOn, "
-     "BatteryFault)",
-     "one place: the cabinet they are wired in (inlet station i)",
-     "Two nodes for one signal; the Pen copies are not filled."),
-    ("`EmergencyStop` (BOOL, not implemented) top level",
-     "remove",
-     "A node that never changes looks like a healthy signal (GEN-12)."),
+# Nodes moved in the 2026-11 restructure: (old path, new path). The old paths no longer exist.
+MOVED = [
+    ("InletRIO[i]", "`Inlet[i].RIO`"),
+    ("InletRIO[i].Status.DriveDataStale / DriveRestarts / DriveChannelError",
+     "`OxySystem[i].OxyPump.Status.DriveDataStale` / DriveRestarts / DriveChannelError"),
+    ("InletRIO[i].Config.DriveIP / DrivePort / DriveUnitId / DriveEnabled", "`OxySystem[i].OxyPump.Config.DriveIP` etc."),
+    ("OxySystem[i].Config.OxyPump", "`OxySystem[i].OxyPump.Config`"),
+    ("Inlet[i].Config", "`Inlet[i].InletPump.Config`"),
+    ("LevelController, OxyController", "`Pen.LevelController`, `Pen.OxyController`"),
+    ("Pen.Config.LevelController, Pen.Config.OxyController", "`Pen.LevelController.Config`, `Pen.OxyController.Config`"),
+    ("Pen.Command.LevelSetpoint", "`Pen.LevelController.Command.Setpoint`"),
+    ("Pen.Config.OxySetpoint", "`Pen.OxyController.Command.Setpoint`"),
+    ("PenInletSupervisor, InletSequence", "`Pen.InletSupervisor`, `Pen.InletSupervisor.Sequence`"),
+    ("OxySystem[i].OxyValve.Command.AutoSetpoint", "`OxySystem[i].OxyValve.InternalCommand.AutoSetpoint` (PLC only)"),
+    ("Pen.Input.BackupPowerOn (and the other mains / battery copies)", "`Inlet[0].Input.BackupPowerOn` (per cabinet)"),
+    ("Pen.Input.OxyConcentration[i], OxySaturation[i], Temperature[i], Salinity[i], ...",
+     "`Pen.Input.Orbit864Sensor[i]` (OxygenConcentration, OxygenSaturation, ...)"),
+    ("Removed (never used): EmergencyStop, Pen.Command.InitModbusRTU, Pen.Status.ModbusRTUInitialised, "
+     "Inlet[i].Alarm level alarms per transmitter, InletRIO FuseError / PowerSupplyError, Outlet.Status.EstimatedFlow, "
+     "Pen.Input.AverageOxygenForControl, InletPump Status / Output Heartbeat, Inlet[i].BilgePump", "-"),
 ]
 
 
@@ -271,11 +261,9 @@ def all_node_refs():
         for t in s["steps"] + [s["what"]] + [n for _, n in s["settings"] + s["commands"] + s["status"]]:
             for m in NODE.finditer(t):
                 yield s["id"], m.group(1)
-    for now, prop, why in SUGGEST:
-        for t in (now, prop, why):
-            for m in NODE.finditer(t):
-                if not t is prop:          # proposals name nodes that do not exist yet
-                    yield "suggestions", m.group(1)
+    for old, new in MOVED:      # only the new paths exist
+        for m in NODE.finditer(new):
+            yield "moved", m.group(1)
     for _, t in CONVENTIONS:
         for m in NODE.finditer(t):
             yield "conventions", m.group(1)
@@ -332,8 +320,8 @@ def render(source):
     H.append("</table>")
 
     W.append("h1. Systems, in commissioning order")
-    W.append("|| System || Open these branches || Settings || Commands || Status ||")
-    H.append("<h1>Systems, in commissioning order</h1><table><tr><th>System</th><th>Open these branches</th>"
+    W.append("|| System || Open || Settings || Commands || Status ||")
+    H.append("<h1>Systems, in commissioning order</h1><table><tr><th>System</th><th>Open</th>"
              "<th>Settings</th><th>Commands</th><th>Status</th></tr>")
     for i in ORDER:
         s = by[i]
@@ -375,16 +363,16 @@ def render(source):
             H.append("<li>" + htext(t) + "</li>")
         H.append("</ol>")
 
-    W.append("h1. Suggestions for node placement")
-    W.append(wtext("Changes to the PLC's node structure that would let one system be started and verified in one "
-                   "branch. Not implemented; a proposal for the PLC project. Proposed paths do not exist yet."))
-    W.append("|| # || Now || Proposal || Why ||")
-    H.append("<h1>Suggestions for node placement</h1><p>Changes to the PLC's node structure that would let one system "
-             "be started and verified in one branch. Not implemented; a proposal for the PLC project. Proposed paths "
-             "do not exist yet.</p><table><tr><th>#</th><th>Now</th><th>Proposal</th><th>Why</th></tr>")
-    for n, (now, prop, why) in enumerate(SUGGEST, 1):
-        W.append(f"| {n} | {wtext(now)} | {wtext(prop)} | {wtext(why)} |")
-        H.append(f"<tr><td>{n}</td><td>{htext(now)}</td><td>{htext(prop)}</td><td>{htext(why)}</td></tr>")
+    intro_moved = ("The PLC's node structure was changed on 2026-11-05 so that each system is one branch. Where a node "
+                   "used to be, and where it is now:")
+    W.append("h1. Moved nodes (2026-11)")
+    W.append(wtext(intro_moved))
+    W.append("|| Old path || New path ||")
+    H.append(f"<h1>Moved nodes (2026-11)</h1><p>{htext(intro_moved)}</p><table><tr><th>Old path</th>"
+             "<th>New path</th></tr>")
+    for old, new in MOVED:
+        W.append("| " + ESC.sub(r"\\\1", old) + f" | {wtext(new)} |")
+        H.append(f"<tr><td>{html.escape(old)}</td><td>{htext(new)}</td></tr>")
     H.append("</table>")
 
     css = ("body{font-family:system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px;color:#1f2328;"
