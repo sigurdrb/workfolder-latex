@@ -82,20 +82,6 @@
   "unit": "",
   "source": "PenSequence, OxyControl"
  },
- "PenCommandDUT.InitModbusRTU": {
-  "desc": "Intended to force Modbus RTU re-initialisation. Not implemented.",
-  "behaviour": "No reader found in the pfc200_sim application. Writing it has no effect. Note: Orbit 864 slave addresses are read only at start-up.",
-  "client": "write",
-  "unit": "",
-  "source": "no reader"
- },
- "PenCommandDUT.LevelSetpoint": {
-  "desc": "LIC01 setpoint: wanted over-height of the pen level above the outside level.",
-  "behaviour": "Level value, read every scan by PenLevelControl; used in Auto and for the level deviation alarms. Retained through GVLRetain.LevelSetpoint (default 0.06 m). The PLC overwrites it: when LIC01 goes from manual to auto with pumps in REMOTE and a valid level, the setpoint is set to the current over-height (bumpless transfer); the new value is then retained.",
-  "client": "write",
-  "unit": "m",
-  "source": "PenLevelControl, ControllerMode, Main.UpdateRetain"
- },
  "InletPumpCommandDUT.Manual": {
   "desc": "Put the inlet pump in operator manual (Status.Manual := TRUE).",
   "behaviour": "Pulse, cleared by InletControl in the same scan (Auto in the same scan wins). In manual the pump is out of the automatic pump count and rotation, not counted by LIC01, not stopped by Pen Stop, and runs on Command.Start/Stop/Setpoint. Alarms stay active in manual even if InletPumpEnable is FALSE. A Start left TRUE from before takes effect at once.",
@@ -200,34 +186,6 @@
   "client": "write",
   "unit": "%",
   "source": "AnalogValve.ScaleOutput, OxyControl"
- },
- "AnalogValveCommandDUT.AutoSetpoint": {
-  "desc": "Valve position in auto, written by the PLC (ramped FIC output).",
-  "behaviour": "Written by OxyControl every scan; client writes are overwritten. 0 when the valve may not open.",
-  "client": "internal",
-  "unit": "%",
-  "source": "OxyControl"
- },
- "AnalogValveCommandDUT.Open": {
-  "desc": "Not implemented.",
-  "behaviour": "No reader in the AnalogValve FB used for the O2 valve.",
-  "client": "write",
-  "unit": "",
-  "source": "no reader"
- },
- "AnalogValveCommandDUT.Close": {
-  "desc": "Not implemented.",
-  "behaviour": "No reader in the AnalogValve FB used for the O2 valve.",
-  "client": "write",
-  "unit": "",
-  "source": "no reader"
- },
- "AnalogValveCommandDUT.SuppressAlarms": {
-  "desc": "Not implemented.",
-  "behaviour": "No reader. Valve alarms are suppressed by Config.EnableAlarms instead.",
-  "client": "write",
-  "unit": "",
-  "source": "no reader"
  },
  "PIDCommandDUT.Manual": {
   "desc": "Put LIC01 (LevelController) or OIC01 (OxyController) in operator manual.",
@@ -369,20 +327,6 @@
   "unit": "",
   "source": "HydraulicPumpControl"
  },
- "GVLMain.EmergencyStop": {
-  "desc": "Global emergency stop flag. Not implemented.",
-  "behaviour": "Declared 'not implemented'; no reader or writer found. The oxy lines use OxySystem[i].Input.EmergencyStop (also never written), the outlet uses its own emergency switch.",
-  "client": "read",
-  "unit": "",
-  "source": "no reader"
- },
- "GVLMain.InletSequence": {
-  "desc": "Pump order, fewest running days first (inlet indices).",
-  "behaviour": "Written by the PLC every scan (InletSupervisor.SortSequence, stable insertion sort on Input.MotorRunningDays). Client writes: invalid entries reset it to 0,1,2; valid ones are re-sorted at once, so a client order only matters between equal running days. Used by PumpCount: start the first standby, stop the last running pump, rotation.",
-  "client": "read",
-  "unit": "",
-  "source": "InletSupervisor.SortSequence, PumpCount"
- },
  "InletPumpAlarmAckDUT.HeartbeatTimeout": {
   "desc": "Acknowledge Alarm.HeartbeatTimeout (Framo has not cleared the heartbeat bit).",
   "behaviour": "Rising edge. Alarm only when the pump is in service (InletPumpEnable or manual). The link itself comes back when Framo answers again; ack does not affect it.",
@@ -481,20 +425,6 @@
   "unit": "",
   "source": "OutletControl.AlarmHandling, HydraulicPumpControl"
  },
- "InletRIOAlarmAckDUT.FuseError": {
-  "desc": "Not implemented.",
-  "behaviour": "No alarm logic for FuseError or PowerSupplyError; only CommError, MissingIPaddress and WatchdogFault are raised.",
-  "client": "write",
-  "unit": "",
-  "source": "InletRIO.AlarmHandling"
- },
- "InletAlarmAckDUT.LevelInsidePenLow": {
-  "desc": "Not implemented.",
-  "behaviour": "No alarm logic for LevelInsidePenLow/High or LevelOutsidePenLow/High. The transmitters' own AnalogSensor alarms (Input.LevelInsidePen.Alarm) are used instead. The breaker/power alarms are raised only with the InletRIO link up.",
-  "client": "write",
-  "unit": "",
-  "source": "InletSensors.AlarmHandling"
- },
  "AnalogValveAlarmAckDUT.Fault": {
   "desc": "O2 valve alarms are never raised in this program.",
   "behaviour": "AnalogValve raises FailedOpening/FailedClosing from Output.Open/Close and Fault from Input.Fault, but nothing writes those for the O2 valve; and Config.EnableAlarms defaults FALSE (Suppressed).",
@@ -522,34 +452,6 @@
   "client": "write",
   "unit": "",
   "source": "CommonRIO.AlarmHandling, InletRIO.AlarmHandling"
- },
- "PenConfigDUT.LevelController": {
-  "desc": "LIC01 tuning and per-pump output limits.",
-  "behaviour": "Kp in total rpm per m (default 1350), Ti 60 s, Td 0. MinOutput 40 / MaxOutput 130 / SafeOutput 60 rpm per pump in REMOTE, scaled by the PLC with the number of pumps in REMOTE. SafeOutput is used when no valid level pair is left. Enabled/Override/Smoothing are not read. Retained, takes effect at once.",
-  "client": "config",
-  "unit": "see PIDConfigDUT",
-  "source": "PenLevelControl"
- },
- "PenConfigDUT.NumberOfInletsToRun": {
-  "desc": "Not implemented.",
-  "behaviour": "No reader. The pump count is automatic (PumpTargetSpeed/PumpAddSpeed).",
-  "client": "config",
-  "unit": "",
-  "source": "no reader"
- },
- "PenConfigDUT.OxyController": {
-  "desc": "OIC01 tuning: pen O2 to total O2 flow.",
-  "behaviour": "Kp in kg/h per mg/L (default 50), Ti 1800 s, Td 0. MinOutput 0 kg/h. MaxOutput 0 = no fixed limit; the PLC always limits to the FlowMax of the lines in auto plus the flow of active lines not in auto. Enabled/Override/Smoothing/SafeOutput are not read. Retained, immediate.",
-  "client": "config",
-  "unit": "kg/h, mg/L",
-  "source": "PenOxygenControl"
- },
- "PenConfigDUT.OxySetpoint": {
-  "desc": "Pen O2 setpoint for OIC01.",
-  "behaviour": "Default 8.0 mg/L, retained. Written by the PLC too: on OIC01 manual -> auto with a good O2 measurement it is set to the current pen O2 (bumpless).",
-  "client": "config",
-  "unit": "mg/L",
-  "source": "PenOxygenControl, ControllerMode"
  },
  "PenConfigDUT.LevelDeviationLimit": {
   "desc": "Level deviation alarm band either side of the setpoint.",
@@ -684,13 +586,6 @@
   "unit": "",
   "source": "OxyControl, OxyAlarmHandling"
  },
- "OxySystemConfigDUT.OxyPump": {
-  "desc": "Oxy pump speed range, preset speed and run delay (OxyPumpConfigDUT).",
-  "behaviour": "See OxyPumpConfigDUT members.",
-  "client": "config",
-  "unit": "",
-  "source": "OxyControl, OxyPumpATV650"
- },
  "OxySystemConfigDUT.OxyStartupTime": {
   "desc": "Drive start supervision.",
   "behaviour": "Default 10 s: StartUpTimeout if the drive is told to run but does not turn.",
@@ -782,13 +677,6 @@
   "unit": "%",
   "source": "OxyPumpATV650"
  },
- "OxyPumpConfigDUT.RampUp_s": {
-  "desc": "Not implemented.",
-  "behaviour": "No reader; RampDown_s and Priority are not read either. Ramps are set in the drive.",
-  "client": "config",
-  "unit": "s",
-  "source": "no reader"
- },
  "PIDConfigDUT.Enabled": {
   "desc": "Controller enabled (oxy line PIC/FIC only).",
   "behaviour": "Read only for OxySystem[i].Config.PressureController and FlowController. Not read for LIC01/OIC01.",
@@ -837,13 +725,6 @@
   "client": "config",
   "unit": "rpm",
   "source": "PenLevelControl"
- },
- "PIDConfigDUT.Override": {
-  "desc": "Not implemented.",
-  "behaviour": "No reader in the active code; Smoothing likewise.",
-  "client": "config",
-  "unit": "",
-  "source": "no reader"
  },
  "PIDControllerDUT.Config": {
   "desc": "Unused for LevelController and OxyController.",
@@ -964,13 +845,6 @@
   "unit": "",
   "source": "CommonRIO"
  },
- "CommonRIOConfigDUT.NumberOfAnalogInputs": {
-  "desc": "Not used.",
-  "behaviour": "The NumberOf* members have no reader; the process image layout is fixed in code.",
-  "client": "config",
-  "unit": "",
-  "source": "no reader"
- },
  "CommonRIOConfigDUT.RTUBaudrate": {
   "desc": "Orbit 864 RS-485 line settings (baud, data bits, parity, stop bits, handshake, physical, frame type).",
   "behaviour": "Passed to the Modbus RTU master (ModbusRTUData). They do NOT configure the 750-652 (set with WAGO-I/O-CHECK); keep them equal to it. Default 9600 8N1.",
@@ -1019,41 +893,6 @@
   "client": "config",
   "unit": "",
   "source": "InletRIO"
- },
- "InletRIOConfigDUT.DriveEnabled": {
-  "desc": "Connect to the line's oxy pump drive (ATV650).",
-  "behaviour": "Default TRUE. With DriveIP and DrivePort set: OxyPump.Status.DriveConfigured TRUE and comm alarms active.",
-  "client": "config",
-  "unit": "",
-  "source": "InletRIO, OxyAlarmHandling"
- },
- "InletRIOConfigDUT.DriveIP": {
-  "desc": "Oxy pump drive IP.",
-  "behaviour": "0.0.0.0 = no drive. Sim 10.1.2.150, ports 5131-5133.",
-  "client": "config",
-  "unit": "",
-  "source": "InletRIO"
- },
- "InletRIOConfigDUT.DrivePort": {
-  "desc": "Drive Modbus TCP port.",
-  "behaviour": "Default 502.",
-  "client": "config",
-  "unit": "",
-  "source": "InletRIO"
- },
- "InletRIOConfigDUT.DriveUnitId": {
-  "desc": "Drive Modbus unit id.",
-  "behaviour": "Default 0. A change re-creates the drive channels at once.",
-  "client": "config",
-  "unit": "",
-  "source": "InletRIO"
- },
- "InletRIOConfigDUT.NumberOfAnalogInputs": {
-  "desc": "Not used.",
-  "behaviour": "NumberOf* members have no reader.",
-  "client": "config",
-  "unit": "",
-  "source": "no reader"
  },
  "Orbit864SensorConfigDUT.SlaveAddress": {
   "desc": "Modbus RTU address of the sensor.",
@@ -1124,13 +963,6 @@
   "client": "config",
   "unit": "item unit",
   "source": "Orbit864Item.AlarmHandling"
- },
- "Orbit864ItemConfigDUT.EnableForControl": {
-  "desc": "Not used.",
-  "behaviour": "Sensor Config.EnableForAutoControl selects control sensors. MinValue, MaxValue, SP are not read either.",
-  "client": "config",
-  "unit": "",
-  "source": "no reader"
  },
  "AnalogSensorConfigDUT.Enable": {
   "desc": "Use this input in calculations and alarms.",
@@ -1237,13 +1069,6 @@
   "unit": "",
   "source": "PenControl"
  },
- "PenStatusDUT.ModbusRTUInitialised": {
-  "desc": "No writer found; always FALSE.",
-  "behaviour": "",
-  "client": "read",
-  "unit": "",
-  "source": "no writer"
- },
  "PenDUT.InletSupervisor": {
   "desc": "Unused; read GVLMain.PenInletSupervisor instead.",
   "behaviour": "",
@@ -1335,13 +1160,6 @@
   "unit": "m",
   "source": "PenControl.Sensors"
  },
- "PenInputDUT.AverageOxygenForControl": {
-  "desc": "No writer found.",
-  "behaviour": "Use AverageOxygenInside. OxySaturation[], OxyConcentration[], Temperature[], Salinity[], TotalDissolvedSolids[], Depth[] arrays and Turbidity/pH have no source either; use Orbit864Sensor[i].",
-  "client": "read",
-  "unit": "",
-  "source": "no writer"
- },
  "PenInputDUT.Orbit864Sensor": {
   "desc": "Six Orbit 864 sensors; 0-2 inside the pen (control).",
   "behaviour": "",
@@ -1419,13 +1237,6 @@
   "unit": "",
   "source": "FramoDataProcessing"
  },
- "InletPumpStatusDUT.Heartbeat": {
-  "desc": "No writer found.",
-  "behaviour": "",
-  "client": "read",
-  "unit": "",
-  "source": "no writer"
- },
  "InletPumpInputDUT.MotorVelocity": {
   "desc": "Motor speed reported by Framo.",
   "behaviour": "MotorVelocityMin/Max are Framo's value range.",
@@ -1446,13 +1257,6 @@
   "client": "read",
   "unit": "",
   "source": "FramoDataProcessing"
- },
- "InletPumpInputDUT.Start": {
-  "desc": "No writer found.",
-  "behaviour": "Stop, Reset, VelocitySetpoint, HeartbeatInterval, HeartbeatElapsed are not written either.",
-  "client": "read",
-  "unit": "",
-  "source": "no writer"
  },
  "InletPumpOutputDUT.Start": {
   "desc": "Start to Framo (start latch AND state allows).",
@@ -1769,13 +1573,6 @@
   "unit": "",
   "source": "OutletControl.AlarmHandling"
  },
- "OutletStatusDUT.EstimatedFlow": {
-  "desc": "No writer found.",
-  "behaviour": "",
-  "client": "read",
-  "unit": "",
-  "source": "no writer"
- },
  "CylinderStatusDUT.Calibrated": {
   "desc": "Position valid.",
   "behaviour": "Span > 0, comm valid, no counter set pending, direction OK. FALSE blocks auto/setpoint movement.",
@@ -1881,18 +1678,88 @@
   "unit": "",
   "source": "CommonRIO (CouplerWatchdog)"
  },
- "GVLMain.InletRIO": {
-  "desc": "Inlet RIO status and alarms per inlet (InletRIODUT).",
-  "behaviour": "Moved from GVLIO 2026-11; settings in InletRIO[i].Config.",
-  "client": "read",
-  "unit": "",
-  "source": "IO_Processing (InletRIO)"
- },
  "GVLMain.CommonRIO": {
   "desc": "Common RIO status and alarms (CommonRIODUT).",
   "behaviour": "Moved from GVLIO 2026-11; settings in CommonRIO.Config.",
   "client": "read",
   "unit": "",
   "source": "IO_Processing (CommonRIO)"
+ },
+ "PIDCommandDUT.Setpoint": {
+  "desc": "Operator setpoint of the controller: LIC01 (Pen.LevelController) the wanted over-height of the pen level above the outside level [m]; OIC01 (Pen.OxyController) the pen O2 [mg/L].",
+  "behaviour": "Kept over a restart (GVLRetain.LevelSetpoint 0.06 m, GVLRetain.OxySetpoint 8.0 mg/L in ConfigValues). The controller copies it to Input.Setpoint. LIC01: Level value, read every scan by PenLevelControl; used in Auto and for the level deviation alarms. Retained through GVLRetain.LevelSetpoint (default 0.06 m). The PLC overwrites it: when LIC01 goes from manual to auto with pumps in REMOTE and a valid level, the setpoint is set to the current over-height (bumpless transfer); the new value is then retained. OIC01: Default 8.0 mg/L, retained. Written by the PLC too: on OIC01 manual -> auto with a good O2 measurement it is set to the current pen O2 (bumpless).",
+  "client": "write",
+  "unit": "m / mg/L",
+  "source": "PenLevelControl, ControllerMode, Main.UpdateRetain"
+ },
+ "AnalogValveInternalCommandDUT.AutoSetpoint": {
+  "desc": "Valve position in auto, written by the PLC (ramped FIC output).",
+  "behaviour": "Written by OxyControl every scan; client writes are overwritten. 0 when the valve may not open.",
+  "client": "internal",
+  "unit": "%",
+  "source": "OxyControl"
+ },
+ "PenInletSupervisorDUT.Sequence": {
+  "desc": "Pump order, fewest running days first (inlet indices).",
+  "behaviour": "Written by the PLC every scan (InletSupervisor.SortSequence, stable insertion sort on Input.MotorRunningDays). Client writes: invalid entries reset it to 0,1,2; valid ones are re-sorted at once, so a client order only matters between equal running days. Used by PumpCount: start the first standby, stop the last running pump, rotation.",
+  "client": "read",
+  "unit": "",
+  "source": "InletSupervisor.SortSequence, PumpCount"
+ },
+ "PenDUT.LevelController": {
+  "desc": "LIC01 tuning and per-pump output limits.",
+  "behaviour": "Kp in total rpm per m (default 1350), Ti 60 s, Td 0. MinOutput 40 / MaxOutput 130 / SafeOutput 60 rpm per pump in REMOTE, scaled by the PLC with the number of pumps in REMOTE. SafeOutput is used when no valid level pair is left. Enabled/Override/Smoothing are not read. Retained, takes effect at once.",
+  "client": "config",
+  "unit": "see PIDConfigDUT",
+  "source": "PenLevelControl"
+ },
+ "PenDUT.OxyController": {
+  "desc": "OIC01 tuning: pen O2 to total O2 flow.",
+  "behaviour": "Kp in kg/h per mg/L (default 50), Ti 1800 s, Td 0. MinOutput 0 kg/h. MaxOutput 0 = no fixed limit; the PLC always limits to the FlowMax of the lines in auto plus the flow of active lines not in auto. Enabled/Override/Smoothing/SafeOutput are not read. Retained, immediate.",
+  "client": "config",
+  "unit": "kg/h, mg/L",
+  "source": "PenOxygenControl"
+ },
+ "OxyPumpDUT.Config": {
+  "desc": "Oxy pump speed range, preset speed and run delay (OxyPumpConfigDUT).",
+  "behaviour": "See OxyPumpConfigDUT members.",
+  "client": "config",
+  "unit": "",
+  "source": "OxyControl, OxyPumpATV650"
+ },
+ "OxyPumpConfigDUT.DriveEnabled": {
+  "desc": "Connect to the line's oxy pump drive (ATV650).",
+  "behaviour": "Default TRUE. With DriveIP and DrivePort set: OxyPump.Status.DriveConfigured TRUE and comm alarms active.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO, OxyAlarmHandling"
+ },
+ "OxyPumpConfigDUT.DriveIP": {
+  "desc": "Oxy pump drive IP.",
+  "behaviour": "0.0.0.0 = no drive. Sim 10.1.2.150, ports 5131-5133.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "OxyPumpConfigDUT.DrivePort": {
+  "desc": "Drive Modbus TCP port.",
+  "behaviour": "Default 502.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "OxyPumpConfigDUT.DriveUnitId": {
+  "desc": "Drive Modbus unit id.",
+  "behaviour": "Default 0. A change re-creates the drive channels at once.",
+  "client": "config",
+  "unit": "",
+  "source": "InletRIO"
+ },
+ "InletDUT.RIO": {
+  "desc": "The inlet station's remote I/O (Wago 750-362): settings, status and alarms (InletRIODUT).",
+  "behaviour": "Moved from GVLMain.InletRIO[i] (2026-11-05); until 2026-11-04 in GVLIO. The oxy pump drive on the same network: OxySystem[i].OxyPump.Config / Status.",
+  "client": "read",
+  "unit": "",
+  "source": "IO_Processing (InletRIO)"
  }
 }

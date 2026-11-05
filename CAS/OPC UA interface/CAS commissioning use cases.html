@@ -1,42 +1,42 @@
-<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>CAS commissioning use cases</title><style>body{font-family:system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px;color:#1f2328;background:#fff}table{border-collapse:collapse;width:100%;margin:6px 0 16px}th,td{border:1px solid #d0d7de;padding:4px 8px;vertical-align:top;font-size:13px;text-align:left}th{background:#f6f8fa}code{font-size:12px;background:#f6f8fa;padding:0 3px;border-radius:3px}.gen{color:#57606a}h2{border-top:1px solid #d0d7de;padding-top:12px}table.card td:nth-child(2){white-space:nowrap}th.settings{background:#eef6ee}th.commands{background:#fff4e5}th.status{background:#eef3fb}</style></head><body><h1>CAS (Heimdall): commissioning, system by system</h1><p class='gen'>Generated 2026-11-05, nodes checked against scaleaq/heimdall-plc 2e8ebeb 2026-11-05.</p>
-<h1>How to read this</h1><p>One card per system: the top-level branches of GVLMain to open, the settings, commands and status nodes in one table, and a short sequence to start and verify the system. Paths are relative to GVLMain and checked against the PLC program; [i] is 0-based (Inlet[0] = inlet 1). Every node&#x27;s type and behaviour: page &#x27;CAS OPC UA interface&#x27;.</p>
+<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>CAS commissioning use cases</title><style>body{font-family:system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px;color:#1f2328;background:#fff}table{border-collapse:collapse;width:100%;margin:6px 0 16px}th,td{border:1px solid #d0d7de;padding:4px 8px;vertical-align:top;font-size:13px;text-align:left}th{background:#f6f8fa}code{font-size:12px;background:#f6f8fa;padding:0 3px;border-radius:3px}.gen{color:#57606a}h2{border-top:1px solid #d0d7de;padding-top:12px}table.card td:nth-child(2){white-space:nowrap}th.settings{background:#eef6ee}th.commands{background:#fff4e5}th.status{background:#eef3fb}</style></head><body><h1>CAS (Heimdall): commissioning, system by system</h1><p class='gen'>Generated 2026-11-05, nodes checked against scaleaq/heimdall-plc b2589dd 2026-11-05.</p>
+<h1>How to read this</h1><p>One card per system: the branch of GVLMain to open, the settings, commands and status nodes in one table, and a short sequence to start and verify the system. Each system is one branch: Pen (with LIC01, OIC01 and the inlet supervisor), Inlet[i] (with its pump and the station&#x27;s remote I/O), OxySystem[i] (with its pump and valve), Outlet and CommonRIO. Paths are relative to GVLMain and checked against the PLC program; [i] is 0-based (Inlet[0] = inlet 1). Every node&#x27;s type and behaviour: page &#x27;CAS OPC UA interface&#x27;.</p>
 <h2>Commands</h2><table><tr><th>Kind</th><th>How</th></tr>
 <tr><td><b>Pulse</b></td><td>Write TRUE; the PLC clears it. All Manual / Auto, <code>Pen.Command.Start</code> / Stop / OxygenStart / OxygenStop, <code>Inlet[i].InletPump.Command.Reset</code> (cleared when the pump state changes), calibrations, <code>Outlet.Command.FaultReset</code>.</td></tr>
 <tr><td><b>Held</b></td><td>Write TRUE; the PLC holds it until the state confirms, then clears it: InletPump, OxyPump and HydraulicPump Start / Stop (in manual).</td></tr>
 <tr><td><b>Edge</b></td><td>Write TRUE, then FALSE yourself: <code>OxySystem[i].OxyPump.Command.Reset</code>, every AlarmAck bit.</td></tr>
-<tr><td><b>Value</b></td><td>Setpoints and modes: write the value, it stays (Setpoint, ManualOutput, ManualPosition, Mode).</td></tr>
+<tr><td><b>Value</b></td><td>Setpoints and modes: write the value, it stays (Setpoint, ManualOutput, ManualPosition, Mode). The controller setpoints are kept over a restart.</td></tr>
 <tr><td><b>Setting</b></td><td>Config members: retained over a restart (GVLRetain). Change only during commissioning.</td></tr>
 </table>
-<h1>Systems, in commissioning order</h1><table><tr><th>System</th><th>Open these branches</th><th>Settings</th><th>Commands</th><th>Status</th></tr>
-<tr><td><a href='#s1'>S1 Field links: remote I/O, drives, Framo</a></td><td><code>CommonRIO</code>, <code>InletRIO[i]</code>, <code>Inlet[i]</code>, <code>OxySystem[i]</code></td><td>4</td><td>0</td><td>7</td></tr>
+<h1>Systems, in commissioning order</h1><table><tr><th>System</th><th>Open</th><th>Settings</th><th>Commands</th><th>Status</th></tr>
+<tr><td><a href='#s1'>S1 Field links: overview</a></td><td><code>CommonRIO</code>, <code>Inlet[i]</code>, <code>OxySystem[i]</code></td><td>4</td><td>0</td><td>7</td></tr>
 <tr><td><a href='#s2'>S2 Instruments</a></td><td><code>Pen</code>, <code>Inlet[i]</code>, <code>OxySystem[i]</code></td><td>1</td><td>0</td><td>8</td></tr>
-<tr><td><a href='#s3'>S3 Inlet pump i (Framo)</a></td><td><code>Inlet[i]</code></td><td>5</td><td>4</td><td>5</td></tr>
-<tr><td><a href='#s4'>S4 Oxygen line i</a></td><td><code>OxySystem[i]</code></td><td>6</td><td>6</td><td>7</td></tr>
+<tr><td><a href='#s3'>S3 Inlet pump i (Framo)</a></td><td><code>Inlet[i].InletPump</code></td><td>6</td><td>4</td><td>5</td></tr>
+<tr><td><a href='#s4'>S4 Oxygen line i</a></td><td><code>OxySystem[i]</code></td><td>6</td><td>6</td><td>8</td></tr>
 <tr><td><a href='#s7'>S7 Outlet (dampers and hydraulics)</a></td><td><code>Outlet</code></td><td>3</td><td>6</td><td>3</td></tr>
-<tr><td><a href='#s5'>S5 Pen and level control (LIC01)</a></td><td><code>Pen</code>, <code>LevelController</code>, <code>PenInletSupervisor</code></td><td>4</td><td>4</td><td>7</td></tr>
-<tr><td><a href='#s6'>S6 Pen oxygen control (OIC01)</a></td><td><code>Pen</code>, <code>OxyController</code>, <code>OxySystem[i]</code></td><td>3</td><td>3</td><td>5</td></tr>
+<tr><td><a href='#s5'>S5 Pen and level control (LIC01)</a></td><td><code>Pen</code></td><td>4</td><td>4</td><td>7</td></tr>
+<tr><td><a href='#s6'>S6 Pen oxygen control (OIC01)</a></td><td><code>Pen</code>, <code>OxySystem[i]</code></td><td>2</td><td>4</td><td>5</td></tr>
 </table>
-<h2 id='s1'>S1 Field links: remote I/O, drives, Framo</h2>
-<p>Modbus TCP to CommonRIO and InletRIO 1..3 (Wago 750-362), the oxy pump drives (ATV650) behind each InletRIO, and OPC UA to the Framo pump controllers (PCC 1..3). Check these first.</p>
-<p><b>Open:</b> <code>CommonRIO</code>, <code>InletRIO[i]</code>, <code>Inlet[i]</code>, <code>OxySystem[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>CommonRIO.Alarm</code>, <code>InletRIO[i].Alarm</code></p>
+<h2 id='s1'>S1 Field links: overview</h2>
+<p>All links at a glance: Modbus TCP to CommonRIO and the three inlet stations (Wago 750-362), to the oxy pump drives (ATV650) and OPC UA to the Framo pump controllers (PCC 1..3). Each system card below has its own link status too.</p>
+<p><b>Open:</b> <code>CommonRIO</code>, <code>Inlet[i]</code>, <code>OxySystem[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>CommonRIO.Alarm</code>, <code>Inlet[i].RIO.Alarm</code></p>
 <table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
 <tr><th rowspan='4' class='settings'>Settings</th><td><code>CommonRIO.Config.IP</code></td><td>IP and Port of the common coupler</td></tr>
-<tr><td><code>InletRIO[i].Config.IP</code></td><td>coupler of inlet station i, with Port</td></tr>
-<tr><td><code>InletRIO[i].Config.DriveIP</code></td><td>oxy pump drive, with DrivePort, DriveUnitId, DriveEnabled</td></tr>
-<tr><td><code>Inlet[i].Config.FramoIP</code></td><td>Framo PCC i, with FramoPort, FramoUpdateRate</td></tr>
+<tr><td><code>Inlet[i].RIO.Config.IP</code></td><td>coupler of inlet station i, with Port</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Config.DriveIP</code></td><td>oxy pump drive, with DrivePort, DriveUnitId, DriveEnabled</td></tr>
+<tr><td><code>Inlet[i].InletPump.Config.FramoIP</code></td><td>Framo PCC i, with FramoPort, FramoUpdateRate</td></tr>
 <tr><th rowspan='1' class='commands'>Commands</th><td></td><td>none</td></tr>
 <tr><th rowspan='7' class='status'>Status</th><td><code>CommonRIO.Status.CommOK</code></td><td>link up and data fresh</td></tr>
-<tr><td><code>InletRIO[i].Status.CommOK</code></td><td>same per inlet station; DataStale = answers but no new data</td></tr>
-<tr><td><code>OxySystem[i].OxyPump.Status.CommunicationOK</code></td><td>drive link</td></tr>
+<tr><td><code>Inlet[i].RIO.Status.CommOK</code></td><td>same per inlet station; DataStale = answers but no new data</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Status.CommunicationOK</code></td><td>drive link; DriveDataStale, DriveRestarts</td></tr>
 <tr><td><code>Inlet[i].InletPump.Status.FramoConnected</code></td><td>OPC UA data source connected</td></tr>
 <tr><td><code>Inlet[i].InletPump.Status.CommunicationOK</code></td><td>Framo heartbeat answered</td></tr>
-<tr><td><code>InletRIO[i].Status.Restarts</code></td><td>link restarts; also DriveRestarts, CommonRIO.Status.Restarts, Inlet[i].InletPump.Status.FramoRestarts</td></tr>
-<tr><td><code>InletRIO[i].Status.Watchdog</code></td><td>coupler Modbus watchdog: State, Expiries</td></tr>
+<tr><td><code>Inlet[i].RIO.Status.Restarts</code></td><td>link restarts; also CommonRIO.Status.Restarts, Inlet[i].InletPump.Status.FramoRestarts</td></tr>
+<tr><td><code>Inlet[i].RIO.Status.Watchdog</code></td><td>coupler Modbus watchdog: State, Expiries</td></tr>
 </table>
 <p><b>Start and verify</b></p><ol>
-<li>Check the IP settings; 0.0.0.0 means not configured (<code>InletRIO[i].Status.MissingIP</code>).</li>
+<li>Check the IP settings; 0.0.0.0 means not configured (<code>Inlet[i].RIO.Status.MissingIP</code>).</li>
 <li>All CommOK / CommunicationOK / FramoConnected TRUE.</li>
-<li>Over a few minutes: the restart counters do not count and <code>InletRIO[i].Status.DataStale</code> stays FALSE.</li>
+<li>Over a few minutes: the restart counters do not count and <code>Inlet[i].RIO.Status.DataStale</code> stays FALSE.</li>
 </ol>
 <h2 id='s2'>S2 Instruments</h2>
 <p>Every measurement is an AnalogSensor (or DigitalSensor): .Filtered is the value in engineering units, .ScaledRaw the unfiltered value, .Status.BadQuality the quality, .Config the range and filter.</p>
@@ -48,7 +48,7 @@
 <tr><td><code>Pen.Input.AverageLevelInside.Filtered</code></td><td>pen averages: AverageLevelOutside, AverageOverHeight</td></tr>
 <tr><td><code>Pen.Input.Orbit864Sensor[i].OxygenConcentration.Filtered</code></td><td>O2 sensors; also OxygenSaturation, Temperature, Salinity</td></tr>
 <tr><td><code>Pen.Input.Orbit864Sensor[i].Status.CommOK</code></td><td>Orbit 864 on Modbus RTU</td></tr>
-<tr><td><code>Pen.Input.AverageOxygenForControl.Filtered</code></td><td>O2 used by OIC01</td></tr>
+<tr><td><code>Pen.Input.AverageOxygenInside.Filtered</code></td><td>O2 used by OIC01</td></tr>
 <tr><td><code>OxySystem[i].Input.OxyPumpPressure.Filtered</code></td><td>oxy line pressures: OxynatorOutletPressure, OxyInjectionPressure</td></tr>
 <tr><td><code>OxySystem[i].Input.OxygenFlow.Filtered</code></td><td>O2 flow per line</td></tr>
 <tr><td><code>Inlet[i].Input.LevelInsidePen.Status.BadQuality</code></td><td>quality of any sensor</td></tr>
@@ -60,21 +60,22 @@
 </ol>
 <h2 id='s3'>S3 Inlet pump i (Framo)</h2>
 <p>Framo pump controller PCC i over OPC UA. In auto the pen (S5) starts and stops it and sets its speed.</p>
-<p><b>Open:</b> <code>Inlet[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Inlet[i].InletPump.Alarm</code></p>
+<p><b>Open:</b> <code>Inlet[i].InletPump</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Inlet[i].InletPump.Alarm</code></p>
 <table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
-<tr><th rowspan='5' class='settings'>Settings</th><td><code>Inlet[i].Config.InletPumpEnable</code></td><td>takes part in the automatic pump count</td></tr>
-<tr><td><code>Inlet[i].Config.StartupTime</code></td><td>start / stop supervision, with ShutdownTime</td></tr>
-<tr><td><code>Inlet[i].Config.HeartbeatTimeout</code></td><td>link supervision, with HeartbeatInterval</td></tr>
-<tr><td><code>Inlet[i].Config.SpeedDeviationLimit</code></td><td>speed deviation alarm, with SpeedDeviationDelay</td></tr>
-<tr><td><code>Inlet[i].Config.ResetExpectedTime</code></td><td>time for a Reset to change the pump state</td></tr>
+<tr><th rowspan='6' class='settings'>Settings</th><td><code>Inlet[i].InletPump.Config.InletPumpEnable</code></td><td>takes part in the automatic pump count</td></tr>
+<tr><td><code>Inlet[i].InletPump.Config.FramoIP</code></td><td>PCC endpoint, with FramoPort, FramoUpdateRate</td></tr>
+<tr><td><code>Inlet[i].InletPump.Config.StartupTime</code></td><td>start / stop supervision, with ShutdownTime</td></tr>
+<tr><td><code>Inlet[i].InletPump.Config.HeartbeatTimeout</code></td><td>link supervision, with HeartbeatInterval</td></tr>
+<tr><td><code>Inlet[i].InletPump.Config.SpeedDeviationLimit</code></td><td>speed deviation alarm, with SpeedDeviationDelay</td></tr>
+<tr><td><code>Inlet[i].InletPump.Config.ResetExpectedTime</code></td><td>time for a Reset to change the pump state</td></tr>
 <tr><th rowspan='4' class='commands'>Commands</th><td><code>Inlet[i].InletPump.Command.Manual</code></td><td>pulse; Auto back</td></tr>
 <tr><td><code>Inlet[i].InletPump.Command.Setpoint</code></td><td>manual speed, rpm 40..130</td></tr>
 <tr><td><code>Inlet[i].InletPump.Command.Start</code></td><td>held, in manual; Stop the same</td></tr>
 <tr><td><code>Inlet[i].InletPump.Command.Reset</code></td><td>pulse, after a trip (Hold / Lockdown)</td></tr>
 <tr><th rowspan='5' class='status'>Status</th><td><code>Inlet[i].InletPump.State</code></td><td>Available 0, Starting 1, Remote 2 (running), Stopping 3, Hold 4, Lockdown 5, Unavailable 9</td></tr>
+<tr><td><code>Inlet[i].InletPump.Status.CommunicationOK</code></td><td>link: heartbeat AND FramoConnected</td></tr>
 <tr><td><code>Inlet[i].InletPump.Status.Manual</code></td><td>mode</td></tr>
 <tr><td><code>Inlet[i].InletPump.Status.ActualSpeed</code></td><td>rpm</td></tr>
-<tr><td><code>Inlet[i].InletPump.Status.CommunicationOK</code></td><td>heartbeat AND FramoConnected</td></tr>
 <tr><td><code>Inlet[i].InletPump.Input.MotorCurrent</code></td><td>also MotorPower, MotorTemperatureHH</td></tr>
 </table>
 <p><b>Start and verify</b></p><ol>
@@ -90,18 +91,19 @@
 <tr><td><code>OxySystem[i].Config.ValveOpenPressure</code></td><td>the valve may open above this pump pressure</td></tr>
 <tr><td><code>OxySystem[i].Config.PressureSetpoint</code></td><td>pressure control (PressureController)</td></tr>
 <tr><td><code>OxySystem[i].Config.FlowMax</code></td><td>max O2 flow per line (FlowController)</td></tr>
-<tr><td><code>OxySystem[i].Config.OxyPump</code></td><td>MinSpeed_Hz, MaxSpeed_Hz, PresetSpeed_Hz</td></tr>
-<tr><td><code>OxySystem[i].Config.OxyStartupTime</code></td><td>with OxyShutdownTime, ValveRampTime</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Config.MinSpeed_Hz</code></td><td>with MaxSpeed_Hz, PresetSpeed_Hz, RunDelay</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Config.DriveIP</code></td><td>drive address, with DrivePort, DriveUnitId</td></tr>
 <tr><th rowspan='6' class='commands'>Commands</th><td><code>OxySystem[i].OxyPump.Command.Manual</code></td><td>pulse; Auto back</td></tr>
 <tr><td><code>OxySystem[i].OxyPump.Command.Setpoint</code></td><td>manual speed, Hz</td></tr>
 <tr><td><code>OxySystem[i].OxyPump.Command.Start</code></td><td>held, in manual; Stop the same</td></tr>
 <tr><td><code>OxySystem[i].OxyPump.Command.Reset</code></td><td>edge: drive fault reset</td></tr>
 <tr><td><code>OxySystem[i].OxyValve.Command.Manual</code></td><td>pulse; Auto back</td></tr>
 <tr><td><code>OxySystem[i].OxyValve.Command.ManualSetpoint</code></td><td>valve %, used while permitted</td></tr>
-<tr><th rowspan='7' class='status'>Status</th><td><code>OxySystem[i].Status.State</code></td><td>Stopped 0, Starting 1, Running 2, Faulted 9</td></tr>
+<tr><th rowspan='8' class='status'>Status</th><td><code>OxySystem[i].Status.State</code></td><td>Stopped 0, Starting 1, Running 2, Faulted 9</td></tr>
 <tr><td><code>OxySystem[i].Status.ValvePermit</code></td><td>pump running and pressure above ValveOpenPressure</td></tr>
 <tr><td><code>OxySystem[i].Status.OxyFlow</code></td><td>with FlowSetpoint, OxyValvePosition, OxyPumpSpeed</td></tr>
 <tr><td><code>OxySystem[i].OxyPump.State</code></td><td>Available 0, Starting 1, Running 2, Stopping 3, Unavailable 4</td></tr>
+<tr><td><code>OxySystem[i].OxyPump.Status.CommunicationOK</code></td><td>drive link; DriveDataStale, DriveRestarts</td></tr>
 <tr><td><code>OxySystem[i].OxyPump.Status.AutoResets</code></td><td>automatic drive resets after a link fault</td></tr>
 <tr><td><code>OxySystem[i].OxyPump.Input.LastFault</code></td><td>drive fault code (LFT)</td></tr>
 <tr><td><code>OxySystem[i].Input.OxyPumpPressure.Filtered</code></td><td>pump pressure</td></tr>
@@ -112,7 +114,7 @@
 <li>Pulse OxyValve Manual, ManualSetpoint 20: OxyFlow rises. Then both back to Auto.</li>
 </ol>
 <h2 id='s7'>S7 Outlet (dampers and hydraulics)</h2>
-<p>Four cylinders open the outlet to a position per operation mode, driven by the hydraulic pump.</p>
+<p>Four cylinders open the outlet to a position per operation mode, driven by the hydraulic pump. Its I/O is on CommonRIO (link: <code>CommonRIO.Status.CommOK</code>).</p>
 <p><b>Open:</b> <code>Outlet</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Outlet.Alarm</code>, <code>Outlet.Cylinder[i].Alarm</code>, <code>Outlet.HydraulicPump.Alarm</code></p>
 <table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
 <tr><th rowspan='3' class='settings'>Settings</th><td><code>Outlet.Config.ModePosition</code></td><td>opening per mode O35, O45, O60, S75 (%)</td></tr>
@@ -135,59 +137,63 @@
 </ol>
 <h2 id='s5'>S5 Pen and level control (LIC01)</h2>
 <p>The pen sequence starts the inlet pumps in auto, shares the speed between them and keeps the level at the setpoint (LIC01). Needs S1 and S3 with the pumps in auto.</p>
-<p><b>Open:</b> <code>Pen</code>, <code>LevelController</code>, <code>PenInletSupervisor</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Pen.Alarm</code>, <code>LevelController.Alarm</code></p>
+<p><b>Open:</b> <code>Pen</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Pen.Alarm</code>, <code>Pen.LevelController.Alarm</code></p>
 <table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
-<tr><th rowspan='4' class='settings'>Settings</th><td><code>Pen.Config.LevelController</code></td><td>Kp, Ti, MinOutput, MaxOutput, SafeOutput</td></tr>
+<tr><th rowspan='4' class='settings'>Settings</th><td><code>Pen.LevelController.Config</code></td><td>Kp, Ti, MinOutput, MaxOutput, SafeOutput</td></tr>
 <tr><td><code>Pen.Config.PumpAddSpeed</code></td><td>pump count: PumpTargetSpeed, PumpAddDelay, PumpRemoveDelay</td></tr>
 <tr><td><code>Pen.Config.PumpCycleTime</code></td><td>rotation</td></tr>
 <tr><td><code>Pen.Config.LevelDeviationLimit</code></td><td>with LevelDeviationDelay</td></tr>
-<tr><th rowspan='4' class='commands'>Commands</th><td><code>Pen.Command.LevelSetpoint</code></td><td>value, m</td></tr>
+<tr><th rowspan='4' class='commands'>Commands</th><td><code>Pen.LevelController.Command.Setpoint</code></td><td>value, m; kept over a restart</td></tr>
 <tr><td><code>Pen.Command.Start</code></td><td>pulse; Stop the same</td></tr>
-<tr><td><code>LevelController.Command.Manual</code></td><td>pulse; Auto back</td></tr>
-<tr><td><code>LevelController.Command.ManualOutput</code></td><td>rpm per pump, in manual</td></tr>
+<tr><td><code>Pen.LevelController.Command.Manual</code></td><td>pulse; Auto back</td></tr>
+<tr><td><code>Pen.LevelController.Command.ManualOutput</code></td><td>rpm per pump, in manual</td></tr>
 <tr><th rowspan='7' class='status'>Status</th><td><code>Pen.Status.State</code></td><td>Stopped 0, Starting 1, Running 2, Stopping 3</td></tr>
 <tr><td><code>Pen.Status.Ready</code></td><td>start allowed; PumpReady: a pump can start</td></tr>
 <tr><td><code>Pen.Status.CommandRejected</code></td><td>last command did not fit the state</td></tr>
-<tr><td><code>Pen.Status.OverHeight</code></td><td>level inside minus outside</td></tr>
-<tr><td><code>LevelController.Input.ProcessValue</code></td><td>with Setpoint, LimitsActive</td></tr>
-<tr><td><code>LevelController.Output.OUT</code></td><td>speed share</td></tr>
-<tr><td><code>PenInletSupervisor.PumpsWanted</code></td><td>with NumberOfInletsRunning, NumberOfInletsInAuto</td></tr>
+<tr><td><code>Pen.LevelController.Input.ProcessValue</code></td><td>over-height; with Setpoint, LimitsActive</td></tr>
+<tr><td><code>Pen.LevelController.Output.OUT</code></td><td>total speed</td></tr>
+<tr><td><code>Pen.LevelController.Status.Manual</code></td><td>mode</td></tr>
+<tr><td><code>Pen.InletSupervisor.PumpsWanted</code></td><td>with NumberOfInletsRunning, AutoSpeedSetpoint (per pump)</td></tr>
 </table>
 <p><b>Start and verify</b></p><ol>
-<li>Pumps in auto with <code>Inlet[i].Config.InletPumpEnable</code>; <code>Pen.Status.Ready</code> TRUE.</li>
-<li>Write LevelSetpoint, pulse Start: State 1 then 2, pumps start one by one.</li>
+<li>Pumps in auto with <code>Inlet[i].InletPump.Config.InletPumpEnable</code>; <code>Pen.Status.Ready</code> TRUE.</li>
+<li>Write <code>Pen.LevelController.Command.Setpoint</code>, pulse Start: State 1 then 2, pumps start one by one.</li>
 <li>ProcessValue settles at Setpoint; PumpsWanted follows the load. Stop: State 3 then 0.</li>
 </ol>
 <h2 id='s6'>S6 Pen oxygen control (OIC01)</h2>
 <p>Controls the pen O2 to its setpoint by sharing the O2 flow over the lines in auto. Needs S2 (O2 sensors), S4 and the pen running (S5).</p>
-<p><b>Open:</b> <code>Pen</code>, <code>OxyController</code>, <code>OxySystem[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>OxyController.Alarm</code></p>
+<p><b>Open:</b> <code>Pen</code>, <code>OxySystem[i]</code>&nbsp;&nbsp; <b>Alarms:</b> <code>Pen.OxyController.Alarm</code></p>
 <table class='card'><tr><th></th><th>Node</th><th>What</th></tr>
-<tr><th rowspan='3' class='settings'>Settings</th><td><code>Pen.Config.OxySetpoint</code></td><td>mg/L</td></tr>
-<tr><td><code>Pen.Config.OxyController</code></td><td>Kp, Ti, MinOutput, MaxOutput</td></tr>
+<tr><th rowspan='2' class='settings'>Settings</th><td><code>Pen.OxyController.Config</code></td><td>Kp, Ti, MinOutput, MaxOutput</td></tr>
 <tr><td><code>Pen.Input.Orbit864Sensor[i].Config.EnableForAutoControl</code></td><td>sensor used for the control value</td></tr>
-<tr><th rowspan='3' class='commands'>Commands</th><td><code>Pen.Command.OxygenStart</code></td><td>pulse; OxygenStop the same</td></tr>
-<tr><td><code>OxyController.Command.Manual</code></td><td>pulse; Auto back</td></tr>
-<tr><td><code>OxyController.Command.ManualOutput</code></td><td>total O2 flow kg/h, in manual</td></tr>
+<tr><th rowspan='4' class='commands'>Commands</th><td><code>Pen.OxyController.Command.Setpoint</code></td><td>mg/L; kept over a restart</td></tr>
+<tr><td><code>Pen.Command.OxygenStart</code></td><td>pulse; OxygenStop the same</td></tr>
+<tr><td><code>Pen.OxyController.Command.Manual</code></td><td>pulse; Auto back</td></tr>
+<tr><td><code>Pen.OxyController.Command.ManualOutput</code></td><td>total O2 flow kg/h, in manual</td></tr>
 <tr><th rowspan='5' class='status'>Status</th><td><code>Pen.Status.OxygenOn</code></td><td>oxygenation started</td></tr>
 <tr><td><code>Pen.Status.OxyControlOK</code></td><td>control value valid</td></tr>
-<tr><td><code>Pen.Input.AverageOxygenForControl.Filtered</code></td><td>control value</td></tr>
-<tr><td><code>OxyController.Output.OUT</code></td><td>total O2 flow</td></tr>
+<tr><td><code>Pen.OxyController.Input.ProcessValue</code></td><td>mean O2 of the sensors for control</td></tr>
+<tr><td><code>Pen.OxyController.Output.OUT</code></td><td>total O2 flow</td></tr>
 <tr><td><code>OxySystem[i].Status.InAuto</code></td><td>line follows OIC01; FlowSetpoint per line</td></tr>
 </table>
 <p><b>Start and verify</b></p><ol>
 <li>Pen running, lines with Config.Enable and pump and valve in auto.</li>
 <li>Pulse OxygenStart: OxygenOn TRUE, lines Running (<code>OxySystem[i].Status.State</code> 2).</li>
-<li>AverageOxygenForControl moves toward OxySetpoint; OxygenStop closes the valves.</li>
+<li>ProcessValue moves toward <code>Pen.OxyController.Command.Setpoint</code>; OxygenStop closes the valves.</li>
 </ol>
-<h1>Suggestions for node placement</h1><p>Changes to the PLC's node structure that would let one system be started and verified in one branch. Not implemented; a proposal for the PLC project. Proposed paths do not exist yet.</p><table><tr><th>#</th><th>Now</th><th>Proposal</th><th>Why</th></tr>
-<tr><td>1</td><td><code>InletRIO[i]</code> top level, next to <code>Inlet[i]</code> and <code>OxySystem[i]</code></td><td><code>Inlet[i].RIO</code> (or keep the array, but name it after the station)</td><td>Inlet station i is one cabinet: its coupler, oxy pump drive link and the inlet sensors. Starting an inlet now needs three branches.</td></tr>
-<tr><td>2</td><td>Drive link status in <code>InletRIO[i].Status.DriveDataStale</code> / DriveRestarts</td><td><code>OxySystem[i].OxyPump.Status</code> (next to CommunicationOK and AutoResets)</td><td>Everything about the oxy pump drive in one place.</td></tr>
-<tr><td>3</td><td><code>LevelController</code> and <code>OxyController</code> top level, their settings in <code>Pen.Config.LevelController</code> / <code>Pen.Config.OxyController</code></td><td><code>Pen.LevelController</code> and <code>Pen.OxyController</code>, settings in their own .Config</td><td>LIC01 / OIC01 belong to the pen. <code>LevelController.Config</code> and <code>OxyController.Config</code> exist as well, but no reference to them was found in the program: two places for the same gains.</td></tr>
-<tr><td>4</td><td><code>PenInletSupervisor</code> top level and <code>Pen.InletSupervisor</code></td><td>keep <code>Pen.InletSupervisor</code> only (and <code>InletSequence</code> inside it)</td><td>Same type twice; no reference to <code>Pen.InletSupervisor</code> was found in the program.</td></tr>
-<tr><td>5</td><td><code>Pen.Input.OxyConcentration[i]</code>, OxySaturation[i], Temperature[i], Salinity[i], TotalDissolvedSolids[i], Depth[i]</td><td>remove; the values are in <code>Pen.Input.Orbit864Sensor[i]</code></td><td>No reference found in the program; a client reading them gets zeros.</td></tr>
-<tr><td>6</td><td><code>Pen.Command.InitModbusRTU</code> / <code>Pen.Status.ModbusRTUInitialised</code></td><td><code>CommonRIO.Command</code> / <code>CommonRIO.Status</code> (the RTU settings are already in <code>CommonRIO.Config</code>)</td><td>The serial bus to the Orbit sensors is CommonRIO&#x27;s, not the pen&#x27;s.</td></tr>
-<tr><td>7</td><td><code>Inlet[i].InletPump.Input</code> holds Start, Stop, Reset, VelocitySetpoint, HeartbeatToggle</td><td>only measurements in Input; the outgoing signals in <code>Inlet[i].InletPump.InternalCommand</code> (already exists)</td><td>Input reads like &#x27;from the field&#x27;; commands there are easy to write by mistake.</td></tr>
-<tr><td>8</td><td><code>OxySystem[i].OxyValve.Command.AutoSetpoint</code> / Open / Close / SuppressAlarms written by the PLC</td><td>an InternalCommand branch as for the inlet pump; Command for the operator only</td><td>An operator writing AutoSetpoint is overwritten or fights the controller (GEN-13).</td></tr>
-<tr><td>9</td><td>Mains / battery inputs in both <code>Pen.Input</code> and <code>Inlet[i].Input</code> (MainCircuitBreakerTripped, BackupPowerOn, BatteryFault)</td><td>one place: the cabinet they are wired in (inlet station i)</td><td>Two nodes for one signal; the Pen copies are not filled.</td></tr>
-<tr><td>10</td><td><code>EmergencyStop</code> (BOOL, not implemented) top level</td><td>remove</td><td>A node that never changes looks like a healthy signal (GEN-12).</td></tr>
+<h1>Moved nodes (2026-11)</h1><p>The PLC&#x27;s node structure was changed on 2026-11-05 so that each system is one branch. Where a node used to be, and where it is now:</p><table><tr><th>Old path</th><th>New path</th></tr>
+<tr><td>InletRIO[i]</td><td><code>Inlet[i].RIO</code></td></tr>
+<tr><td>InletRIO[i].Status.DriveDataStale / DriveRestarts / DriveChannelError</td><td><code>OxySystem[i].OxyPump.Status.DriveDataStale</code> / DriveRestarts / DriveChannelError</td></tr>
+<tr><td>InletRIO[i].Config.DriveIP / DrivePort / DriveUnitId / DriveEnabled</td><td><code>OxySystem[i].OxyPump.Config.DriveIP</code> etc.</td></tr>
+<tr><td>OxySystem[i].Config.OxyPump</td><td><code>OxySystem[i].OxyPump.Config</code></td></tr>
+<tr><td>Inlet[i].Config</td><td><code>Inlet[i].InletPump.Config</code></td></tr>
+<tr><td>LevelController, OxyController</td><td><code>Pen.LevelController</code>, <code>Pen.OxyController</code></td></tr>
+<tr><td>Pen.Config.LevelController, Pen.Config.OxyController</td><td><code>Pen.LevelController.Config</code>, <code>Pen.OxyController.Config</code></td></tr>
+<tr><td>Pen.Command.LevelSetpoint</td><td><code>Pen.LevelController.Command.Setpoint</code></td></tr>
+<tr><td>Pen.Config.OxySetpoint</td><td><code>Pen.OxyController.Command.Setpoint</code></td></tr>
+<tr><td>PenInletSupervisor, InletSequence</td><td><code>Pen.InletSupervisor</code>, <code>Pen.InletSupervisor.Sequence</code></td></tr>
+<tr><td>OxySystem[i].OxyValve.Command.AutoSetpoint</td><td><code>OxySystem[i].OxyValve.InternalCommand.AutoSetpoint</code> (PLC only)</td></tr>
+<tr><td>Pen.Input.BackupPowerOn (and the other mains / battery copies)</td><td><code>Inlet[0].Input.BackupPowerOn</code> (per cabinet)</td></tr>
+<tr><td>Pen.Input.OxyConcentration[i], OxySaturation[i], Temperature[i], Salinity[i], ...</td><td><code>Pen.Input.Orbit864Sensor[i]</code> (OxygenConcentration, OxygenSaturation, ...)</td></tr>
+<tr><td>Removed (never used): EmergencyStop, Pen.Command.InitModbusRTU, Pen.Status.ModbusRTUInitialised, Inlet[i].Alarm level alarms per transmitter, InletRIO FuseError / PowerSupplyError, Outlet.Status.EstimatedFlow, Pen.Input.AverageOxygenForControl, InletPump Status / Output Heartbeat, Inlet[i].BilgePump</td><td>-</td></tr>
 </table></body></html>

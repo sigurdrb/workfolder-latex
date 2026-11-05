@@ -1,4 +1,4 @@
-<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>CAS OPC UA interface</title><style>body{font-family:system-ui,sans-serif;max-width:1200px;margin:24px auto;padding:0 16px;color:#1f2328;background:#fff}table{border-collapse:collapse;width:100%;margin:8px 0 20px}th,td{border:1px solid #d0d7de;padding:4px 8px;vertical-align:top;font-size:13px;text-align:left}th{background:#f6f8fa}tr.write td:nth-child(3){color:#0969da;font-weight:600}tr.config td:nth-child(3){color:#9a6700}tr.internal td:nth-child(3){color:#cf222e}.gen{color:#57606a}h2{border-top:1px solid #d0d7de;padding-top:12px}</style></head><body><h1>CAS (Heimdall) PLC: OPC UA interface</h1><p class='gen'>Generated 2026-11-05 from scaleaq/heimdall-plc 2e8ebeb 2026-11-05 HEAD, origin/main, origin/HEAD, application pfc200_sim.</p>
+<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>CAS OPC UA interface</title><style>body{font-family:system-ui,sans-serif;max-width:1200px;margin:24px auto;padding:0 16px;color:#1f2328;background:#fff}table{border-collapse:collapse;width:100%;margin:8px 0 20px}th,td{border:1px solid #d0d7de;padding:4px 8px;vertical-align:top;font-size:13px;text-align:left}th{background:#f6f8fa}tr.write td:nth-child(3){color:#0969da;font-weight:600}tr.config td:nth-child(3){color:#9a6700}tr.internal td:nth-child(3){color:#cf222e}.gen{color:#57606a}h2{border-top:1px solid #d0d7de;padding-top:12px}</style></head><body><h1>CAS (Heimdall) PLC: OPC UA interface</h1><p class='gen'>Generated 2026-11-05 from scaleaq/heimdall-plc b2589dd 2026-11-05 HEAD, origin/inletControl, application pfc200_sim.</p>
 <h1>How to use this page</h1>
 <p><b>What this page is.</b> The variables the CAS (Heimdall) PLC publishes on its OPC UA server: every node, its data type, and what it does when you read or write it. It is generated from the CODESYS project (scaleaq/heimdall-plc) and the notes in workfolder-latex/CAS/OPC UA interface, so it follows the program. Do not edit the page by hand: change notes.json or the PLC and regenerate.</p>
 <p><b>Address space.</b> The server publishes the application&#x27;s Symbol Configuration. Node ids are CODESYS string ids, ns=4;s=|var|&lt;device&gt;.Application.&lt;GVL&gt;.&lt;path&gt;, e.g. ...Application.GVLMain.Inlet[0].InletPump.Command.Reset. Device name and namespace index differ between PLCs: find GVLMain by browsing once per session. Clients use GVLMain (plant, commands, settings, and since 2026-11 the remote I/O link status and alarms that were in GVLIO: InletRIO[i], CommonRIO). It is exported whole, so every member below is a node. The real PLC needs a user login (no anonymous access).</p>
@@ -11,16 +11,10 @@
 <h1>Root nodes</h1>
 <table><tr><th>GVL</th><th>Node</th><th>Type</th><th>Access</th><th>Description</th></tr>
 <tr><td>GVLMain</td><td><b>Pen</b></td><td><a href="#PenDUT">PenDUT</a></td><td>read/write</td><td>The pen (fish tank) as a whole: commands Start/Stop/OxygenStart/OxygenStop and level setpoint, pen state, level and O2 process values, pen alarms and the Orbit 864 sensors. Owned by InletSupervisor (PenSequence, PenLevelControl, PenOxygenControl) and PenControl.</td></tr>
-<tr><td>GVLMain</td><td><b>PenInletSupervisor</b></td><td><a href="#PenInletSupervisorDUT">PenInletSupervisorDUT</a></td><td>read/write</td><td>Read-only summary of the inlet supervision (GVLMain.PenInletSupervisor): pump counts, LIC01 share per pump, pumps wanted, rotation. Written by InletSupervisor.</td></tr>
 <tr><td>GVLMain</td><td><b>Inlet</b></td><td>ARRAY[0..2] OF <a href="#InletDUT">InletDUT</a></td><td>read/write</td><td>One inlet station i (0..2): Framo inlet pump, level transmitters inside/outside, power supply inputs, vacuum system and bilge inputs. Owned by InletControl[i]; inputs from InletRIO[i] and FramoDataProcessing.</td></tr>
-<tr><td>GVLMain</td><td><b>InletSequence</b></td><td>ARRAY[0..2] OF UINT</td><td>read/write</td><td>Pump order, fewest running days first (inlet indices). Written by the PLC every scan (InletSupervisor.SortSequence, stable insertion sort on Input.MotorRunningDays). Client writes: invalid entries reset it to 0,1,2; valid ones are re-sorted at once, so a client order only matters between equal running days. Used by PumpCount: start the first standby, stop the last running pump, rotation.</td></tr>
 <tr><td>GVLMain</td><td><b>Outlet</b></td><td><a href="#OutletDUT">OutletDUT</a></td><td>read/write</td><td>Outlet: four hydraulic cylinders that set the outlet opening, a common setpoint by operation mode, the hydraulic pump and the emergency stop. Owned by OutletControl; I/O through CommonRIO.</td></tr>
 <tr><td>GVLMain</td><td><b>OxySystem</b></td><td>ARRAY[0..2] OF <a href="#OxySystemDUT">OxySystemDUT</a></td><td>read/write</td><td>One oxygen line i (0..2): oxy pump (ATV650 drive), O2 valve, line sensors, status and alarm ValvePressureLow. Owned by OxyControl[i]; I/O through InletRIO[i] and CommonRIO.</td></tr>
-<tr><td>GVLMain</td><td><b>EmergencyStop</b></td><td>BOOL</td><td>read/write</td><td>Global emergency stop flag. Not implemented. Declared &#x27;not implemented&#x27;; no reader or writer found. The oxy lines use OxySystem[i].Input.EmergencyStop (also never written), the outlet uses its own emergency switch.</td></tr>
-<tr><td>GVLMain</td><td><b>LevelController</b></td><td><a href="#PIDControllerDUT">PIDControllerDUT</a></td><td>read/write</td><td>Operator interface of a pen controller: GVLMain.LevelController (LIC01, PenLevelControl) and GVLMain.OxyController (OIC01, PenOxygenControl). Command and Status.Manual are used; Config is NOT used (tuning is in Pen.Config.LevelController / OxyController).</td></tr>
-<tr><td>GVLMain</td><td><b>OxyController</b></td><td><a href="#PIDControllerDUT">PIDControllerDUT</a></td><td>read/write</td><td>Operator interface of a pen controller: GVLMain.LevelController (LIC01, PenLevelControl) and GVLMain.OxyController (OIC01, PenOxygenControl). Command and Status.Manual are used; Config is NOT used (tuning is in Pen.Config.LevelController / OxyController).</td></tr>
 <tr><td>GVLMain</td><td><b>CommonRIO</b></td><td><a href="#CommonRIODUT">CommonRIODUT</a></td><td>read/write</td><td>Common RIO status and alarms (CommonRIODUT). Moved from GVLIO 2026-11; settings in CommonRIO.Config.</td></tr>
-<tr><td>GVLMain</td><td><b>InletRIO</b></td><td>ARRAY[0..2] OF <a href="#InletRIODUT">InletRIODUT</a></td><td>read/write</td><td>Inlet RIO status and alarms per inlet (InletRIODUT). Moved from GVLIO 2026-11; settings in InletRIO[i].Config.</td></tr>
 </table>
 <h1>Structures</h1>
 <h2 id='PenDUT'>PenDUT</h2>
@@ -34,6 +28,8 @@
 <tr class='read'><td><b>Output</b></td><td><a href="#PenOutputDUT">PenOutputDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>Status</b></td><td><a href="#PenStatusDUT">PenStatusDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='internal'><td><b>InletSupervisor</b></td><td><a href="#PenInletSupervisorDUT">PenInletSupervisorDUT</a></td><td></td><td>Unused; read GVLMain.PenInletSupervisor instead.</td><td></td></tr>
+<tr class='config'><td><b>LevelController</b></td><td><a href="#PIDControllerDUT">PIDControllerDUT</a></td><td></td><td>LIC01 tuning and per-pump output limits. [see PIDConfigDUT]</td><td>Kp in total rpm per m (default 1350), Ti 60 s, Td 0. MinOutput 40 / MaxOutput 130 / SafeOutput 60 rpm per pump in REMOTE, scaled by the PLC with the number of pumps in REMOTE. SafeOutput is used when no valid level pair is left. Enabled/Override/Smoothing are not read. Retained, takes effect at once.</td></tr>
+<tr class='config'><td><b>OxyController</b></td><td><a href="#PIDControllerDUT">PIDControllerDUT</a></td><td></td><td>OIC01 tuning: pen O2 to total O2 flow. [kg/h, mg/L]</td><td>Kp in kg/h per mg/L (default 50), Ti 1800 s, Td 0. MinOutput 0 kg/h. MaxOutput 0 = no fixed limit; the PLC always limits to the FlowMax of the lines in auto plus the flow of active lines not in auto. Enabled/Override/Smoothing/SafeOutput are not read. Retained, immediate.</td></tr>
 </table>
 <h2 id='PenAlarmDUT'>PenAlarmDUT</h2>
 <p>Pen alarms LevelMeasurementLost (PenControl), LevelDeviationHigh/Low (PenLevelControl).</p>
@@ -51,20 +47,14 @@
 <h2 id='PenCommandDUT'>PenCommandDUT</h2>
 <p>Operator commands for the pen (GVLMain.Pen.Command). Read by PenSequence (Start/Stop/OxygenStart/OxygenStop, pulses cleared there) and PenLevelControl (LevelSetpoint).</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='write'><td><b>InitModbusRTU</b></td><td>BOOL</td><td>Command (client writes)</td><td>Intended to force Modbus RTU re-initialisation. Not implemented.</td><td>No reader found in the pfc200_sim application. Writing it has no effect. Note: Orbit 864 slave addresses are read only at start-up.</td></tr>
 <tr class='write'><td><b>Start</b></td><td>BOOL</td><td>Command (client writes)</td><td>Start the pen (water): start all enabled inlet pumps in auto.</td><td>Pulse, cleared by PenSequence in the same scan. Accepted only in State Stopped with Status.Ready (an enabled pump in auto is Available AND a valid level pair). Then State -&gt; Starting, PumpCount starts all candidates (InletPumpEnable, auto, not Unavailable/Lockdown), LIC01 tracks, then Running when a pump is in REMOTE. Ignored without rejection when already Starting/Running; otherwise CommandRejected := TRUE. Stop in the same scan wins.</td></tr>
 <tr class='write'><td><b>Stop</b></td><td>BOOL</td><td>Command (client writes)</td><td>Stop the pen: pumps in auto stop, oxygenation off.</td><td>Pulse, cleared in the same scan. From Starting or Running: State -&gt; Stopping, then Stopped when no pump is counted. Always sets Status.OxygenOn := FALSE (oxygen lines stop) and clears CommandRejected. All inlet pumps in auto get AutoStop; pumps in manual are not stopped. Has priority over Start.</td></tr>
 <tr class='write'><td><b>OxygenStart</b></td><td>BOOL</td><td>Command (client writes)</td><td>Oxygenation on: enabled oxygen lines follow their inlet pumps.</td><td>Pulse, cleared in the same scan. Accepted while State is Starting or Running (evaluated after Start, so Start + OxygenStart together works): Status.OxygenOn := TRUE. Else CommandRejected := TRUE. A line then starts its oxy pump when OxySystem[i].Config.Enable and its inlet pump is in REMOTE with a live link (OxyPermit). OxygenStop in the same scan wins.</td></tr>
 <tr class='write'><td><b>OxygenStop</b></td><td>BOOL</td><td>Command (client writes)</td><td>Oxygenation off for the pen.</td><td>Pulse, cleared in the same scan. Always accepted: Status.OxygenOn := FALSE, CommandRejected := FALSE. Oxygen lines in auto stop their oxy pumps and close their valves; oxy pumps in manual keep running but their valves close (no OxygenationActive).</td></tr>
-<tr class='write'><td><b>LevelSetpoint</b></td><td>REAL</td><td>Command (client writes)</td><td>LIC01 setpoint: wanted over-height of the pen level above the outside level. [m]</td><td>Level value, read every scan by PenLevelControl; used in Auto and for the level deviation alarms. Retained through GVLRetain.LevelSetpoint (default 0.06 m). The PLC overwrites it: when LIC01 goes from manual to auto with pumps in REMOTE and a valid level, the setpoint is set to the current over-height (bumpless transfer); the new value is then retained.</td></tr>
 </table>
 <h2 id='PenConfigDUT'>PenConfigDUT</h2>
 <p>Pen tuning: LIC01 level controller, OIC01 oxygen controller and O2 setpoint, level deviation alarms, automatic pump count and rotation. Retained (GVLRetain.PenConfig). Read by InletSupervisor (PenLevelControl, PenOxygenControl, PumpCount).</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='config'><td><b>LevelController</b></td><td><a href="#PIDConfigDUT">PIDConfigDUT</a></td><td></td><td>LIC01 tuning and per-pump output limits. [see PIDConfigDUT]</td><td>Kp in total rpm per m (default 1350), Ti 60 s, Td 0. MinOutput 40 / MaxOutput 130 / SafeOutput 60 rpm per pump in REMOTE, scaled by the PLC with the number of pumps in REMOTE. SafeOutput is used when no valid level pair is left. Enabled/Override/Smoothing are not read. Retained, takes effect at once.</td></tr>
-<tr class='config'><td><b>NumberOfInletsToRun</b></td><td>USINT</td><td>Setting (client may change)</td><td>Not implemented.</td><td>No reader. The pump count is automatic (PumpTargetSpeed/PumpAddSpeed).</td></tr>
-<tr class='config'><td><b>OxyController</b></td><td><a href="#PIDConfigDUT">PIDConfigDUT</a></td><td></td><td>OIC01 tuning: pen O2 to total O2 flow. [kg/h, mg/L]</td><td>Kp in kg/h per mg/L (default 50), Ti 1800 s, Td 0. MinOutput 0 kg/h. MaxOutput 0 = no fixed limit; the PLC always limits to the FlowMax of the lines in auto plus the flow of active lines not in auto. Enabled/Override/Smoothing/SafeOutput are not read. Retained, immediate.</td></tr>
-<tr class='config'><td><b>OxySetpoint</b></td><td>REAL</td><td>Setting (client may change)</td><td>Pen O2 setpoint for OIC01. [mg/L]</td><td>Default 8.0 mg/L, retained. Written by the PLC too: on OIC01 manual -&gt; auto with a good O2 measurement it is set to the current pen O2 (bumpless). Default 8.0.</td></tr>
 <tr class='config'><td><b>LevelDeviationLimit</b></td><td>REAL</td><td>Setting (client may change)</td><td>Level deviation alarm band either side of the setpoint. [m]</td><td>Default 0.02 m; 0 = alarms off. Active only with LIC01 in Auto. Default 0.02.</td></tr>
 <tr class='config'><td><b>LevelDeviationDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>Delay of the level deviation alarms. [time]</td><td>Default 5 min. Default T#5M.</td></tr>
 <tr class='config'><td><b>PumpTargetSpeed</b></td><td>REAL</td><td>Setting (client may change)</td><td>Stop a pump when the others would run at or below this speed. [rpm]</td><td>Default 85 rpm; 0 = never stop. Evaluated with pen started, LIC01 in Auto, all candidate pumps settled, no rotation, at least 2 counted pumps: Total/(pumps-1) &lt;= this for PumpRemoveDelay. The pump with most running days stops. Default 85.</td></tr>
@@ -73,60 +63,19 @@
 <tr class='config'><td><b>PumpAddDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>How long the start condition must hold. [time]</td><td>Default 2 min. Default T#2M.</td></tr>
 <tr class='config'><td><b>PumpCycleTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Run time in REMOTE before a standby pump takes over. [time]</td><td>Default 24 h; 0 = no rotation. The standby starts first; the old pump stops when the standby reaches REMOTE (PenInletSupervisor.PumpRotationActive meanwhile). Default T#24H.</td></tr>
 </table>
-<h2 id='PIDConfigDUT'>PIDConfigDUT</h2>
-<p>Controller tuning. Used in Pen.Config.LevelController (LIC01), Pen.Config.OxyController (OIC01), OxySystem[i].Config.PressureController (PIC) and FlowController (FIC). Not used inside GVLMain.LevelController/OxyController.</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='config'><td><b>Enabled</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Controller enabled (oxy line PIC/FIC only).</td><td>Read only for OxySystem[i].Config.PressureController and FlowController. Not read for LIC01/OIC01.</td></tr>
-<tr class='config'><td><b>Override</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Not implemented.</td><td>No reader in the active code; Smoothing likewise.</td></tr>
-<tr class='config'><td><b>Kp</b></td><td>REAL</td><td>Setting (client may change)</td><td>Proportional gain. [per loop]</td><td>Units per loop: LIC01 total rpm per m, OIC01 kg/h per mg/L, PIC Hz per bar, FIC % per kg/h. Immediate.</td></tr>
-<tr class='config'><td><b>Ti</b></td><td>REAL</td><td>Setting (client may change)</td><td>Integral time. [s]</td><td>Seconds (Util.PID TN).</td></tr>
-<tr class='config'><td><b>Td</b></td><td>REAL</td><td>Setting (client may change)</td><td>Derivative time; 0 = PI. [s]</td><td></td></tr>
-<tr class='config'><td><b>MinOutput</b></td><td>REAL</td><td>Setting (client may change)</td><td>Lower output limit (LIC01 per pump rpm, OIC01 kg/h). [per loop]</td><td>Not read for the oxy line PIC/FIC.</td></tr>
-<tr class='config'><td><b>MaxOutput</b></td><td>REAL</td><td>Setting (client may change)</td><td>Upper output limit (LIC01 per pump rpm, OIC01 kg/h, 0 = capacity). [per loop]</td><td>Not read for the oxy line PIC/FIC.</td></tr>
-<tr class='config'><td><b>SafeOutput</b></td><td>REAL</td><td>Setting (client may change)</td><td>LIC01 speed per pump when no valid level pair is left. [rpm]</td><td>Only read for LIC01 (mode SafeOutput), limited to Min/MaxOutput.</td></tr>
-<tr class='config'><td><b>Smoothing</b></td><td>REAL</td><td>Setting (client may change)</td><td></td><td></td></tr>
-</table>
 <h2 id='PenInputDUT'>PenInputDUT</h2>
 <p>Pen measurements: Orbit 864 O2 sensors, CO2/TGP analog inputs and calculated averages (over-height, O2). Written by CommonRIO, ModbusRTUData and PenControl.Sensors.</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>FieldPower24VTripped</b></td><td><a href="#DigitalSensorDUT">DigitalSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>FieldPower24VHighLoad</b></td><td><a href="#DigitalSensorDUT">DigitalSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>MainCircuitBreakerTripped</b></td><td><a href="#DigitalSensorDUT">DigitalSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>BackupPowerOn</b></td><td><a href="#DigitalSensorDUT">DigitalSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>BatteryFault</b></td><td><a href="#DigitalSensorDUT">DigitalSensorDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>Turbidity</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td>utgår?</td><td></td></tr>
 <tr class='read'><td><b>CO2</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>pH</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td>utgår?</td><td></td></tr>
 <tr class='read'><td><b>TotalGasPressure</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>OxySaturation</b></td><td>ARRAY[0..5] OF <a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>OxyConcentration</b></td><td>ARRAY[0..5] OF <a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Temperature</b></td><td>ARRAY[0..5] OF <a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Salinity</b></td><td>ARRAY[0..5] OF <a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>TotalDissolvedSolids</b></td><td>ARRAY[0..5] OF <a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Depth</b></td><td>ARRAY[0..5] OF <a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>Orbit864Sensor</b></td><td>ARRAY[0..5] OF <a href="#Orbit864SensorDUT">Orbit864SensorDUT</a></td><td></td><td>Six Orbit 864 sensors; 0-2 inside the pen (control).</td><td></td></tr>
 <tr class='read'><td><b>AverageLevelInside</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td>Mean of filtered inside levels, display only. [m]</td><td>AverageLevelOutside likewise.</td></tr>
 <tr class='read'><td><b>AverageLevelOutside</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>AverageOverHeight</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td>Mean over-height of valid level pairs (Filtered, BadQuality). [m]</td><td></td></tr>
 <tr class='read'><td><b>AverageOxygenInside</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td>Mean O2 of sensors with EnableForAutoControl. [mg/L]</td><td>BadQuality when none is good.</td></tr>
 <tr class='read'><td><b>AverageOxygenSaturationInside</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td>Mean O2 saturation of the same sensors, display only. [%]</td><td></td></tr>
-<tr class='read'><td><b>AverageOxygenForControl</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td>No writer found.</td><td>Use AverageOxygenInside. OxySaturation[], OxyConcentration[], Temperature[], Salinity[], TotalDissolvedSolids[], Depth[] arrays and Turbidity/pH have no source either; use Orbit864Sensor[i].</td></tr>
-</table>
-<h2 id='DigitalSensorDUT'>DigitalSensorDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>Config</b></td><td><a href="#DigitalSensorConfigDUT">DigitalSensorConfigDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Input</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>Status</b></td><td><a href="#DigitalSensorStatusDUT">DigitalSensorStatusDUT</a></td><td></td><td></td><td></td></tr>
-</table>
-<h2 id='DigitalSensorConfigDUT'>DigitalSensorConfigDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='config'><td><b>AlarmDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#0S.</td></tr>
-<tr class='config'><td><b>AlarmEnabled</b></td><td>BOOL</td><td>Setting (client may change)</td><td></td><td></td></tr>
-</table>
-<h2 id='DigitalSensorStatusDUT'>DigitalSensorStatusDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>Active</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>Fault</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
 </table>
 <h2 id='AnalogSensorDUT'>AnalogSensorDUT</h2>
 <p>One analog input (750-455, 4-20 mA): raw word, scaled and filtered value, quality, L/LL/H/HH and quality alarms. AnalogSensor FB.</p>
@@ -162,8 +111,7 @@
 <tr class='config'><td><b>MinValue</b></td><td>REAL</td><td>Setting (client may change)</td><td>Value at 4 mA (raw 0). [eng. unit]</td><td>Retained for the level, over-height, oxy line and cylinder pressure sensors. Levels 0-2 m, oxy pressures 0-10 bar, O2 flow 0-150 kg/h. Default 0.0.</td></tr>
 <tr class='config'><td><b>MaxValue</b></td><td>REAL</td><td>Setting (client may change)</td><td>Value at 20 mA (raw 32760). [eng. unit]</td><td>Default 10.0.</td></tr>
 <tr class='config'><td><b>FilterFc</b></td><td>REAL</td><td>Setting (client may change)</td><td>Cut-off of the Butterworth low-pass. [Hz]</td><td>Hz; 0 = no filter. For PenOverHeight it filters the pair (LIC01 PV); for single level transmitters it filters the display averages and Filtered. Default 0.0.</td></tr>
-<tr class='config'><td><b>SP</b></td><td>REAL</td><td>Setting (client may change)</td><td></td><td>Default 0.0.</td></tr>
-<tr class='config'><td><b>HDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#0S.</td></tr>
+<tr class='config'><td><b>HDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>SP				: REAL := 0.0;		// not used</td><td>Default T#0S.</td></tr>
 <tr class='config'><td><b>HHDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#0S.</td></tr>
 <tr class='config'><td><b>LDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#0S.</td></tr>
 <tr class='config'><td><b>LLDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#0S.</td></tr>
@@ -271,12 +219,10 @@
 <h2 id='Orbit864ItemConfigDUT'>Orbit864ItemConfigDUT</h2>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
 <tr class='config'><td><b>Enable</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Item enabled for alarms and averages.</td><td>Alarms suppressed when FALSE; OxygenConcentration/Saturation with FALSE are left out of the pen averages. Not retained. Default TRUE.</td></tr>
-<tr class='config'><td><b>EnableForControl</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Not used.</td><td>Sensor Config.EnableForAutoControl selects control sensors. MinValue, MaxValue, SP are not read either. Default FALSE.</td></tr>
-<tr class='config'><td><b>MinValue</b></td><td>REAL</td><td>Setting (client may change)</td><td></td><td>Default 0.0.</td></tr>
+<tr class='config'><td><b>MinValue</b></td><td>REAL</td><td>Setting (client may change)</td><td>EnableForControl	: BOOL := FALSE; // not used: the sensor&#x27;s Config.EnableForAutoControl (retained) selects the O2 sensors for control</td><td>Default 0.0.</td></tr>
 <tr class='config'><td><b>MaxValue</b></td><td>REAL</td><td>Setting (client may change)</td><td></td><td>Default 10.0.</td></tr>
 <tr class='config'><td><b>FilterTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Low-pass filter time of Filtered. [time]</td><td>0 = no filter. Not retained. Default T#0S.</td></tr>
-<tr class='config'><td><b>SP</b></td><td>REAL</td><td>Setting (client may change)</td><td></td><td>Default 0.0.</td></tr>
-<tr class='config'><td><b>HDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#0S.</td></tr>
+<tr class='config'><td><b>HDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>SP				: REAL := 0.0;		// not used</td><td>Default T#0S.</td></tr>
 <tr class='config'><td><b>HHDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#0S.</td></tr>
 <tr class='config'><td><b>LDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#0S.</td></tr>
 <tr class='config'><td><b>LLDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#0S.</td></tr>
@@ -308,7 +254,6 @@
 <h2 id='PenStatusDUT'>PenStatusDUT</h2>
 <p>Pen state machine and process values: State, Ready, OxygenOn, CommandRejected (PenSequence) and OverHeight, PenOxygenLevel, LevelControlOK, OxyControlOK (PenControl).</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>ModbusRTUInitialised</b></td><td>BOOL</td><td>Read</td><td>No writer found; always FALSE.</td><td>Default FALSE.</td></tr>
 <tr class='read'><td><b>OverHeight</b></td><td>REAL</td><td>Read</td><td>LIC01 process value: mean filtered over-height of valid level pairs. [m]</td><td>Inside minus outside level per inlet.</td></tr>
 <tr class='read'><td><b>LevelControlOK</b></td><td>BOOL</td><td>Read</td><td>At least one valid level pair.</td><td>FALSE: LevelMeasurementLost alarm, LIC01 SafeOutput, Ready FALSE.</td></tr>
 <tr class='read'><td><b>PenOxygenLevel</b></td><td>REAL</td><td>Read</td><td>OIC01 process value: mean O2 of control sensors. [mg/L]</td><td></td></tr>
@@ -330,18 +275,74 @@
 <tr class='read'><td><b>AutoSpeedSetpoint</b></td><td>REAL</td><td>Read</td><td>Speed for each auto pump in REMOTE: LIC01 share. [rpm]</td><td>Limited to LevelController Min/MaxOutput.</td></tr>
 <tr class='read'><td><b>PumpsWanted</b></td><td>UINT</td><td>Read</td><td>Pumps the automatic count wants running.</td><td></td></tr>
 <tr class='read'><td><b>PumpRotationActive</b></td><td>BOOL</td><td>Read</td><td>A standby pump is starting to take over.</td><td></td></tr>
+<tr class='read'><td><b>Sequence</b></td><td>ARRAY[0..2] OF UINT</td><td>Read</td><td>Pump order, fewest running days first (inlet indices).</td><td>Written by the PLC every scan (InletSupervisor.SortSequence, stable insertion sort on Input.MotorRunningDays). Client writes: invalid entries reset it to 0,1,2; valid ones are re-sorted at once, so a client order only matters between equal running days. Used by PumpCount: start the first standby, stop the last running pump, rotation.</td></tr>
+</table>
+<h2 id='PIDControllerDUT'>PIDControllerDUT</h2>
+<p>Operator interface of a pen controller: GVLMain.LevelController (LIC01, PenLevelControl) and GVLMain.OxyController (OIC01, PenOxygenControl). Command and Status.Manual are used; Config is NOT used (tuning is in Pen.Config.LevelController / OxyController).</p>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>Alarm</b></td><td><a href="#PIDAlarmDUT">PIDAlarmDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>AlarmAck</b></td><td><a href="#PIDAlarmAckDUT">PIDAlarmAckDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='internal'><td><b>Config</b></td><td><a href="#PIDConfigDUT">PIDConfigDUT</a></td><td></td><td>Unused for LevelController and OxyController.</td><td>Tuning is taken from Pen.Config.LevelController and Pen.Config.OxyController. Writes here have no effect.</td></tr>
+<tr class='read'><td><b>Command</b></td><td><a href="#PIDCommandDUT">PIDCommandDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>Status</b></td><td><a href="#PIDStatusDUT">PIDStatusDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>Input</b></td><td><a href="#PIDInputDUT">PIDInputDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>Output</b></td><td><a href="#PIDOutputDUT">PIDOutputDUT</a></td><td></td><td></td><td></td></tr>
+</table>
+<h2 id='PIDAlarmDUT'>PIDAlarmDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>LimitsActive</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
+<tr class='read'><td><b>Overflow</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
+</table>
+<h2 id='PIDAlarmAckDUT'>PIDAlarmAckDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='write'><td><b>LimitsActive</b></td><td>BOOL</td><td>Command (client writes)</td><td>Acknowledge controller output at a limit.</td><td>Rising edge. Raised for LIC01 only in Auto mode, for OIC01 only while it controls (running, auto, good O2). Overflow likewise.</td></tr>
+<tr class='write'><td><b>Overflow</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
+</table>
+<h2 id='PIDConfigDUT'>PIDConfigDUT</h2>
+<p>Controller tuning. Used in Pen.Config.LevelController (LIC01), Pen.Config.OxyController (OIC01), OxySystem[i].Config.PressureController (PIC) and FlowController (FIC). Not used inside GVLMain.LevelController/OxyController.</p>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='config'><td><b>Enabled</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Controller enabled (oxy line PIC/FIC only).</td><td>Read only for OxySystem[i].Config.PressureController and FlowController. Not read for LIC01/OIC01.</td></tr>
+<tr class='config'><td><b>Kp</b></td><td>REAL</td><td>Setting (client may change)</td><td>Proportional gain. [per loop]</td><td>Units per loop: LIC01 total rpm per m, OIC01 kg/h per mg/L, PIC Hz per bar, FIC % per kg/h. Immediate.</td></tr>
+<tr class='config'><td><b>Ti</b></td><td>REAL</td><td>Setting (client may change)</td><td>Integral time. [s]</td><td>Seconds (Util.PID TN).</td></tr>
+<tr class='config'><td><b>Td</b></td><td>REAL</td><td>Setting (client may change)</td><td>Derivative time; 0 = PI. [s]</td><td></td></tr>
+<tr class='config'><td><b>MinOutput</b></td><td>REAL</td><td>Setting (client may change)</td><td>Lower output limit (LIC01 per pump rpm, OIC01 kg/h). [per loop]</td><td>Not read for the oxy line PIC/FIC.</td></tr>
+<tr class='config'><td><b>MaxOutput</b></td><td>REAL</td><td>Setting (client may change)</td><td>Upper output limit (LIC01 per pump rpm, OIC01 kg/h, 0 = capacity). [per loop]</td><td>Not read for the oxy line PIC/FIC.</td></tr>
+<tr class='config'><td><b>SafeOutput</b></td><td>REAL</td><td>Setting (client may change)</td><td>LIC01 speed per pump when no valid level pair is left. [rpm]</td><td>Only read for LIC01 (mode SafeOutput), limited to Min/MaxOutput.</td></tr>
+</table>
+<h2 id='PIDCommandDUT'>PIDCommandDUT</h2>
+<p>Auto/manual pulses and the manual output of LIC01 or OIC01, handled by ControllerMode (bumpless both ways).</p>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='write'><td><b>Manual</b></td><td>BOOL</td><td>Command (client writes)</td><td>Put LIC01 (LevelController) or OIC01 (OxyController) in operator manual.</td><td>Pulse, cleared by ControllerMode every scan (Auto wins if both). Sets Status.Manual. If the loop is active, the PLC copies the current output into Command.ManualOutput (bumpless). LIC01 manual: pumps in REMOTE run at ManualOutput rpm each. OIC01 manual: total O2 flow = ManualOutput, shared over the lines in auto. Status.Manual is kept while the loop is idle. The oxy line PIC/FIC have no PIDCommandDUT.</td></tr>
+<tr class='write'><td><b>Auto</b></td><td>BOOL</td><td>Command (client writes)</td><td>Return LIC01 or OIC01 to auto.</td><td>Pulse, cleared every scan. Clears Status.Manual; the PI restarts from the last output (bumpless). If the loop is active and the PV is good, the PLC sets the setpoint to the current PV: LIC01 overwrites Pen.Command.LevelSetpoint, OIC01 overwrites Pen.Config.OxySetpoint (both retained). Auto while already in auto restarts the PI from its current output.</td></tr>
+<tr class='write'><td><b>ManualOutput</b></td><td>REAL</td><td>Command (client writes)</td><td>Controller output in manual. [rpm per pump (LIC01) / kg/h (OIC01)]</td><td>Level value used while Status.Manual. LIC01: speed per pump in REMOTE [rpm], limited to Pen.Config.LevelController.MinOutput..MaxOutput. OIC01: total O2 flow to the pen [kg/h]. Written by both: the PLC sets it to the current output on the switch to manual.</td></tr>
+<tr class='write'><td><b>Setpoint</b></td><td>REAL</td><td>Command (client writes)</td><td>Operator setpoint of the controller: LIC01 (Pen.LevelController) the wanted over-height of the pen level above the outside level [m]; OIC01 (Pen.OxyController) the pen O2 [mg/L]. [m / mg/L]</td><td>Kept over a restart (GVLRetain.LevelSetpoint 0.06 m, GVLRetain.OxySetpoint 8.0 mg/L in ConfigValues). The controller copies it to Input.Setpoint. LIC01: Level value, read every scan by PenLevelControl; used in Auto and for the level deviation alarms. Retained through GVLRetain.LevelSetpoint (default 0.06 m). The PLC overwrites it: when LIC01 goes from manual to auto with pumps in REMOTE and a valid level, the setpoint is set to the current over-height (bumpless transfer); the new value is then retained. OIC01: Default 8.0 mg/L, retained. Written by the PLC too: on OIC01 manual -&gt; auto with a good O2 measurement it is set to the current pen O2 (bumpless).</td></tr>
+</table>
+<h2 id='PIDStatusDUT'>PIDStatusDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>Manual</b></td><td>BOOL</td><td>Read</td><td>Controller in operator manual.</td><td></td></tr>
+</table>
+<h2 id='PIDInputDUT'>PIDInputDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>ProcessValue</b></td><td>REAL</td><td>Read</td><td></td><td></td></tr>
+<tr class='read'><td><b>Setpoint</b></td><td>REAL</td><td>Read</td><td>Setpoint and PV, written only for OxyController.</td><td>LevelController.Input.Setpoint/ProcessValue/ManualOutput are not written; use Pen.Command.LevelSetpoint and Pen.Status.OverHeight. LimitsActive/Overflow are written for both.</td></tr>
+<tr class='read'><td><b>ManualOutput</b></td><td>REAL</td><td>Read</td><td></td><td></td></tr>
+<tr class='read'><td><b>LimitsActive</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
+<tr class='read'><td><b>Overflow</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
+</table>
+<h2 id='PIDOutputDUT'>PIDOutputDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>OUT</b></td><td>REAL</td><td>Read</td><td>Controller output. [rpm sum / kg/h]</td><td>LIC01: total speed of counted pumps (sum rpm), 0 when idle. OIC01: total O2 flow.</td></tr>
 </table>
 <h2 id='InletDUT'>InletDUT</h2>
 <p>One inlet station i (0..2): Framo inlet pump, level transmitters inside/outside, power supply inputs, vacuum system and bilge inputs. Owned by InletControl[i]; inputs from InletRIO[i] and FramoDataProcessing.</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
 <tr class='read'><td><b>Alarm</b></td><td><a href="#InletAlarmDUT">InletAlarmDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>AlarmAck</b></td><td><a href="#InletAlarmAckDUT">InletAlarmAckDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Config</b></td><td><a href="#InletConfigDUT">InletConfigDUT</a></td><td></td><td>retained (GVLRetain.InletConfig[i], Main.UpdateRetain)</td><td></td></tr>
 <tr class='read'><td><b>Input</b></td><td><a href="#InletInputDUT">InletInputDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>Output</b></td><td><a href="#InletOutputDUT">InletOutputDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>InletPump</b></td><td><a href="#InletPumpDUT">InletPumpDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>InletPump</b></td><td><a href="#InletPumpDUT">InletPumpDUT</a></td><td></td><td>the Framo pump, its settings in InletPump.Config</td><td></td></tr>
 <tr class='read'><td><b>VacuumSystem</b></td><td><a href="#VacuumSystemDUT">VacuumSystemDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>BilgePump</b></td><td><a href="#BilgePumpDUT">BilgePumpDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>RIO</b></td><td><a href="#InletRIODUT">InletRIODUT</a></td><td></td><td>The inlet station&#x27;s remote I/O (Wago 750-362): settings, status and alarms (InletRIODUT).</td><td>Moved from GVLMain.InletRIO[i] (2026-11-05); until 2026-11-04 in GVLIO. The oxy pump drive on the same network: OxySystem[i].OxyPump.Config / Status.</td></tr>
 </table>
 <h2 id='InletAlarmDUT'>InletAlarmDUT</h2>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
@@ -350,10 +351,6 @@
 <tr class='read'><td><b>MainCircuitBreakerTripped</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>BackupPowerOn</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>BatteryFault</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>LevelInsidePenLow</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>LevelInsidePenHigh</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>LevelOutsidePenLow</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>LevelOutsidePenHigh</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
 </table>
 <h2 id='InletAlarmAckDUT'>InletAlarmAckDUT</h2>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
@@ -362,25 +359,6 @@
 <tr class='write'><td><b>MainCircuitBreakerTripped</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
 <tr class='write'><td><b>BackupPowerOn</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
 <tr class='write'><td><b>BatteryFault</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-<tr class='write'><td><b>LevelInsidePenLow</b></td><td>BOOL</td><td>Command (client writes)</td><td>Not implemented.</td><td>No alarm logic for LevelInsidePenLow/High or LevelOutsidePenLow/High. The transmitters&#x27; own AnalogSensor alarms (Input.LevelInsidePen.Alarm) are used instead. The breaker/power alarms are raised only with the InletRIO link up.</td></tr>
-<tr class='write'><td><b>LevelInsidePenHigh</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-<tr class='write'><td><b>LevelOutsidePenLow</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-<tr class='write'><td><b>LevelOutsidePenHigh</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-</table>
-<h2 id='InletConfigDUT'>InletConfigDUT</h2>
-<p>Per inlet pump settings: timeouts, heartbeat, reset supervision, speed deviation alarm, pump count enable, Framo OPC UA endpoint. Retained (GVLRetain.InletConfig).</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='config'><td><b>StartupTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Start supervision time of the inlet pump. [time]</td><td>Default 30 s. Alarm StartUpTimeout if Framo has not left AVAILABLE this long after Start. PumpCount also drops a candidate that does not start within StartupTime + 10 s (left out until the pen stops). Default T#30S.</td></tr>
-<tr class='config'><td><b>ShutdownTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Stop supervision time. [time]</td><td>Default 30 s. Alarm StopTimeout if the pump is still Starting/Remote/Hold this long after Stop. Default T#30S.</td></tr>
-<tr class='config'><td><b>HeartbeatInterval</b></td><td>TIME</td><td>Setting (client may change)</td><td>Delay before the PLC sets the heartbeat bit again. [time]</td><td>Default 1 s (0 -&gt; 1 s). Default T#1S.</td></tr>
-<tr class='config'><td><b>HeartbeatTimeout</b></td><td>TIME</td><td>Setting (client may change)</td><td>Heartbeat supervision time of the Framo link. [time]</td><td>Default 10 s in ConfigValues (DUT 5 s; 0 -&gt; 5 s). On timeout: HeartbeatTimeout alarm, Status.CommunicationOK FALSE, State Unavailable, OxyPermit FALSE (oxygen line stops), data source reconnect after 30 s. Default T#5S.</td></tr>
-<tr class='config'><td><b>ResetExpectedTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Expected time for Framo to leave HOLD/LOCKDOWN after Reset. [time]</td><td>Default 5 s. Reset is withdrawn and FailedToReset raised after 2 x this time. Default T#5S.</td></tr>
-<tr class='config'><td><b>SpeedDeviationLimit</b></td><td>REAL</td><td>Setting (client may change)</td><td>Speed deviation alarm limit in REMOTE. [rpm]</td><td>Default 10 rpm; 0 = off. Default 10.</td></tr>
-<tr class='config'><td><b>SpeedDeviationDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>Delay of the speed deviation alarm. [time]</td><td>Default 30 s. Default T#30S.</td></tr>
-<tr class='config'><td><b>InletPumpEnable</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Pump in service: part of the automatic pump count and rotation.</td><td>Default TRUE (ConfigValues). FALSE: the pump in auto is not started by Pen Start (stopped when the pen stops), does not count for Pen.Status.PumpReady, and raises no alarms unless in manual. Takes effect at once.</td></tr>
-<tr class='config'><td><b>FramoIP</b></td><td>ARRAY[0..3] OF BYTE</td><td>Setting (client may change)</td><td>IP address of the Framo controller&#x27;s OPC UA server.</td><td>0.0.0.0 = not configured, data source waits. A change makes the data source disconnect for 1 s and reconnect to the new endpoint (immediate). Sim default 10.1.2.150.</td></tr>
-<tr class='config'><td><b>FramoPort</b></td><td>UINT</td><td>Setting (client may change)</td><td>OPC UA port of the Framo controller.</td><td>Change reconnects at once. Sim defaults 4841/4842/4843. Default 4840.</td></tr>
-<tr class='config'><td><b>FramoUpdateRate</b></td><td>TIME</td><td>Setting (client may change)</td><td>Sampling and publishing interval of the Framo subscription. [time]</td><td>Default 500 ms, minimum 100 ms. Change reconnects at once. Default T#500MS.</td></tr>
 </table>
 <h2 id='InletInputDUT'>InletInputDUT</h2>
 <p>Inlet station inputs from InletRIO[i]: level transmitters, over-height of the level pair, power and bilge digital inputs.</p>
@@ -398,6 +376,22 @@
 <tr class='read'><td><b>CircuitBreakerBilgePump</b></td><td><a href="#DigitalSensorDUT">DigitalSensorDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>EstimatedInletFlow</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td>No raw input mapped.</td><td></td></tr>
 </table>
+<h2 id='DigitalSensorDUT'>DigitalSensorDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>Config</b></td><td><a href="#DigitalSensorConfigDUT">DigitalSensorConfigDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>Input</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
+<tr class='read'><td><b>Status</b></td><td><a href="#DigitalSensorStatusDUT">DigitalSensorStatusDUT</a></td><td></td><td></td><td></td></tr>
+</table>
+<h2 id='DigitalSensorConfigDUT'>DigitalSensorConfigDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='config'><td><b>AlarmDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>not used yet (kept: a structure cannot be empty)</td><td>Default T#0S.</td></tr>
+<tr class='config'><td><b>AlarmEnabled</b></td><td>BOOL</td><td>Setting (client may change)</td><td>not used yet</td><td></td></tr>
+</table>
+<h2 id='DigitalSensorStatusDUT'>DigitalSensorStatusDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>Active</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
+<tr class='read'><td><b>Fault</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
+</table>
 <h2 id='InletOutputDUT'>InletOutputDUT</h2>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
 <tr class='read'><td><b>ResetFieldPower24V</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
@@ -407,6 +401,7 @@
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
 <tr class='read'><td><b>Alarm</b></td><td><a href="#InletPumpAlarmDUT">InletPumpAlarmDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>AlarmAck</b></td><td><a href="#InletPumpAlarmAckDUT">InletPumpAlarmAckDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>Config</b></td><td><a href="#InletConfigDUT">InletConfigDUT</a></td><td></td><td>retained (GVLRetain.InletConfig[i], Main.UpdateRetain)</td><td></td></tr>
 <tr class='read'><td><b>Command</b></td><td><a href="#InletPumpCommandDUT">InletPumpCommandDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='internal'><td><b>InternalCommand</b></td><td><a href="#InletPumpInternalCommandDUT">InletPumpInternalCommandDUT</a></td><td></td><td>PLC-internal commands to the Framo controller. Do not write.</td><td>See _general.internal.</td></tr>
 <tr class='read'><td><b>Input</b></td><td><a href="#InletPumpInputDUT">InletPumpInputDUT</a></td><td></td><td></td><td></td></tr>
@@ -452,6 +447,21 @@
 <tr class='write'><td><b>LowPower</b></td><td>BOOL</td><td>Command (client writes)</td><td>No effect needed: LowPower is auto-acknowledged.</td><td>LowPower and HighPower are notifications (AutoAcknowledge). Alarm.FailedToReset is also auto-acknowledged and has no ack bit.</td></tr>
 <tr class='write'><td><b>HighPower</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
 <tr class='write'><td><b>SpeedDeviation</b></td><td>BOOL</td><td>Command (client writes)</td><td>Acknowledge the speed deviation alarm.</td><td>Rising edge. Condition: State Remote, SpeedDeviationLimit &gt; 0, |Output.VelocitySetpoint - MotorVelocity| &gt; limit for SpeedDeviationDelay.</td></tr>
+</table>
+<h2 id='InletConfigDUT'>InletConfigDUT</h2>
+<p>Per inlet pump settings: timeouts, heartbeat, reset supervision, speed deviation alarm, pump count enable, Framo OPC UA endpoint. Retained (GVLRetain.InletConfig).</p>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='config'><td><b>StartupTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Start supervision time of the inlet pump. [time]</td><td>Default 30 s. Alarm StartUpTimeout if Framo has not left AVAILABLE this long after Start. PumpCount also drops a candidate that does not start within StartupTime + 10 s (left out until the pen stops). Default T#30S.</td></tr>
+<tr class='config'><td><b>ShutdownTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Stop supervision time. [time]</td><td>Default 30 s. Alarm StopTimeout if the pump is still Starting/Remote/Hold this long after Stop. Default T#30S.</td></tr>
+<tr class='config'><td><b>HeartbeatInterval</b></td><td>TIME</td><td>Setting (client may change)</td><td>Delay before the PLC sets the heartbeat bit again. [time]</td><td>Default 1 s (0 -&gt; 1 s). Default T#1S.</td></tr>
+<tr class='config'><td><b>HeartbeatTimeout</b></td><td>TIME</td><td>Setting (client may change)</td><td>Heartbeat supervision time of the Framo link. [time]</td><td>Default 10 s in ConfigValues (DUT 5 s; 0 -&gt; 5 s). On timeout: HeartbeatTimeout alarm, Status.CommunicationOK FALSE, State Unavailable, OxyPermit FALSE (oxygen line stops), data source reconnect after 30 s. Default T#5S.</td></tr>
+<tr class='config'><td><b>ResetExpectedTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Expected time for Framo to leave HOLD/LOCKDOWN after Reset. [time]</td><td>Default 5 s. Reset is withdrawn and FailedToReset raised after 2 x this time. Default T#5S.</td></tr>
+<tr class='config'><td><b>SpeedDeviationLimit</b></td><td>REAL</td><td>Setting (client may change)</td><td>Speed deviation alarm limit in REMOTE. [rpm]</td><td>Default 10 rpm; 0 = off. Default 10.</td></tr>
+<tr class='config'><td><b>SpeedDeviationDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>Delay of the speed deviation alarm. [time]</td><td>Default 30 s. Default T#30S.</td></tr>
+<tr class='config'><td><b>InletPumpEnable</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Pump in service: part of the automatic pump count and rotation.</td><td>Default TRUE (ConfigValues). FALSE: the pump in auto is not started by Pen Start (stopped when the pen stops), does not count for Pen.Status.PumpReady, and raises no alarms unless in manual. Takes effect at once.</td></tr>
+<tr class='config'><td><b>FramoIP</b></td><td>ARRAY[0..3] OF BYTE</td><td>Setting (client may change)</td><td>IP address of the Framo controller&#x27;s OPC UA server.</td><td>0.0.0.0 = not configured, data source waits. A change makes the data source disconnect for 1 s and reconnect to the new endpoint (immediate). Sim default 10.1.2.150.</td></tr>
+<tr class='config'><td><b>FramoPort</b></td><td>UINT</td><td>Setting (client may change)</td><td>OPC UA port of the Framo controller.</td><td>Change reconnects at once. Sim defaults 4841/4842/4843. Default 4840.</td></tr>
+<tr class='config'><td><b>FramoUpdateRate</b></td><td>TIME</td><td>Setting (client may change)</td><td>Sampling and publishing interval of the Framo subscription. [time]</td><td>Default 500 ms, minimum 100 ms. Change reconnects at once. Default T#500MS.</td></tr>
 </table>
 <h2 id='InletPumpCommandDUT'>InletPumpCommandDUT</h2>
 <p>Operator commands for an inlet pump: Manual/Auto mode, manual Start/Stop and speed setpoint, Reset of HOLD/LOCKDOWN. Read by InletControl.</p>
@@ -501,13 +511,7 @@
 <tr class='read'><td><b>EmergencyRunMode</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>LowPower</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>HighPower</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>Start</b></td><td>BOOL</td><td>Read</td><td>No writer found.</td><td>Stop, Reset, VelocitySetpoint, HeartbeatInterval, HeartbeatElapsed are not written either.</td></tr>
-<tr class='read'><td><b>Stop</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>Reset</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>VelocitySetpoint</b></td><td>REAL</td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>HeartbeatToggle</b></td><td>BOOL</td><td>Read</td><td>Shared heartbeat bit as read from Framo.</td><td></td></tr>
-<tr class='read'><td><b>HeartbeatInterval</b></td><td>TIME</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>HeartbeatElapsed</b></td><td>TIME</td><td>Read</td><td></td><td></td></tr>
 </table>
 <h2 id='InletPumpOutputDUT'>InletPumpOutputDUT</h2>
 <p>Start and speed setpoint as computed by InletControl before they go to InternalCommand.</p>
@@ -516,12 +520,10 @@
 <tr class='read'><td><b>Stop</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>Reset</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>VelocitySetpoint</b></td><td>REAL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>Heartbeat</b></td><td>UINT</td><td>Read</td><td></td><td></td></tr>
 </table>
 <h2 id='InletPumpStatusDUT'>InletPumpStatusDUT</h2>
 <p>Inlet pump status: mode, link to Framo, oxygen permit, actual speed. Written by InletControl and FramoDataProcessing.</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>Heartbeat</b></td><td>UINT</td><td>Read</td><td>No writer found.</td><td></td></tr>
 <tr class='read'><td><b>EnableLevelControl</b></td><td>BOOL</td><td>Read</td><td>Auto pump in Starting, Remote or Stopping.</td><td></td></tr>
 <tr class='read'><td><b>OxyPermit</b></td><td>BOOL</td><td>Read</td><td>Oxygenation permit for this line.</td><td>Heartbeat OK AND State Remote. FALSE stops the oxygen line.</td></tr>
 <tr class='read'><td><b>CommunicationOK</b></td><td>BOOL</td><td>Read</td><td>Live link: data source connected and heartbeat answered.</td><td>FALSE: State Unavailable, no start sent.</td></tr>
@@ -539,8 +541,51 @@
 <tr class='read'><td><b>StatusV001</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>StatusV002</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
 </table>
-<h2 id='BilgePumpDUT'>BilgePumpDUT</h2>
-<p><i>No members (placeholder).</i></p>
+<h2 id='InletRIODUT'>InletRIODUT</h2>
+<p>GVLMain.InletRIO[i] (until 2026-11 GVLIO.InletRIO[i]): status and alarms of inlet station i&#x27;s Wago coupler, its Modbus watchdog and the oxy pump drive channel (InletRIO FB in IO_Processing). Settings: GVLMain.InletRIO[i].Config.</p>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>Alarm</b></td><td><a href="#InletRIOAlarmDUT">InletRIOAlarmDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>AlarmAck</b></td><td><a href="#InletRIOAlarmAckDUT">InletRIOAlarmAckDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>Config</b></td><td><a href="#InletRIOConfigDUT">InletRIOConfigDUT</a></td><td></td><td>retained (GVLRetain.InletRIOConfig[i], Main.UpdateRetain)</td><td></td></tr>
+<tr class='read'><td><b>Status</b></td><td><a href="#InletRIOStatusDUT">InletRIOStatusDUT</a></td><td></td><td></td><td></td></tr>
+</table>
+<h2 id='InletRIOAlarmDUT'>InletRIOAlarmDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>CommError</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
+<tr class='read'><td><b>MissingIPaddress</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td>FuseError			: AlarmState;	// not set (24 V field power alarm removed; Inlet[i].Alarm has the cabinet&#x27;s) PowerSupplyError	: AlarmState;	// not set</td><td></td></tr>
+<tr class='read'><td><b>WatchdogFault</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td>coupler watchdog wrong / not answering, or it expired (outputs were off)</td><td></td></tr>
+</table>
+<h2 id='InletRIOAlarmAckDUT'>InletRIOAlarmAckDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='write'><td><b>CommError</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
+<tr class='write'><td><b>MissingIPaddress</b></td><td>BOOL</td><td>Command (client writes)</td><td>FuseError			: BOOL;		// not set (see InletRIOAlarmDUT) PowerSupplyError	: BOOL;</td><td></td></tr>
+<tr class='write'><td><b>WatchdogFault</b></td><td>BOOL</td><td>Command (client writes)</td><td>Acknowledge the RIO coupler watchdog alarm.</td><td>Rising edge. Raised with Config.Enabled when a setting got no reply (Status.Watchdog.NoAnswer), when the watchdog is not active 5 s after it was set (State &lt;&gt; 1), or for one cycle when it is read as expired (State = 2: the coupler had switched its outputs off); that one stays until acknowledged.</td></tr>
+</table>
+<h2 id='InletRIOConfigDUT'>InletRIOConfigDUT</h2>
+<p>Address of inlet station i&#x27;s RIO and of its oxy pump drive. Live copy is GVLMain.InletRIO[i].Config, retained.</p>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='config'><td><b>Enabled</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Connect to inlet station i&#x27;s RIO.</td><td>Default TRUE. FALSE: no RIO connection, no comm alarms; the level pair then counts as bad. Default TRUE.</td></tr>
+<tr class='config'><td><b>IP</b></td><td>ARRAY[0..3] OF BYTE</td><td>Setting (client may change)</td><td>RIO coupler IP of inlet station i.</td><td>0.0.0.0 = missing (MissingIPaddress). Sim 10.1.2.150, ports 5121-5123.</td></tr>
+<tr class='config'><td><b>Port</b></td><td>UINT</td><td>Setting (client may change)</td><td>RIO Modbus TCP port.</td><td>Default 502. Default 502.</td></tr>
+</table>
+<h2 id='InletRIOStatusDUT'>InletRIOStatusDUT</h2>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>CommOK</b></td><td>BOOL</td><td>Read</td><td>RIO connected and data fresh.</td><td>FALSE removes the inlet&#x27;s level pair from LIC01.</td></tr>
+<tr class='read'><td><b>FieldPowerOK</b></td><td>BOOL</td><td>Read</td><td>24 V field power breaker not tripped.</td><td></td></tr>
+<tr class='read'><td><b>MissingIP</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
+<tr class='read'><td><b>DataStale</b></td><td>BOOL</td><td>Read</td><td>Connected, no fresh data.</td><td>Restarts counts reconnects; DriveDataStale/DriveRestarts for the drive.</td></tr>
+<tr class='read'><td><b>Restarts</b></td><td>UDINT</td><td>Read</td><td>RIO master restarts by the freshness watchdog</td><td></td></tr>
+<tr class='read'><td><b>ChannelError</b></td><td>BOOL</td><td>Read</td><td>RIO master: a channel in Error (diagnostics; not yet in CommOK)</td><td></td></tr>
+<tr class='read'><td><b>Watchdog</b></td><td><a href="#CouplerWatchdogStatusDUT">CouplerWatchdogStatusDUT</a></td><td></td><td>The coupler&#x27;s Modbus watchdog, see CouplerWatchdogStatusDUT.</td><td></td></tr>
+</table>
+<h2 id='CouplerWatchdogStatusDUT'>CouplerWatchdogStatusDUT</h2>
+<p>The coupler&#x27;s Modbus watchdog (750-362 manual 11.2.5) as CouplerWatchdog sets and reads it. At every link-up the PLC writes stop (0x1008), time 2 s (0x1000), type Alternative (0x100A = 1) and keep the socket open (0x1009 = 0); not saved in the coupler. FC3 of 0x1006 every 200 ms keeps it alive (FC23 is no trigger). When the PLC stops talking, the coupler switches all its outputs off after 2 s: DO off (outlet valves stop, the damper stays), AO 0 mA (O2 valves hold if the motor valve stays on signal loss, OX-03/40). FD-01 rev C 2.2.</p>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='read'><td><b>State</b></td><td>WORD</td><td>Read</td><td>Watchdog status read from the coupler (0x1006): 0 not active, 1 active, 2 expired.</td><td>1 with the link up is normal. 2 = the coupler had switched all its outputs off (no trigger for 2 s); the read restarts it (Alternative) and the PLC&#x27;s next write puts the outputs back; raises WatchdogFault. Not updated while the link is down.</td></tr>
+<tr class='read'><td><b>NoAnswer</b></td><td>BOOL</td><td>Read</td><td>A watchdog setting got no reply within 5 s at link-up.</td><td>Raises WatchdogFault; cleared at the next link-up.</td></tr>
+<tr class='read'><td><b>Writes</b></td><td>UDINT</td><td>Read</td><td>Times the four settings were written (once per link-up).</td><td></td></tr>
+<tr class='read'><td><b>Expiries</b></td><td>UDINT</td><td>Read</td><td>Times the watchdog was read as expired since PLC start.</td><td></td></tr>
+</table>
 <h2 id='OutletDUT'>OutletDUT</h2>
 <p>Outlet: four hydraulic cylinders that set the outlet opening, a common setpoint by operation mode, the hydraulic pump and the emergency stop. Owned by OutletControl; I/O through CommonRIO.</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
@@ -608,7 +653,6 @@
 <tr class='read'><td><b>Setpoint</b></td><td>REAL</td><td>Read</td><td>Common outlet setpoint. [%]</td><td>Position: mean of cylinder positions.</td></tr>
 <tr class='read'><td><b>Mode</b></td><td><a href="#OutletValveMode">OutletValveMode</a></td><td>Read</td><td>Operation mode of system</td><td></td></tr>
 <tr class='read'><td><b>Fault</b></td><td>BOOL</td><td>Read</td><td>Cylinder fault, pump starter/feedback fault, oil tank fault or emergency stop.</td><td></td></tr>
-<tr class='read'><td><b>EstimatedFlow</b></td><td>REAL</td><td>Read</td><td>No writer found.</td><td></td></tr>
 <tr class='read'><td><b>EmergencyStop</b></td><td>BOOL</td><td>Read</td><td>Emergency switch active or latched.</td><td>Latched until Command.FaultReset.</td></tr>
 </table>
 <h2 id='CylinderDUT'>CylinderDUT</h2>
@@ -760,7 +804,6 @@
 <p>Per oxygen line settings: enable, oxy pump speeds and run delay, pressure controller PIC and flow controller FIC tuning, flow max, valve ramp and open pressure. Retained (GVLRetain.OxySystemConfig, exported as GVLMain.OxySystem[i].Config).</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
 <tr class='config'><td><b>Enable</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Oxygen line enabled: follows Pen OxygenStart/Stop and its inlet pump.</td><td>Default TRUE. FALSE: the line does not start in auto and its pump raises no alarms (unless in manual). Immediate.</td></tr>
-<tr class='config'><td><b>OxyPump</b></td><td><a href="#OxyPumpConfigDUT">OxyPumpConfigDUT</a></td><td></td><td>Oxy pump speed range, preset speed and run delay (OxyPumpConfigDUT).</td><td>See OxyPumpConfigDUT members.</td></tr>
 <tr class='config'><td><b>OxyStartupTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Drive start supervision. [time]</td><td>Default 10 s: StartUpTimeout if the drive is told to run but does not turn. Default T#10S.</td></tr>
 <tr class='config'><td><b>OxyShutdownTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Drive stop supervision. [time]</td><td>Default 10 s: StopTimeout if the drive still runs after stop. Default T#10S.</td></tr>
 <tr class='config'><td><b>PressureController</b></td><td><a href="#PIDConfigDUT">PIDConfigDUT</a></td><td></td><td>PIC tuning: pump speed for the pressure after the oxy pump. [Hz, bar, s]</td><td>Enabled (default TRUE): FALSE runs the pump at PresetSpeed_Hz. Kp Hz per bar (2.0), Ti s (5), Td s (0). Output limits are MinSpeed_Hz..MaxSpeed_Hz; Min/MaxOutput here are not read. The PIC is in manual while starting, in pump manual or with bad pressure.</td></tr>
@@ -769,18 +812,6 @@
 <tr class='config'><td><b>FlowMax</b></td><td>REAL</td><td>Setting (client may change)</td><td>Most O2 flow this line can deliver. [kg/h]</td><td>Default 104.2 kg/h (DUT 100). Limits the line&#x27;s share of OIC01 and OIC01&#x27;s maximum. Default 100.0.</td></tr>
 <tr class='config'><td><b>ValveRampTime</b></td><td>TIME</td><td>Setting (client may change)</td><td>Rate limit of the FIC output to the valve. [time]</td><td>Default 2 s for 0-100 %; 0 = no limit. Not applied in valve manual. Default T#2S.</td></tr>
 <tr class='config'><td><b>ValveOpenPressure</b></td><td>REAL</td><td>Setting (client may change)</td><td>Minimum pressure after the pump for the valve to open. [bar]</td><td>Default 3.0 bar. Below it (or bad measurement) the valve is held at 4 mA, Status.ValvePermit FALSE, and ValvePressureLow if oxygenation is active. Default 3.0.</td></tr>
-</table>
-<h2 id='OxyPumpConfigDUT'>OxyPumpConfigDUT</h2>
-<p>Oxy pump speed range, preset speed, run delay and drive thermal warning level (inside OxySystemConfigDUT).</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='config'><td><b>MinSpeed_Hz</b></td><td>REAL</td><td>Setting (client may change)</td><td>Minimum oxy pump speed. [Hz]</td><td>Default 20 Hz. Lower PIC limit and drive setpoint limit. State Running when speed &gt;= MinSpeed_Hz - 0.5. Default 20.0.</td></tr>
-<tr class='config'><td><b>MaxSpeed_Hz</b></td><td>REAL</td><td>Setting (client may change)</td><td>Maximum oxy pump speed. [Hz]</td><td>Default 50 Hz. Upper PIC and setpoint limit. Default 50.0.</td></tr>
-<tr class='config'><td><b>PresetSpeed_Hz</b></td><td>REAL</td><td>Setting (client may change)</td><td>Speed at start, with PIC disabled or bad pressure. [Hz]</td><td>Default 40 Hz. Default 40.0.</td></tr>
-<tr class='config'><td><b>RampUp_s</b></td><td>REAL</td><td>Setting (client may change)</td><td>Not implemented. [s]</td><td>No reader; RampDown_s and Priority are not read either. Ramps are set in the drive.</td></tr>
-<tr class='config'><td><b>RampDown_s</b></td><td>REAL</td><td>Setting (client may change)</td><td></td><td></td></tr>
-<tr class='config'><td><b>RunDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>Pump run time before oxygen may be added. [time]</td><td>Default 30 s in Running before Status.OxygenationActive; also delays the pressure sensor process alarms. Default T#30S.</td></tr>
-<tr class='config'><td><b>Priority</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td></td></tr>
-<tr class='config'><td><b>DriveThermalWarning_pct</b></td><td>REAL</td><td>Setting (client may change)</td><td>Drive thermal state for the DriveTemperatureHigh alarm. [%]</td><td>Default 100 % (THD register). Default 100.0.</td></tr>
 </table>
 <h2 id='OxySystemInputDUT'>OxySystemInputDUT</h2>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
@@ -810,6 +841,7 @@
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
 <tr class='read'><td><b>Alarm</b></td><td><a href="#OxyPumpAlarmDUT">OxyPumpAlarmDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>AlarmAck</b></td><td><a href="#OxyPumpAlarmAckDUT">OxyPumpAlarmAckDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='config'><td><b>Config</b></td><td><a href="#OxyPumpConfigDUT">OxyPumpConfigDUT</a></td><td></td><td>Oxy pump speed range, preset speed and run delay (OxyPumpConfigDUT).</td><td>See OxyPumpConfigDUT members.</td></tr>
 <tr class='read'><td><b>Command</b></td><td><a href="#OxyPumpCommandDUT">OxyPumpCommandDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>Input</b></td><td><a href="#OxyPumpInputDUT">OxyPumpInputDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>Output</b></td><td><a href="#OxyPumpOutputDUT">OxyPumpOutputDUT</a></td><td></td><td></td><td></td></tr>
@@ -854,6 +886,19 @@
 <tr class='write'><td><b>DriveWarning</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
 <tr class='write'><td><b>DriveTemperatureHigh</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
 </table>
+<h2 id='OxyPumpConfigDUT'>OxyPumpConfigDUT</h2>
+<p>Oxy pump speed range, preset speed, run delay and drive thermal warning level (inside OxySystemConfigDUT).</p>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='config'><td><b>MinSpeed_Hz</b></td><td>REAL</td><td>Setting (client may change)</td><td>Minimum oxy pump speed. [Hz]</td><td>Default 20 Hz. Lower PIC limit and drive setpoint limit. State Running when speed &gt;= MinSpeed_Hz - 0.5. Default 20.0.</td></tr>
+<tr class='config'><td><b>MaxSpeed_Hz</b></td><td>REAL</td><td>Setting (client may change)</td><td>Maximum oxy pump speed. [Hz]</td><td>Default 50 Hz. Upper PIC and setpoint limit. Default 50.0.</td></tr>
+<tr class='config'><td><b>PresetSpeed_Hz</b></td><td>REAL</td><td>Setting (client may change)</td><td>Speed at start, with PIC disabled or bad pressure. [Hz]</td><td>Default 40 Hz. Default 40.0.</td></tr>
+<tr class='config'><td><b>RunDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>Pump run time before oxygen may be added. [time]</td><td>Default 30 s in Running before Status.OxygenationActive; also delays the pressure sensor process alarms. Default T#30S.</td></tr>
+<tr class='config'><td><b>DriveThermalWarning_pct</b></td><td>REAL</td><td>Setting (client may change)</td><td>Drive thermal state for the DriveTemperatureHigh alarm. [%]</td><td>Default 100 % (THD register). Default 100.0.</td></tr>
+<tr class='config'><td><b>DriveEnabled</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Connect to the line&#x27;s oxy pump drive (ATV650).</td><td>Default TRUE. With DriveIP and DrivePort set: OxyPump.Status.DriveConfigured TRUE and comm alarms active. Default TRUE.</td></tr>
+<tr class='config'><td><b>DriveIP</b></td><td>ARRAY[0..3] OF BYTE</td><td>Setting (client may change)</td><td>Oxy pump drive IP.</td><td>0.0.0.0 = no drive. Sim 10.1.2.150, ports 5131-5133.</td></tr>
+<tr class='config'><td><b>DrivePort</b></td><td>UINT</td><td>Setting (client may change)</td><td>Drive Modbus TCP port.</td><td>Default 502. Default 502.</td></tr>
+<tr class='config'><td><b>DriveUnitId</b></td><td>BYTE</td><td>Setting (client may change)</td><td>Drive Modbus unit id.</td><td>Default 0. A change re-creates the drive channels at once. Default 0.</td></tr>
+</table>
 <h2 id='OxyPumpCommandDUT'>OxyPumpCommandDUT</h2>
 <p>Operator commands for the oxy pump: Manual/Auto, manual Start/Stop and speed, drive fault Reset. Read by OxyControl and OxyPumpATV650.</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
@@ -897,6 +942,9 @@
 <tr class='read'><td><b>Manual</b></td><td>BOOL</td><td>Read</td><td>Pump in operator manual.</td><td></td></tr>
 <tr class='read'><td><b>EnableOxyControl</b></td><td>BOOL</td><td>Read</td><td>Pump State Running.</td><td></td></tr>
 <tr class='read'><td><b>AutoResets</b></td><td>UDINT</td><td>Read</td><td>Communication-loss faults reset automatically.</td><td></td></tr>
+<tr class='read'><td><b>DriveDataStale</b></td><td>BOOL</td><td>Read</td><td>drive master reports connected, but no new response within the freshness timeout</td><td></td></tr>
+<tr class='read'><td><b>DriveRestarts</b></td><td>UDINT</td><td>Read</td><td>drive master restarts by the freshness watchdog</td><td></td></tr>
+<tr class='read'><td><b>DriveChannelError</b></td><td>BOOL</td><td>Read</td><td>drive master: a channel in Error (either of its two channels)</td><td></td></tr>
 </table>
 <h2 id='AnalogValveDUT'>AnalogValveDUT</h2>
 <p>Analog (4-20 mA) valve; used for the O2 valve OxySystem[i].OxyValve. AnalogValve FB scales Status.Setpoint to Output.RawPosition; OxyControl writes AutoSetpoint and forces 4 mA when the valve is not permitted.</p>
@@ -907,6 +955,7 @@
 <tr class='read'><td><b>Input</b></td><td><a href="#AnalogValveInputDUT">AnalogValveInputDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>Output</b></td><td><a href="#AnalogValveOutputDUT">AnalogValveOutputDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>Command</b></td><td><a href="#AnalogValveCommandDUT">AnalogValveCommandDUT</a></td><td></td><td></td><td></td></tr>
+<tr class='read'><td><b>InternalCommand</b></td><td><a href="#AnalogValveInternalCommandDUT">AnalogValveInternalCommandDUT</a></td><td></td><td>written by the PLC</td><td></td></tr>
 <tr class='read'><td><b>Status</b></td><td><a href="#AnalogValveStatusDUT">AnalogValveStatusDUT</a></td><td></td><td></td><td></td></tr>
 <tr class='read'><td><b>PositionSensor</b></td><td><a href="#AnalogSensorDUT">AnalogSensorDUT</a></td><td></td><td></td><td></td></tr>
 </table>
@@ -928,13 +977,10 @@
 <tr class='config'><td><b>MaxValue</b></td><td>REAL</td><td>Setting (client may change)</td><td></td><td>Default 100.</td></tr>
 <tr class='config'><td><b>Enable</b></td><td>BOOL</td><td>Setting (client may change)</td><td></td><td></td></tr>
 <tr class='config'><td><b>EnablePositionFeedback</b></td><td>BOOL</td><td>Setting (client may change)</td><td></td><td></td></tr>
-<tr class='config'><td><b>EnableLimitClose</b></td><td>BOOL</td><td>Setting (client may change)</td><td></td><td></td></tr>
-<tr class='config'><td><b>EnableLimitOpen</b></td><td>BOOL</td><td>Setting (client may change)</td><td></td><td></td></tr>
 <tr class='config'><td><b>EnableAlarms</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Enable O2 valve alarms.</td><td>Default FALSE. Not retained. MinValue/MaxValue (0/100) scale the 4-20 mA output; FaultAction applies on Input.Fault (never written). Enable, EnableLimit*, Hysteresis, PositionTimeoutDelay are not read.</td></tr>
 <tr class='config'><td><b>Hysteresis</b></td><td>real</td><td>Setting (client may change)</td><td></td><td>Default 0.2.</td></tr>
 <tr class='config'><td><b>FaultAlarmDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#1S.</td></tr>
-<tr class='config'><td><b>PositionTimeoutDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#10S.</td></tr>
-<tr class='config'><td><b>OpenCloseTimeoutDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td></td><td>Default T#20S.</td></tr>
+<tr class='config'><td><b>OpenCloseTimeoutDelay</b></td><td>TIME</td><td>Setting (client may change)</td><td>PositionTimeoutDelay	: TIME := T#10S;	// not used</td><td>Default T#20S.</td></tr>
 <tr class='config'><td><b>FaultAction</b></td><td><a href="#FaultActionMode">FaultActionMode</a></td><td>Setting (client may change)</td><td></td><td></td></tr>
 </table>
 <h2 id='AnalogValveInputDUT'>AnalogValveInputDUT</h2>
@@ -953,13 +999,14 @@
 <h2 id='AnalogValveCommandDUT'>AnalogValveCommandDUT</h2>
 <p>Valve commands: Manual/Auto pulses, ManualSetpoint (client), AutoSetpoint (PLC). Open, Close, SuppressAlarms have no reader.</p>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='write'><td><b>Open</b></td><td>BOOL</td><td>Command (client writes)</td><td>Not implemented.</td><td>No reader in the AnalogValve FB used for the O2 valve.</td></tr>
-<tr class='write'><td><b>Close</b></td><td>BOOL</td><td>Command (client writes)</td><td>Not implemented.</td><td>No reader in the AnalogValve FB used for the O2 valve.</td></tr>
-<tr class='internal'><td><b>AutoSetpoint</b></td><td>REAL</td><td>PLC internal (do not write)</td><td>Valve position in auto, written by the PLC (ramped FIC output). [%]</td><td>Written by OxyControl every scan; client writes are overwritten. 0 when the valve may not open.</td></tr>
-<tr class='write'><td><b>SuppressAlarms</b></td><td>BOOL</td><td>Command (client writes)</td><td>Not implemented.</td><td>No reader. Valve alarms are suppressed by Config.EnableAlarms instead.</td></tr>
 <tr class='write'><td><b>Manual</b></td><td>BOOL</td><td>Command (client writes)</td><td>Put the O2 valve in operator manual (Status.Manual := TRUE).</td><td>Pulse, cleared by AnalogValve in the same scan (Auto wins if both). In manual the valve follows ManualSetpoint without the ramp, the line is not InAuto and OIC01 counts its measured flow instead. The valve is still forced closed (4 mA) unless OxygenationActive AND ValvePermit.</td></tr>
 <tr class='write'><td><b>Auto</b></td><td>BOOL</td><td>Command (client writes)</td><td>Return the O2 valve to auto (FIC).</td><td>Pulse, cleared in the same scan. The FIC continues from the manual position (bumpless) and the ramped FIC output goes to AutoSetpoint.</td></tr>
 <tr class='write'><td><b>ManualSetpoint</b></td><td>REAL</td><td>Command (client writes)</td><td>Manual valve position. [%]</td><td>Level value, used in valve manual (Status.Setpoint, scaled to 4-20 mA over Config.MinValue..MaxValue, default 0..100). Effective only when the valve is permitted; otherwise the output stays 4 mA and Status.OxyValvePosition shows 0. Not cleared or overwritten by the PLC.</td></tr>
+</table>
+<h2 id='AnalogValveInternalCommandDUT'>AnalogValveInternalCommandDUT</h2>
+<p>Written by the PLC (the controller using the valve), not by the operator.</p>
+<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
+<tr class='internal'><td><b>AutoSetpoint</b></td><td>REAL</td><td>PLC internal (do not write)</td><td>Valve position in auto, written by the PLC (ramped FIC output). [%]</td><td>Written by OxyControl every scan; client writes are overwritten. 0 when the valve may not open.</td></tr>
 </table>
 <h2 id='AnalogValveStatusDUT'>AnalogValveStatusDUT</h2>
 <table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
@@ -970,50 +1017,6 @@
 <tr class='read'><td><b>Closed</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>CurrentState</b></td><td><a href="#ValveState">ValveState</a></td><td>Read</td><td></td><td></td></tr>
 <tr class='read'><td><b>Faulted</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-</table>
-<h2 id='PIDControllerDUT'>PIDControllerDUT</h2>
-<p>Operator interface of a pen controller: GVLMain.LevelController (LIC01, PenLevelControl) and GVLMain.OxyController (OIC01, PenOxygenControl). Command and Status.Manual are used; Config is NOT used (tuning is in Pen.Config.LevelController / OxyController).</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>Alarm</b></td><td><a href="#PIDAlarmDUT">PIDAlarmDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>AlarmAck</b></td><td><a href="#PIDAlarmAckDUT">PIDAlarmAckDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='internal'><td><b>Config</b></td><td><a href="#PIDConfigDUT">PIDConfigDUT</a></td><td></td><td>Unused for LevelController and OxyController.</td><td>Tuning is taken from Pen.Config.LevelController and Pen.Config.OxyController. Writes here have no effect.</td></tr>
-<tr class='read'><td><b>Command</b></td><td><a href="#PIDCommandDUT">PIDCommandDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Status</b></td><td><a href="#PIDStatusDUT">PIDStatusDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Input</b></td><td><a href="#PIDInputDUT">PIDInputDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Output</b></td><td><a href="#PIDOutputDUT">PIDOutputDUT</a></td><td></td><td></td><td></td></tr>
-</table>
-<h2 id='PIDAlarmDUT'>PIDAlarmDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>LimitsActive</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>Overflow</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-</table>
-<h2 id='PIDAlarmAckDUT'>PIDAlarmAckDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='write'><td><b>LimitsActive</b></td><td>BOOL</td><td>Command (client writes)</td><td>Acknowledge controller output at a limit.</td><td>Rising edge. Raised for LIC01 only in Auto mode, for OIC01 only while it controls (running, auto, good O2). Overflow likewise.</td></tr>
-<tr class='write'><td><b>Overflow</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-</table>
-<h2 id='PIDCommandDUT'>PIDCommandDUT</h2>
-<p>Auto/manual pulses and the manual output of LIC01 or OIC01, handled by ControllerMode (bumpless both ways).</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='write'><td><b>Manual</b></td><td>BOOL</td><td>Command (client writes)</td><td>Put LIC01 (LevelController) or OIC01 (OxyController) in operator manual.</td><td>Pulse, cleared by ControllerMode every scan (Auto wins if both). Sets Status.Manual. If the loop is active, the PLC copies the current output into Command.ManualOutput (bumpless). LIC01 manual: pumps in REMOTE run at ManualOutput rpm each. OIC01 manual: total O2 flow = ManualOutput, shared over the lines in auto. Status.Manual is kept while the loop is idle. The oxy line PIC/FIC have no PIDCommandDUT.</td></tr>
-<tr class='write'><td><b>Auto</b></td><td>BOOL</td><td>Command (client writes)</td><td>Return LIC01 or OIC01 to auto.</td><td>Pulse, cleared every scan. Clears Status.Manual; the PI restarts from the last output (bumpless). If the loop is active and the PV is good, the PLC sets the setpoint to the current PV: LIC01 overwrites Pen.Command.LevelSetpoint, OIC01 overwrites Pen.Config.OxySetpoint (both retained). Auto while already in auto restarts the PI from its current output.</td></tr>
-<tr class='write'><td><b>ManualOutput</b></td><td>REAL</td><td>Command (client writes)</td><td>Controller output in manual. [rpm per pump (LIC01) / kg/h (OIC01)]</td><td>Level value used while Status.Manual. LIC01: speed per pump in REMOTE [rpm], limited to Pen.Config.LevelController.MinOutput..MaxOutput. OIC01: total O2 flow to the pen [kg/h]. Written by both: the PLC sets it to the current output on the switch to manual.</td></tr>
-</table>
-<h2 id='PIDStatusDUT'>PIDStatusDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>Manual</b></td><td>BOOL</td><td>Read</td><td>Controller in operator manual.</td><td></td></tr>
-</table>
-<h2 id='PIDInputDUT'>PIDInputDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>ProcessValue</b></td><td>REAL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>Setpoint</b></td><td>REAL</td><td>Read</td><td>Setpoint and PV, written only for OxyController.</td><td>LevelController.Input.Setpoint/ProcessValue/ManualOutput are not written; use Pen.Command.LevelSetpoint and Pen.Status.OverHeight. LimitsActive/Overflow are written for both.</td></tr>
-<tr class='read'><td><b>ManualOutput</b></td><td>REAL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>LimitsActive</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>Overflow</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-</table>
-<h2 id='PIDOutputDUT'>PIDOutputDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>OUT</b></td><td>REAL</td><td>Read</td><td>Controller output. [rpm sum / kg/h]</td><td>LIC01: total speed of counted pumps (sum rpm), 0 when idle. OIC01: total O2 flow.</td></tr>
 </table>
 <h2 id='CommonRIODUT'>CommonRIODUT</h2>
 <p>GVLMain.CommonRIO (until 2026-11 GVLIO.CommonRIO): status and alarms of the common Wago coupler (750-362) with the outlet I/O, O2 valve outputs and O2 flow inputs, and its Modbus watchdog. Settings: GVLMain.CommonRIO.Config. The 750-652 image is no longer published (local to IO_Processing).</p>
@@ -1041,12 +1044,6 @@
 <tr class='config'><td><b>Enabled</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Connect to the CommonRIO.</td><td>Default TRUE. FALSE: no connection and no comm alarms. Default TRUE.</td></tr>
 <tr class='config'><td><b>IP</b></td><td>ARRAY[0..3] OF BYTE</td><td>Setting (client may change)</td><td>CommonRIO coupler IP.</td><td>0.0.0.0 = missing (alarm MissingIPaddress). Sim default 10.1.2.150. Passed to the Modbus master every scan; whether an open connection moves at once is not shown in the code. Default [4(0)].</td></tr>
 <tr class='config'><td><b>Port</b></td><td>UINT</td><td>Setting (client may change)</td><td>CommonRIO Modbus TCP port.</td><td>Default 502 (sim 5120). Default 502.</td></tr>
-<tr class='config'><td><b>NumberOfAnalogInputs</b></td><td>UINT</td><td>Setting (client may change)</td><td>Not used.</td><td>The NumberOf* members have no reader; the process image layout is fixed in code. Default 24.</td></tr>
-<tr class='config'><td><b>NumberOfAnalogOutputs</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 4.</td></tr>
-<tr class='config'><td><b>NumberOfDigitalInputs</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 16.</td></tr>
-<tr class='config'><td><b>NumberOfDigitalOutputs</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 16.</td></tr>
-<tr class='config'><td><b>NumberOfModbusRTU</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 0.</td></tr>
-<tr class='config'><td><b>NumberOfCounter638</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 0.</td></tr>
 <tr class='config'><td><b>RTUBaudrate</b></td><td>UDINT</td><td>Setting (client may change)</td><td>Orbit 864 RS-485 line settings (baud, data bits, parity, stop bits, handshake, physical, frame type).</td><td>Passed to the Modbus RTU master (ModbusRTUData). They do NOT configure the 750-652 (set with WAGO-I/O-CHECK); keep them equal to it. Default 9600 8N1. Default 9600.</td></tr>
 <tr class='config'><td><b>RTUDataBits</b></td><td>USINT</td><td>Setting (client may change)</td><td></td><td>Default 8.</td></tr>
 <tr class='config'><td><b>RTUParity</b></td><td>eTTYParity (library type)</td><td>Setting (client may change)</td><td></td><td>Default WagoTypesCom.eTTYParity.None.</td></tr>
@@ -1065,68 +1062,6 @@
 <tr class='read'><td><b>DataStale</b></td><td>BOOL</td><td>Read</td><td>Connected, no fresh data.</td><td></td></tr>
 <tr class='read'><td><b>Restarts</b></td><td>UDINT</td><td>Read</td><td>connection restarts by the freshness watchdog</td><td></td></tr>
 <tr class='read'><td><b>ChannelError</b></td><td>BOOL</td><td>Read</td><td>master: its channel in Error (diagnostics; not yet in CommOK)</td><td></td></tr>
-<tr class='read'><td><b>Watchdog</b></td><td><a href="#CouplerWatchdogStatusDUT">CouplerWatchdogStatusDUT</a></td><td></td><td>The coupler&#x27;s Modbus watchdog, see CouplerWatchdogStatusDUT.</td><td></td></tr>
-</table>
-<h2 id='CouplerWatchdogStatusDUT'>CouplerWatchdogStatusDUT</h2>
-<p>The coupler&#x27;s Modbus watchdog (750-362 manual 11.2.5) as CouplerWatchdog sets and reads it. At every link-up the PLC writes stop (0x1008), time 2 s (0x1000), type Alternative (0x100A = 1) and keep the socket open (0x1009 = 0); not saved in the coupler. FC3 of 0x1006 every 200 ms keeps it alive (FC23 is no trigger). When the PLC stops talking, the coupler switches all its outputs off after 2 s: DO off (outlet valves stop, the damper stays), AO 0 mA (O2 valves hold if the motor valve stays on signal loss, OX-03/40). FD-01 rev C 2.2.</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>State</b></td><td>WORD</td><td>Read</td><td>Watchdog status read from the coupler (0x1006): 0 not active, 1 active, 2 expired.</td><td>1 with the link up is normal. 2 = the coupler had switched all its outputs off (no trigger for 2 s); the read restarts it (Alternative) and the PLC&#x27;s next write puts the outputs back; raises WatchdogFault. Not updated while the link is down.</td></tr>
-<tr class='read'><td><b>NoAnswer</b></td><td>BOOL</td><td>Read</td><td>A watchdog setting got no reply within 5 s at link-up.</td><td>Raises WatchdogFault; cleared at the next link-up.</td></tr>
-<tr class='read'><td><b>Writes</b></td><td>UDINT</td><td>Read</td><td>Times the four settings were written (once per link-up).</td><td></td></tr>
-<tr class='read'><td><b>Expiries</b></td><td>UDINT</td><td>Read</td><td>Times the watchdog was read as expired since PLC start.</td><td></td></tr>
-</table>
-<h2 id='InletRIODUT'>InletRIODUT</h2>
-<p>GVLMain.InletRIO[i] (until 2026-11 GVLIO.InletRIO[i]): status and alarms of inlet station i&#x27;s Wago coupler, its Modbus watchdog and the oxy pump drive channel (InletRIO FB in IO_Processing). Settings: GVLMain.InletRIO[i].Config.</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>Alarm</b></td><td><a href="#InletRIOAlarmDUT">InletRIOAlarmDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>AlarmAck</b></td><td><a href="#InletRIOAlarmAckDUT">InletRIOAlarmAckDUT</a></td><td></td><td></td><td></td></tr>
-<tr class='read'><td><b>Config</b></td><td><a href="#InletRIOConfigDUT">InletRIOConfigDUT</a></td><td></td><td>retained (GVLRetain.InletRIOConfig[i], Main.UpdateRetain)</td><td></td></tr>
-<tr class='read'><td><b>Status</b></td><td><a href="#InletRIOStatusDUT">InletRIOStatusDUT</a></td><td></td><td></td><td></td></tr>
-</table>
-<h2 id='InletRIOAlarmDUT'>InletRIOAlarmDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>CommError</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>FuseError</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>PowerSupplyError</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>MissingIPaddress</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>WatchdogFault</b></td><td><a href="#AlarmState">AlarmState</a></td><td>Read</td><td>coupler watchdog wrong / not answering, or it expired (outputs were off)</td><td></td></tr>
-</table>
-<h2 id='InletRIOAlarmAckDUT'>InletRIOAlarmAckDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='write'><td><b>CommError</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-<tr class='write'><td><b>FuseError</b></td><td>BOOL</td><td>Command (client writes)</td><td>Not implemented.</td><td>No alarm logic for FuseError or PowerSupplyError; only CommError, MissingIPaddress and WatchdogFault are raised.</td></tr>
-<tr class='write'><td><b>PowerSupplyError</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-<tr class='write'><td><b>MissingIPaddress</b></td><td>BOOL</td><td>Command (client writes)</td><td></td><td></td></tr>
-<tr class='write'><td><b>WatchdogFault</b></td><td>BOOL</td><td>Command (client writes)</td><td>Acknowledge the RIO coupler watchdog alarm.</td><td>Rising edge. Raised with Config.Enabled when a setting got no reply (Status.Watchdog.NoAnswer), when the watchdog is not active 5 s after it was set (State &lt;&gt; 1), or for one cycle when it is read as expired (State = 2: the coupler had switched its outputs off); that one stays until acknowledged.</td></tr>
-</table>
-<h2 id='InletRIOConfigDUT'>InletRIOConfigDUT</h2>
-<p>Address of inlet station i&#x27;s RIO and of its oxy pump drive. Live copy is GVLMain.InletRIO[i].Config, retained.</p>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='config'><td><b>Enabled</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Connect to inlet station i&#x27;s RIO.</td><td>Default TRUE. FALSE: no RIO connection, no comm alarms; the level pair then counts as bad. Default TRUE.</td></tr>
-<tr class='config'><td><b>IP</b></td><td>ARRAY[0..3] OF BYTE</td><td>Setting (client may change)</td><td>RIO coupler IP of inlet station i.</td><td>0.0.0.0 = missing (MissingIPaddress). Sim 10.1.2.150, ports 5121-5123.</td></tr>
-<tr class='config'><td><b>Port</b></td><td>UINT</td><td>Setting (client may change)</td><td>RIO Modbus TCP port.</td><td>Default 502. Default 502.</td></tr>
-<tr class='config'><td><b>NumberOfAnalogInputs</b></td><td>UINT</td><td>Setting (client may change)</td><td>Not used.</td><td>NumberOf* members have no reader. Default 4.</td></tr>
-<tr class='config'><td><b>NumberOfAnalogOutputs</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 0.</td></tr>
-<tr class='config'><td><b>NumberOfDigitalInputs</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 32.</td></tr>
-<tr class='config'><td><b>NumberOfDigitalOutputs</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 8.</td></tr>
-<tr class='config'><td><b>NumberOfModbusRTU</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 0.</td></tr>
-<tr class='config'><td><b>NumberOfCounter638</b></td><td>UINT</td><td>Setting (client may change)</td><td></td><td>Default 0.</td></tr>
-<tr class='config'><td><b>DriveEnabled</b></td><td>BOOL</td><td>Setting (client may change)</td><td>Connect to the line&#x27;s oxy pump drive (ATV650).</td><td>Default TRUE. With DriveIP and DrivePort set: OxyPump.Status.DriveConfigured TRUE and comm alarms active. Default TRUE.</td></tr>
-<tr class='config'><td><b>DriveIP</b></td><td>ARRAY[0..3] OF BYTE</td><td>Setting (client may change)</td><td>Oxy pump drive IP.</td><td>0.0.0.0 = no drive. Sim 10.1.2.150, ports 5131-5133.</td></tr>
-<tr class='config'><td><b>DrivePort</b></td><td>UINT</td><td>Setting (client may change)</td><td>Drive Modbus TCP port.</td><td>Default 502. Default 502.</td></tr>
-<tr class='config'><td><b>DriveUnitId</b></td><td>BYTE</td><td>Setting (client may change)</td><td>Drive Modbus unit id.</td><td>Default 0. A change re-creates the drive channels at once. Default 0.</td></tr>
-</table>
-<h2 id='InletRIOStatusDUT'>InletRIOStatusDUT</h2>
-<table><tr><th>Member</th><th>Type</th><th>Client</th><th>Description</th><th>Behaviour, conditions</th></tr>
-<tr class='read'><td><b>CommOK</b></td><td>BOOL</td><td>Read</td><td>RIO connected and data fresh.</td><td>FALSE removes the inlet&#x27;s level pair from LIC01.</td></tr>
-<tr class='read'><td><b>FieldPowerOK</b></td><td>BOOL</td><td>Read</td><td>24 V field power breaker not tripped.</td><td></td></tr>
-<tr class='read'><td><b>MissingIP</b></td><td>BOOL</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>DataStale</b></td><td>BOOL</td><td>Read</td><td>Connected, no fresh data.</td><td>Restarts counts reconnects; DriveDataStale/DriveRestarts for the drive.</td></tr>
-<tr class='read'><td><b>Restarts</b></td><td>UDINT</td><td>Read</td><td>RIO master restarts by the freshness watchdog</td><td></td></tr>
-<tr class='read'><td><b>DriveDataStale</b></td><td>BOOL</td><td>Read</td><td>the same for the oxy pump drive&#x27;s master</td><td></td></tr>
-<tr class='read'><td><b>DriveRestarts</b></td><td>UDINT</td><td>Read</td><td></td><td></td></tr>
-<tr class='read'><td><b>ChannelError</b></td><td>BOOL</td><td>Read</td><td>RIO master: a channel in Error (diagnostics; not yet in CommOK)</td><td></td></tr>
-<tr class='read'><td><b>DriveChannelError</b></td><td>BOOL</td><td>Read</td><td>drive master: a channel in Error (either of its two channels)</td><td></td></tr>
 <tr class='read'><td><b>Watchdog</b></td><td><a href="#CouplerWatchdogStatusDUT">CouplerWatchdogStatusDUT</a></td><td></td><td>The coupler&#x27;s Modbus watchdog, see CouplerWatchdogStatusDUT.</td><td></td></tr>
 </table>
 <h1>Enumerations</h1>
