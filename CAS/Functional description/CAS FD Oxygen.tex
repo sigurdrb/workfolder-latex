@@ -12,7 +12,7 @@
 \newcommand{\TBD}{\textcolor{red}{TBD}}
 \setlength{\emergencystretch}{2em}
 
-\casfdheader{Oxygen system}{CAS-FD-20}{A5}
+\casfdheader{Oxygen system}{CAS-FD-20}{A6}
 
 \begin{document}
 \maketitle
@@ -129,6 +129,7 @@ A3 & 2026-11-03 & Drive link loss also detected when the master still reports co
 \bottomrule
 A4 & 2026-11-05 & PLC node structure by system: the oxy pump's settings and the drive address are \var{OxySystem[i].OxyPump.Config}, the drive link status \var{OxySystem[i].OxyPump.Status} (DriveDataStale, DriveRestarts); OIC01 is \var{Pen.OxyController} with its settings in \var{.Config} and the setpoint in \var{.Command.Setpoint} (retained); the valve's auto setpoint, written by the PLC, is \var{OxyValve.InternalCommand.AutoSetpoint}. Behaviour unchanged. \\
 A5 & 2026-11-05 & Bad line flow: the line counts with its last good flow in OIC01's sharing, not 0 (\var{Status.FlowValid}; OI15). OIC01 manual$\to$auto: the active setpoint starts at the PV and ramps to the operator's (\var{Config.SetpointRamp}); the PLC no longer overwrites \var{Command.Setpoint}. New alarms, off until limits are set: InjectorDpLow (OI10), OxygenDeviationHigh / Low (OI11), OxygenSensorDisagreement (OI12). Oxy pump Start / Stop written in auto are cleared; Reset is a pulse the PLC clears. Leakage / temperature contacts: word 9.7 / 9.8. \\
+A6 & 2026-11-05 & Pen \Otwo{} limits (configurable): WL 6, AL 5, WH 10, AH 11, AHH 12\,mg/L; warnings clear by themselves, alarms are acknowledged; AHH trips oxygenation for all lines and it starts again by itself below \var{OxygenTripReset} (6\,mg/L) (OI9). \\
 \end{tabularx}
 \end{small}
 
@@ -777,7 +778,9 @@ OxygenDeviationHigh / Low & OIC01 controlling (oxygenation on, auto, good \Otwo{
 OT$nn$ low / high \Otwo{} & per sensor, limits and delay from HMI, only for active sensors & -- & FD/AL; L/H in DUT, not configured\open{12} \\
 OxygenSensorDisagreement & spread of the \Otwo{} sensors for control (\var{Pen.Status.OxygenSensorSpread}) above \var{Pen.Config.OxygenSensorSpread} for its delay (default 0 = off, 5\,min) & ack & PLC \\
 \Otwo{} sensor fault & Orbit communication failure (CommFail) after delay & ack & PLC \\
-\Otwo{} high-high shut-off & supersaturation (\Otwo{} HH / TDGP) closes oxygenation & -- & FD (HOLD), not in PLC\open{9} \\
+Pen \Otwo{} low, warning / alarm & pen \Otwo{} below \var{Pen.Config.OxygenWL} 6 / \var{OxygenAL} 5\,mg/L for \var{OxygenAlarmDelay} (30\,s), valid measurement & W auto / ack & PLC \\
+Pen \Otwo{} high, warning / alarm & above \var{OxygenWH} 10 / \var{OxygenAH} 11\,mg/L & W auto / ack & PLC \\
+Pen \Otwo{} high-high (trip) & above \var{OxygenAHH} 12\,mg/L: oxygenation off (all lines, \var{Pen.Status.OxygenHighTrip}); on again by itself below \var{OxygenTripReset} 6\,mg/L. TDGP not monitored\open{9} & ack & PLC \\
 PAL40 \Otwo{} not available & PT40 low & -- & FD/AL, not in PLC\open{4} \\
 \end{longtable}
 \end{small}
@@ -802,6 +805,8 @@ Parameter & Default & Meaning \\
 \var{Pen.OxyController.Config} & $K_p$ 50, $T_i$ 1800 s, Min 0, Max 0 & OIC01; Max 0 = what the lines can deliver \\
 \var{Pen.OxyController.Config.SetpointRamp} & 0.2 mg/L per min & active setpoint from the PV to the operator's after manual$\to$auto; 0 = at once \\
 \var{Pen.Config.OxygenDeviationLimit / Delay} & 0 (off) / 15 min & OIC01 deviation alarms \\
+\var{Pen.Config.OxygenWL / AL / WH / AH / AHH} & 6 / 5 / 10 / 11 / 12 mg/L & pen \Otwo{} limits; AHH trips oxygenation \\
+\var{Pen.Config.OxygenTripReset / OxygenAlarmDelay} & 6 mg/L / 30 s & oxygenation on again below; delay of the limits \\
 \var{Pen.Config.OxygenSensorSpread / SpreadDelay} & 0 (off) / 5 min & \Otwo{} sensor disagreement alarm \\
 \var{OxySystem[i].Config.InjectorDpLow / InjectorDpDelay} & 0 (off) / 30 s & low pressure drop over the injector \\
 \var{Orbit864SensorConfig[k]} & slaves 1--6; EnableForAutoControl for 1--3 & sensor address, polling, selection for OIC01 \\
@@ -953,7 +958,7 @@ OI5 & (N) PLC-controlled master shut-off valve: \emph{decided 2026-10-22}: no on
 OI6 & (N) Non-return protection: HAZID ``oxygen pressure lost, water enters injector and \Otwo{} tank''. Check valve per line (Linde had CV1--3; Normex sketch unclear: OV-02.$n$). & Normex to confirm. \\
 OI7 & (N) Injector model and gas ratio: \var{FlowMax} 104.2 kg/h = CT10 at 15\,\% v/v; 34.7 kg/h at 5\,\%. Which applies in sea water at Heimdall? & Chucaotech / Normex; set \var{FlowMax}. \\
 OI8 & (N) Signal list and interface FD for the Normex panel (terminals, 24\,V supply, cable list). & Normex. \\
-OI9 & \Otwo{} high-high / supersaturation (TDGP) shut-off asked by [FD] (HOLD); not in the PLC. Needs limits and an actuator (OI5). & Decide limits; implement. \\
+OI9 & \Otwo{} high-high / supersaturation shut-off asked by [FD] (HOLD): pen \Otwo{} AHH 12\,mg/L implemented 2026-11-05 (oxygenation off, on again below 6\,mg/L). TDGP / supersaturation not monitored (no sensor in use). & Confirm limits; TDGP open. \\
 OI10 & Injector low differential pressure alarm ([FD] table 15): implemented 2026-11-05 (InjectorDpLow), off until a limit is set. & Set \var{InjectorDpLow} at commissioning. \\
 OI11 & OIC01 deviation alarm ([FD] table 15): implemented 2026-11-05 (OxygenDeviationHigh / Low), off until a limit is set. & Set \var{OxygenDeviationLimit}. \\
 OI12 & \Otwo{} sensor disagreement alarm: implemented 2026-11-05 (OxygenSensorDisagreement), off until a limit is set. Per-sensor low/high alarms: not configured (L/H fields exist in the Orbit DUT). & Set \var{OxygenSensorSpread}; per-sensor limits. \\

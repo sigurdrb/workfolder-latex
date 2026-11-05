@@ -20,7 +20,7 @@
 \renewcommand{\floatpagefraction}{0.8}
 \setcounter{totalnumber}{5}
 
-\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{B4}
+\casfdheader{Inlet system: water intake and pen level control}{CAS-FD-10}{B5}
 
 % short helpers used only in this document
 \newcommand{\TBD}{\textcolor{red}{TBD}}
@@ -169,6 +169,7 @@ B2 & 2026-11-03 & After the merge with the outlet / oxygen branch (InletPumpConf
 \bottomrule
 B3 & 2026-11-05 & PLC node structure by system: the inlet station's remote I/O is \var{Inlet[i].RIO}, the pump's settings \var{Inlet[i].InletPump.Config}; LIC01 is \var{Pen.LevelController} with its settings in \var{.Config} and the setpoint in \var{.Command.Setpoint} (retained); the inlet supervisor and pump order are \var{Pen.InletSupervisor}. Unused nodes commented out in the PLC, among them the per-transmitter level alarms of \var{Inlet[i].Alarm} (never set). Behaviour unchanged. \\
 B4 & 2026-11-05 & LIC01 manual$\to$auto: the active setpoint (\var{Input.Setpoint}) starts at the PV and ramps to the operator's \var{Command.Setpoint} (\var{Config.SetpointRamp}); the PLC no longer overwrites the operator's setpoint. Pump count status (next stop / start / rotation, time left, why paused) in \var{Pen.InletSupervisor} and per pump in \var{InletPump.Status}. Pump Start / Stop written in auto are cleared. \var{InletPumpEnable} defaults to TRUE. \\
+B5 & 2026-11-05 & Pen level limits (configurable): WL 0.03, AL 0.02, WH 0.08, AH 0.09, AHH 0.10~m (ALL 0.01~m, close the outlet, not implemented); warnings clear by themselves, alarms are acknowledged; AHH trips the inlet pumps and stops the pen (I8). The level setpoint is kept within WL..WH. \\
 \end{tabularx}
 \end{small}
 
@@ -508,6 +509,13 @@ With the pen stopped a mode change leaves the setpoint and the manual output as 
 $\Delta H_\text{avg}$ stays more than \var{LevelDeviationLimit} (0.02~m) above (below) the setpoint for
 \var{LevelDeviationDelay} (5~min): the pumps cannot hold the level, at maximum speed or at minimum
 speed with no pump left to stop. Only in Auto.
+
+\textbf{Level limits} (\var{Pen.Config}, on $\Delta H_\text{avg}$, with a valid measurement, each for
+\var{LevelAlarmDelay} 10~s). Warnings clear by themselves, alarms are acknowledged:
+WL 0.03~m, AL 0.02~m (ALL 0.01~m, close the outlet valve, not implemented), WH 0.08~m, AH 0.09~m and
+AHH 0.10~m. AHH trips: all inlet pumps stop, also in manual, and the pen stops
+(\var{Pen.Status.LevelHighTrip}); the pen cannot be started again until the level is below WH. The level
+setpoint is kept within WL..WH: the PLC takes a value outside back to the limit.
 
 \begin{figure}[htbp]
 \centering
@@ -854,6 +862,7 @@ I1 & Oxygenation permit line $n$ = PM-3$n$ in REMOTE AND heartbeat OK. & [FD] \S
 I2 & 2oo3 high-high LS7$n$mHH in inlet box $n$ stops PM-3$n$. & [FD] \S3.2.6, [PID] -600 & \notimpl\open{20} \\
 I3 & Group start only with the outlet open. & PLC function flow diagram & \notimpl\open{20} \\
 I6 & No valid level pair: LIC01 to manual at SafeOutput. & [PID] -400 & \impl \\
+I8 & Over-height above LevelAHH: all inlet pumps stop, the pen stops, until below LevelWH. & PLC (2026-11-05) & \impl \\
 -- & Start only when the pump is AVAILABLE and the link is OK. & [FD] Tabell~5 & \impl \\
 -- & Emergency stop: Framo E-stop stops the pump (STO); oxygen line to stop. & [FD] Tabell~2, [EL] & partly\open{13} \\
 \bottomrule
@@ -1029,8 +1038,9 @@ Speed deviation pump $n$ & $|n_\text{SP}-n| >$ \var{SpeedDeviationLimit} (10~rpm
 Vacuum overfill line $n$ & LSH3$n$ for 5~s (configurable) & A & none & \notimpl\open{11} \\
 Emergency stop activated & EmergencyStop from PCC (hard-wired \TBD) & A & pump stops & via Framo\open{13} \\
 Level deviation high / low & $\Delta H_\text{avg}$ more than \var{LevelDeviationLimit} (0.02~m) above / below SP for \var{LevelDeviationDelay} (5~min), LIC01 in auto (\var{Pen.Alarm.LevelDeviationHigh}, \var{.LevelDeviationLow}) & A & none & \impl \\
-Low level in pen & $\Delta H_\text{avg} <$ \TBD{} for \TBD{} s & A & none & \notimpl\open{8} \\
-High level in pen & $\Delta H_\text{avg} >$ \TBD{} for \TBD{} s & A & none & \notimpl\open{8} \\
+Low level in pen, warning / alarm & $\Delta H_\text{avg} <$ \var{LevelWL} 0.03 / \var{LevelAL} 0.02~m for \var{LevelAlarmDelay} (10~s), valid measurement (\var{Pen.Alarm.LevelWL}, \var{.LevelAL}) & W / A & none (LALL 0.01~m, close the outlet: not implemented) & \impl \\
+High level in pen, warning / alarm & $\Delta H_\text{avg} >$ \var{LevelWH} 0.08 / \var{LevelAH} 0.09~m for \var{LevelAlarmDelay} (\var{Pen.Alarm.LevelWH}, \var{.LevelAH}) & W / A & none & \impl \\
+High-high level in pen & $\Delta H_\text{avg} >$ \var{LevelAHH} 0.10~m for \var{LevelAlarmDelay} (\var{Pen.Alarm.LevelAHH}) & A & trip: all inlet pumps stop (also in manual), the pen stops; \var{Pen.Status.LevelHighTrip} until below \var{LevelWH}, then the operator starts the pen & \impl \\
 Level transmitter fault (LT01--03, LT21--23) & 750-455 status bits $\neq$ 00 for 1~s & W & pair drops out of PV & generic quality alarm\open{8} \\
 Level measurement lost (LAL01) & no valid pair (pen) & A & LIC01 at SafeOutput & \impl \\
 LIC01 output at limit / overflow & \var{LimitsActive}, \var{Overflow} (pen) & W & none & \impl \\
@@ -1064,6 +1074,8 @@ Parameter & Default & Unit & Meaning \\
 \var{Pen.LevelController.Config.SafeOutput} & 60 & rpm & speed per pump with no valid level pair \\
 \var{Pen.LevelController.Config.SetpointRamp} & 0.01 & m/min & active setpoint from the PV to the operator's after manual$\to$auto; 0 = at once \\
 \var{Pen.Config.LevelDeviationLimit} / \var{LevelDeviationDelay} & 0.02 / 5 & m / min & level deviation alarms; limit 0 = off \\
+\var{Pen.Config.LevelWL / AL / WH / AH / AHH} & 0.03 / 0.02 / 0.08 / 0.09 / 0.10 & m & level limits; WL..WH is the setpoint range; AHH trips the inlet pumps \\
+\var{Pen.Config.LevelAlarmDelay} & 10 & s & delay of the level limits \\
 \var{Pen.Config.PumpTargetSpeed} & 85 & rpm & stop a pump when the others would run at or below this; 0 = never \\
 \var{Pen.Config.PumpAddSpeed} & 115 & rpm & start a pump when the share is at or above this; above \var{PumpTargetSpeed}; 0 = never \\
 \var{Pen.Config.PumpRemoveDelay} / \var{PumpAddDelay} & 15 / 2 & min & how long the stop / start condition must hold \\
