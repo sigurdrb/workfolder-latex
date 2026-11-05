@@ -12,7 +12,7 @@
 \newcommand{\TBD}{\textcolor{red}{TBD}}
 \setlength{\emergencystretch}{2em}
 
-\casfdheader{Oxygen system}{CAS-FD-20}{A3}
+\casfdheader{Oxygen system}{CAS-FD-20}{A4}
 
 \begin{document}
 \maketitle
@@ -127,6 +127,7 @@ A3 & 2026-11-03 & Drive link loss also detected when the master still reports co
   stay unacknowledged until acknowledged. The reset by acknowledging DriveError (A1) was never in the
   program: removed from the text (register OX-31). OIC01 limit / overflow alarms only in auto. \\
 \bottomrule
+A4 & 2026-11-05 & PLC node structure by system: the oxy pump's settings and the drive address are \var{OxySystem[i].OxyPump.Config}, the drive link status \var{OxySystem[i].OxyPump.Status} (DriveDataStale, DriveRestarts); OIC01 is \var{Pen.OxyController} with its settings in \var{.Config} and the setpoint in \var{.Command.Setpoint} (retained); the valve's auto setpoint, written by the PLC, is \var{OxyValve.InternalCommand.AutoSetpoint}. Behaviour unchanged. \\
 \end{tabularx}
 \end{small}
 
@@ -323,7 +324,7 @@ Pressure after pump / after injector & PT41 / PT44 & PT42 / PT45 & PT43 / PT46 &
 Injector & MX-41 & MX-42 & MX-43 & -- \\
 \Otwo{} flow, valve & FT41, OV41 & FT42, OV42 & FT43, OV43 & \var{.Input.OxygenFlow}, \var{.OxyValve} \\
 Controllers & PIC41, FIC41 & PIC42, FIC42 & PIC43, FIC43 & \var{OxyControl[i]} \\
-RIO node & InletRIO1 & InletRIO2 & InletRIO3 & \var{InletRIO[i]}, $i = n-1$ \\
+RIO node & InletRIO1 & InletRIO2 & InletRIO3 & \var{Inlet[i].RIO}, $i = n-1$ \\
 \bottomrule
 \end{tabularx}
 \end{small}
@@ -417,11 +418,11 @@ of lines running; one parameter set is enough (the three sets of [FD] table~13 a
   \item \textbf{Bumpless start}: on the first enabled cycle the output starts at the measured
         total flow.
   \item \textbf{Manual}: the operator can set the total flow by hand
-        (\var{OxyController.Command.Manual}, \var{.ManualOutput}). Bumpless both ways, as LIC01
+        (\var{Pen.OxyController.Command.Manual}, \var{.ManualOutput}). Bumpless both ways, as LIC01
         (CAS-FD-10 rev~B1), while the pen is started and lines are in auto: auto$\to$manual sets the
         manual output to the current total flow output, so the \Otwo{} flow does not jump (before, it
         went to the last \var{ManualOutput}, 0 if never set); manual$\to$auto sets the \Otwo{} setpoint
-        (\var{Pen.Config.OxySetpoint}) to the pen \Otwo{} (PV), if the measurement is valid, and restarts
+        (\var{Pen.OxyController.Command.Setpoint}) to the pen \Otwo{} (PV), if the measurement is valid, and restarts
         the PID from the manual output with a cleared integral (\var{RESET}, \var{Y\_OFFSET}). The
         operator then moves the setpoint to where it should be.
   \item \textbf{Bad \Otwo{} measurement}: the output is frozen at its last value (interlock I7
@@ -794,10 +795,10 @@ Parameter & Default & Meaning \\
 \endhead
 \bottomrule
 \endfoot
-\var{Pen.Config.OxySetpoint} & 8.0 mg/L & OIC01 setpoint (placeholder)\open{13} \\
-\var{Pen.Config.OxyController} & $K_p$ 50, $T_i$ 1800 s, Min 0, Max 0 & OIC01; Max 0 = what the lines can deliver \\
+\var{Pen.OxyController.Command.Setpoint} & 8.0 mg/L & OIC01 setpoint (placeholder)\open{13} \\
+\var{Pen.OxyController.Config} & $K_p$ 50, $T_i$ 1800 s, Min 0, Max 0 & OIC01; Max 0 = what the lines can deliver \\
 \var{Orbit864SensorConfig[k]} & slaves 1--6; EnableForAutoControl for 1--3 & sensor address, polling, selection for OIC01 \\
-\var{OxySystemConfig[i].OxyPump.MinSpeed_Hz / MaxSpeed_Hz} & 20 / 50 Hz & PIC output range\open{19} \\
+\var{OxySystem[i].OxyPump.Config.MinSpeed_Hz / MaxSpeed_Hz} & 20 / 50 Hz & PIC output range\open{19} \\
 \var{.OxyPump.PresetSpeed_Hz} & 40 Hz & speed while starting, with bad PT, or PIC disabled \\
 \var{.OxyPump.RunDelay} & 30 s & pump running before oxygen may be added \\
 \var{.OxyPump.DriveThermalWarning_pct} & 100 \% & THD limit for DriveTemperatureHigh \\
@@ -811,7 +812,7 @@ Parameter & Default & Meaning \\
 \var{OxyPumpPressureConfig[i]} & 0--10 bar, $f_c$ 1 Hz & PT4$n$ scaling, filter, quality \\
 \var{OxynatorOutletPressureConfig[i]} & 0--10 bar, $f_c$ 1 Hz & PT4($n$+3) \\
 \var{OxygenFlowConfig[i]} & 0--150 kg/h, $f_c$ 1 Hz & FT4$n$\open{3} \\
-\var{InletRIO[i].Config.DriveIP / DrivePort / DriveUnitId} & sim 10.1.2.101 / 5131--5133 / 0 & drive address\open{19} \\
+\var{OxySystem[i].OxyPump.Config.DriveIP / DrivePort / DriveUnitId} & sim 10.1.2.150 / 5131--5133 / 0 & drive address\open{19} \\
 \end{longtable}
 \end{small}
 
@@ -882,8 +883,8 @@ Oxygen Start / Stop (pen) & \var{Pen.Command.OxygenStart}, \var{.OxygenStop}; \v
 Enable / disable oxygen line $n$ & \var{OxySystem[i].Config.Enable} & retained \\
 Pump auto / manual, start, stop, speed, reset & \var{OxySystem[i].OxyPump.Command.Auto/Manual/Start/Stop/Setpoint/Reset} & manual start allowed \\
 Valve auto / manual, manual position & \var{OxySystem[i].OxyValve.Command.Manual/Auto} (pulses; mode in \var{.Status.Manual}), \var{.ManualSetpoint} & -- \\
-OIC01 setpoint & \var{Pen.Config.OxySetpoint} & \% or mg/L?\open{13} \\
-OIC01 manual output & \var{OxyController.Command.Manual/ManualOutput} & -- \\
+OIC01 setpoint & \var{Pen.OxyController.Command.Setpoint} & \% or mg/L?\open{13} \\
+OIC01 manual output & \var{Pen.OxyController.Command.Manual/ManualOutput} & -- \\
 Select sensors for control & \var{Orbit864SensorConfig[k].EnableForAutoControl} & selector; inactive sensors yellow \\
 Preset speed, run delay, tuning & \var{OxySystemConfig[i]}, \var{Pen.Config} & preset speed from HMI \\
 Drive info panel & \var{OxyPump.Input}: ready, remote, running, power, warning, error, speed, current, LFT & table 12 \\
