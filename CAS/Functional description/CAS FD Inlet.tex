@@ -173,6 +173,7 @@ B3 & 2026-11-05 & PLC node structure by system: the inlet station's remote I/O i
 B4 & 2026-11-05 & LIC01 manual$\to$auto: the active setpoint (\var{Input.Setpoint}) starts at the PV and ramps to the operator's \var{Command.Setpoint} (\var{Config.SetpointRamp}); the PLC no longer overwrites the operator's setpoint. Pump count status (next stop / start / rotation, time left, why paused) in \var{Pen.InletSupervisor} and per pump in \var{InletPump.Status}. Pump Start / Stop written in auto are cleared. \var{InletPumpEnable} defaults to TRUE. \\
 B5 & 2026-11-05 & Pen level limits (configurable): WL 0.03, AL 0.02, WH 0.08, AH 0.09, AHH 0.10~m (ALL 0.01~m, close the outlet, not implemented); warnings clear by themselves, alarms are acknowledged; AHH trips the inlet pumps and stops the pen (I8). The level setpoint is kept within WL..WH. \\
 B6 & 2026-11-05 & Framo has no HOLD any more ([FRAMO-FD] rev.~04, [FRAMO-SCD] A03): on heartbeat loss the PCC keeps the pump running at its last setpoint $\times$ 0.8 (stand-alone: the last setpoint) and follows the setpoint again when the link is back, with no Reset. PLC state 4 is now LINK LOST (a pump that was starting or running when the link went); it counts in LIC01's total at the estimated speed (last setpoint $\times$ \var{Config.CommLossFactor}). Reset only for LOCKDOWN. Oxygenation still stops on link loss. \\
+B7 & 2026-11-05 & Section~\ref{sec:scdstate}, planned: Framo has no pump states any more; the PLC will work out the pump state from the SCD signals (Unavailable, Available, Starting, Remote, Local, Stopping, Link lost, Fault). Summary of the SCD's start, stop, setpoint selection, commands and trips; what it asks of the PLC (Remote held TRUE, 30~s at 40~rpm after start, bumpless setpoint after a restart, Inhibit start from the start interlocks). Not implemented. \\
 \end{tabularx}
 \end{small}
 
@@ -751,6 +752,75 @@ baseline must be agreed with Framo\open{1}.
 \caption{Heartbeat as implemented in [PLC]: one shared bit, the PLC sets it, the PCC clears it.}
 \label{fig:hb}
 \end{figure}
+
+\subsection{Planned: pump state from the SCD signals}
+\label{sec:scdstate}
+\textbf{Status: planned, not implemented.} [FRAMO-FD] rev.~04 and [FRAMO-SCD] A03 are taken as the
+description of the Framo pump control system. They have no pump states any more (no UNAVAILABLE,
+AVAILABLE, START, STOP, REMOTE, HOLD or LOCKDOWN); LOCKDOWN remains only as Framo's reaction to a
+system-wide failure. The PLC therefore works out the pump state itself from the signals of the SCD. Until
+Framo issues the OPC UA interface list for rev.~04, the PLC keeps reading the state flags of [FRAMO]
+rev.~B (Section~\ref{sec:sm}) and the simulator keeps that node set.
+
+\textbf{The SCD in brief.}
+\begin{itemize}[nosep]
+  \item \textbf{Start} (sheet~2): CAS Start (PA003-M01-U04) runs the air evacuation (ejector air valve
+        UY31 open, release valve UY32 closed) until the vacuum chamber's high switch LSH32 shows water; then
+        the drive gets its run command. \emph{Starting sequence active} (UI010) while this runs;
+        \emph{failed to start} (UA011, action alarm) if priming takes too long.
+  \item \textbf{Stop} (sheet~2): CAS Stop (U05) stops the drive; when the pump no longer runs, UY32 opens
+        and breaks the vacuum. \emph{Sensor deviation} (UA001A) when the chamber switches LSL31 and LSH32 disagree.
+  \item \textbf{Setpoint} (sheet~3): the drive gets the CAS setpoint (U56) only with CAS \emph{Remote
+        control} (UY012) and \emph{ready to remote control} (UI013: running above 40~rpm for 30~s);
+        otherwise the start setpoint (40~rpm, set at commissioning). Heartbeat fault: last setpoint
+        $\times$ 0.8; with CAS \emph{Stand-alone} (UY014): the last setpoint, reset when the heartbeat is back.
+  \item \textbf{Commands from CAS}: Start, Stop, Reset (a 1~s reset pulse to the drive on the rising edge),
+        Inhibit start (M01-Q03, no start possible, also not locally; a running pump is not stopped),
+        Remote control, Stand-alone, speed setpoint, heartbeat.
+  \item \textbf{Trips} (sheet~4, action alarms): earth leakage, short circuit, safe torque off, motor
+        stall, power unit loss, overspeed, input / output phase loss, drive communication fault. Earth
+        leakage also as a warning. Drive feedback: ready (Q65), running (Q02), tripped (Q10), in remote (Q27),
+        start inhibit (U03).
+\end{itemize}
+
+\textbf{Planned PLC pump state} (Table~\ref{tab:scdstate}). The state names used by LIC01, the pump
+count and the oxygen permit stay; LOCKDOWN becomes \emph{Fault} and a \emph{Local} state is added.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Planned PLC pump state from the SCD signals ([FRAMO-SCD] A03; signals to be confirmed on the interface).}
+\label{tab:scdstate}
+\begin{tabularx}{\textwidth}{@{}P{24mm}L@{}}
+\toprule
+State & From the SCD signals \\
+\midrule
+Unavailable & stopped and drive not ready, not in remote, tripped or start-inhibited; or no link and not running \\
+Available & drive ready, in remote, not tripped, no start inhibit, not running, no starting sequence (or one ready-for-start status from Framo, asked for) \\
+Starting & starting sequence active (priming), or running but not yet ready to remote control (40~rpm phase); LIC01 tracks \\
+Remote & running with the remote setpoint in use: the PLC sets the speed (LIC01 share or manual) \\
+Local & running on the start / local setpoint without Remote (e.g.\ Remote dropped); counted at its actual speed \\
+Stopping & Stop sent and the pump still running (spin-down), until \emph{pump running} drops \\
+Link lost & heartbeat lost while starting or running: last setpoint $\times$ 0.8, or the last setpoint in stand-alone (as now) \\
+Fault & drive tripped or failed to start (replaces LOCKDOWN); leaves with Reset or a new Start \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{What the SCD asks of the PLC.}
+\begin{itemize}[nosep]
+  \item Write Remote control TRUE continuously while CAS controls the pump; after a reconnect or PLC restart,
+        control returns without a new command if Remote is still TRUE and the pump is ready (to be confirmed by Framo).
+  \item Expect at least 30~s at 40~rpm after each start before the pump takes the CAS setpoint; LIC01 tracks meanwhile.
+  \item After a PLC restart, write a setpoint that starts from the pump's actual speed, so the first cycles
+        with Remote and ready do not step the pump.
+  \item Drive Inhibit start from the start interlocks: pen level AHH trip, pump out of service; outlet
+        closed and pen stopped to be decided (they also block a local start for service).
+  \item Send Reset after a drive trip; decide when to use Stand-alone.
+  \item Keep the history of the pumps: [FRAMO-FD] leaves historical logging to CAS.
+\end{itemize}
+Open with Framo: the interface list, a ready-for-start status, the drive feedback and alarms on the
+interface, Remote level or edge, the start setpoint as a CAS parameter, and the status of emergency stop,
+lockdown and drive trip (questions of 2026-11-05).
 
 \subsection{Operating modes}
 The operating modes (Table~\ref{tab:modes}) are selected on the outlet function. A mode sets the
