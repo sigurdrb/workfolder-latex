@@ -89,6 +89,8 @@ ID & Document & Revision / date \\
 {[FRAMO]} & Framo, \emph{Spesifikasjon: kontrollsystem (prototype)} 0000\_CAS\_SPEC\_CTRLSYS, signal list
   and state table, with ScaleAQ review comments & rev.~B, 08.10.2025 \\
 {[FIL]} & Framo interface list (early signal list) & 01.09.2025 \\
+{[FRAMO-FD]} & Framo, \emph{Functional description} 7664-012-4, issued for review (no HOLD; link loss; stand-alone) & rev.~04, 05.11.2026 \\
+{[FRAMO-SCD]} & Framo, \emph{System control diagram} 7664-017-1 & rev.~A03, 03.11.2026 \\
 {[PID]} & CAS P\&ID and loop diagrams: CAS-PID-100 inlet, -400 pen, -600 utilities, CAS-LAY-700
   network, CAS-LD-801 loop LT01, CAS-PID-950 open points & rev.~A, 2026-10-16 \\
 {[DES]} & CAS design basis (System Modelling), generated from design\_basis.toml & v2.3.12 \\
@@ -121,7 +123,7 @@ RIO & Remote I/O: WAGO 750-362 Modbus TCP couplers (CommonRIO, InletRIO1--3) \\
 OPC UA & Communication between the PLC and the Framo controllers (and the HMI) \\
 HMI & Operator interface (Heimdall HMI / SiteControl) \\
 VSD & Variable speed drive \\
-REMOTE, HOLD, \ldots & Pump states published by the Framo controller (Section~\ref{sec:sm}) \\
+REMOTE, LINK LOST, \ldots & Pump states in the PLC, from the Framo controller's flags and the link (Section~\ref{sec:sm}) \\
 O-35, O-45, O-60, S-75 & Operating modes: operation (O) or service (S), with residence time in minutes \\
 TBD & To be decided; see the open issues \\
 \bottomrule
@@ -170,6 +172,7 @@ B2 & 2026-11-03 & After the merge with the outlet / oxygen branch (InletPumpConf
 B3 & 2026-11-05 & PLC node structure by system: the inlet station's remote I/O is \var{Inlet[i].RIO}, the pump's settings \var{Inlet[i].InletPump.Config}; LIC01 is \var{Pen.LevelController} with its settings in \var{.Config} and the setpoint in \var{.Command.Setpoint} (retained); the inlet supervisor and pump order are \var{Pen.InletSupervisor}. Unused nodes commented out in the PLC, among them the per-transmitter level alarms of \var{Inlet[i].Alarm} (never set). Behaviour unchanged. \\
 B4 & 2026-11-05 & LIC01 manual$\to$auto: the active setpoint (\var{Input.Setpoint}) starts at the PV and ramps to the operator's \var{Command.Setpoint} (\var{Config.SetpointRamp}); the PLC no longer overwrites the operator's setpoint. Pump count status (next stop / start / rotation, time left, why paused) in \var{Pen.InletSupervisor} and per pump in \var{InletPump.Status}. Pump Start / Stop written in auto are cleared. \var{InletPumpEnable} defaults to TRUE. \\
 B5 & 2026-11-05 & Pen level limits (configurable): WL 0.03, AL 0.02, WH 0.08, AH 0.09, AHH 0.10~m (ALL 0.01~m, close the outlet, not implemented); warnings clear by themselves, alarms are acknowledged; AHH trips the inlet pumps and stops the pen (I8). The level setpoint is kept within WL..WH. \\
+B6 & 2026-11-05 & Framo has no HOLD any more ([FRAMO-FD] rev.~04, [FRAMO-SCD] A03): on heartbeat loss the PCC keeps the pump running at its last setpoint $\times$ 0.8 (stand-alone: the last setpoint) and follows the setpoint again when the link is back, with no Reset. PLC state 4 is now LINK LOST (a pump that was starting or running when the link went); it counts in LIC01's total at the estimated speed (last setpoint $\times$ \var{Config.CommLossFactor}). Reset only for LOCKDOWN. Oxygenation still stops on link loss. \\
 \end{tabularx}
 \end{small}
 
@@ -437,9 +440,9 @@ F7 & Alarm handling & Alarm state and acknowledgement per alarm. & \var{AlarmMan
 \textbf{Principle.} One PI controller, LIC01, holds the over-height at the setpoint. Two rules cover
 every pump state (DEC5, DEC9):
 \begin{itemize}
-  \item \textbf{R1, sharing.} A pump \emph{counts} when it is in auto and runs: START, REMOTE, HOLD or STOP,
-        or its link is lost while it counted (the PCC then runs it on its own; its last measured speed is
-        used). LIC01's output $T$ is the \emph{total} speed of the counted pumps (sum of rpm). The counted
+  \item \textbf{R1, sharing.} A pump \emph{counts} when it is in auto and runs: START, REMOTE or STOP,
+        or its link is lost while it counted (the PCC then runs it on its own: in LINK LOST at the estimated
+        speed, last setpoint $\times$ \var{CommLossFactor}, otherwise its last measured speed). LIC01's output $T$ is the \emph{total} speed of the counted pumps (sum of rpm). The counted
         pumps in REMOTE with a live link are \emph{controlled} (set $R$); they share what is left after the
         others' speed, so all of them run at the same speed [FD]~\S3.2.2:
 \[
@@ -451,8 +454,9 @@ n_\text{SP} = \mathrm{limit}_{40}^{130}\Big(\frac{T - \sum_{j\notin R} n_j}{|R|}
 Inflow goes with the total, so the loop gain does not depend on the number of pumps (one parameter set
 instead of [FD] Tabell~8). A pump that changes group leaves $T$ as it is: a pump that trips leaves the sum
 and the others take over its share in the same cycle; a starting pump adds its speed while it ramps up and
-the others give way; a pump that goes to HOLD keeps its (preset) speed in the sum and the others correct
-for it; a pump reset from HOLD to REMOTE takes its share and the speeds even out with no step in the total.
+the others give way; a pump that loses its link stays in the sum at 0.8 of its last setpoint and the
+others correct for it; when its link is back it is in REMOTE again, takes its share and the speeds even out
+with no step in the total.
 The three PCCs do not know each other's state, so the PLC keeps controlling with the pumps it can set
 (DEC9, 2026-10-23; this replaces the freeze of [FD] Tabell~5). The PLC reads the pump states directly
 (\var{InletPumpSet}), so a pump counts from the cycle its state changes. Figure~\ref{fig:lic} is the
@@ -486,7 +490,7 @@ Mode & When & Output $T$ \\
 Idle & pen stopped, or no pump counted & 0 \\
 Manual & operator manual & $\sum_{j\notin R} n_j + |R|\times$\var{ManualOutput} \\
 SafeOutput & no valid level pair\decided{3} & $\sum_{j\notin R} n_j + |R|\times$\var{SafeOutput} (60~rpm) \\
-Tracking & pumps counted, none controlled (start-up, all in HOLD, all links lost) & summed speed of the counted pumps \\
+Tracking & pumps counted, none controlled (start-up, all links lost) & summed speed of the counted pumps \\
 Auto & otherwise & PI \\
 \bottomrule
 \end{tabularx}
@@ -599,7 +603,7 @@ in auto): acknowledge the start-up alarms, check \emph{Ready}, Pen Start, then O
   % stop column
   \node[ext, text width=40mm, right=26mm of s0] (t0) {Operator: \textbf{Pen Stop}};
   \node[st, right=8mm of s1] (t1) {Each pump in auto gets AutoStop. LIC01 is disabled.};
-  \node[st, below=of t1] (t2) {PLC sends \textbf{Stop}. Alarm \emph{Stop failed} if the pump is still in START, REMOTE or HOLD after 30 s. [FRAMO] accepts Stop only in REMOTE\open{4}.};
+  \node[st, below=of t1] (t2) {PLC sends \textbf{Stop}. Alarm \emph{Stop failed} if the pump is still in START, REMOTE or LINK LOST after 30 s. [FRAMO] accepts Stop only in REMOTE\open{4}.};
   \node[st, below=of t2] (t3) {Oxygenation permit I1 drops when the pump leaves REMOTE.};
   \node[st, below=of t3] (t4) {\textbf{STOP} (Framo): pump ramps down and stops; XV3$n$B opens and breaks the vacuum so the pen does not drain back.};
   \node[st, below=of t4] (t5) {\textbf{AVAILABLE} again.};
@@ -653,8 +657,9 @@ per operating mode are not implemented\open{15}.
 \label{sec:sm}
 The Framo controller owns the pump state and publishes it as one Boolean per state; the PLC turns the
 flags into \var{Inlet[i].InletPump.State} and asks for transitions with Start, Stop and Reset.
-Figure~\ref{fig:sm} is the state diagram of [FRAMO] rev.~B; red dashed labels mark where [FD] or the
-PLC expect something else. Table~\ref{tab:states} gives what the PLC does in each state.
+Figure~\ref{fig:sm} is the state diagram of [FRAMO] rev.~B without HOLD, which [FRAMO-FD] rev.~04
+removes; red dashed labels mark where [FD] or the PLC expect something else. LINK LOST (4) is the PLC's own
+state for a pump that runs without a link. Table~\ref{tab:states} gives what the PLC does in each state.
 
 \begin{figure}[htbp]
 \centering
@@ -665,7 +670,7 @@ PLC expect something else. Table~\ref{tab:states} gives what the PLC does in eac
   \node[state] (sta) at (10,0) {START\\\scriptsize 1};
   \node[state] (stp) at (5,-3.4) {STOP\\\scriptsize 3};
   \node[state] (rem) at (10,-3.4) {REMOTE\\\scriptsize 2};
-  \node[state] (hol) at (16,-3.4) {HOLD\\\scriptsize 4};
+  \node[state, dashed] (hol) at (16,-3.4) {LINK LOST\\\scriptsize 4 (PLC)};
   \node[state] (loc) at (10,-6.8) {LOCKDOWN\\\scriptsize 5};
   \draw[->] ([yshift=1.5mm]una.east) -- node[lbl, above] {no fault} ([yshift=1.5mm]ava.west);
   \draw[->] ([yshift=-1.5mm]ava.west) -- node[lbl, below] {fault} ([yshift=-1.5mm]una.east);
@@ -673,18 +678,18 @@ PLC expect something else. Table~\ref{tab:states} gives what the PLC does in eac
   \draw[->] (sta) -- node[lbl, right] {sequence end\\(air out, preset\\speed reached)} (rem);
   \draw[->] (rem) -- node[lbl, above] {Stop (PLC)} (stp);
   \draw[->] (stp) -- node[lbl, left] {sequence end\\(stopped,\\vacuum broken)} (ava);
-  \draw[->] ([yshift=2mm]rem.east) -- node[lbl, above] {heartbeat lost (YF)} ([yshift=2mm]hol.west);
-  \draw[->, red, dashed] ([yshift=-2mm]hol.west) -- node[lbl, below=1mm, text=red] {YF cleared [FRAMO];\\+ Reset [FD, PLC]\open{2}} ([yshift=-2mm]rem.east);
+  \draw[->, dashed] ([yshift=2mm]rem.east) -- node[lbl, above] {link lost (PLC)} ([yshift=2mm]hol.west);
+  \draw[->, dashed] ([yshift=-2mm]hol.west) -- node[lbl, below=1mm] {link back, no Reset\\{[FRAMO-FD]} rev.~04} ([yshift=-2mm]rem.east);
   \draw[->] (stp.south) -- node[lbl, left] {fault} (loc.west);
   \draw[->] (rem) -- node[lbl, right] {fault} (loc);
-  \draw[->] (hol.south) -- node[lbl, right] {fault} ([yshift=2mm]loc.east);
   \draw[->] (sta.east) -- (18.2,0) -- node[lbl, right] {fault} (18.2,-7.0) -- ([yshift=-2mm]loc.east);
   \draw[->, red, dashed] (loc.south) -- ++(0,-0.6) -| node[lbl, pos=0.25, below, text=red] {sequence end [FRAMO]; Reset by operator [FD]\open{3}} (una.south);
   \node[lbl, align=left, anchor=north west, text width=70mm] at (11.2,-7.9) {fault = DriveError $\lor$ MotorTemperature $\lor$ EmergencyStop $\lor$ UPSSupplyError $\lor$ DCUndervoltageError};
 \end{tikzpicture}}
 \caption{State transition diagram of the Framo inlet pump [FRAMO] rev.~B p.~6, [COO]~\S7.2.3.
-Numbers are the values of \texttt{ENUM.InletPumpState}. In addition the PLC shows a pump UNAVAILABLE
-whenever it has no heartbeat answer from that PCC, whatever the PCC publishes.}
+Numbers are the values of \texttt{ENUM.InletPumpState}. Without a heartbeat answer from that PCC the
+PLC shows a pump that was starting or running as LINK LOST (the PCC keeps it running at 0.8 of its last
+setpoint) and any other pump UNAVAILABLE, whatever the PCC publishes.}
 \label{fig:sm}
 \end{figure}
 
@@ -696,13 +701,13 @@ whenever it has no heartbeat answer from that PCC, whatever the PCC publishes.}
 \toprule
 State & Speed setpoint sent & Start & In LIC01 & Notes \\
 \midrule
-UNAVAILABLE & 0 & no & no & Also shown while the link (heartbeat) is down. \\
+UNAVAILABLE & 0 & no & no & Also shown while the link (heartbeat) is down, for a pump that was not running. \\
 AVAILABLE & actual speed & yes & no & Setpoint follows the actual speed so the take-over is bumpless [FD] Tabell~5. \\
 START & actual speed & yes & yes & LIC01 tracks the summed speed of the starting pumps; its speed is subtracted from the total. \\
 REMOTE & share of LIC01's total (auto) or operator setpoint (manual) & yes & yes & The only state in which the PLC sets the speed. Oxygenation permit I1 with a live link. \\
-HOLD & actual speed & yes & yes & PCC runs its preset safe speed; counted in LIC01's total at that speed, the pumps in REMOTE correct for it (DEC9); oxygenation stops. \\
+LINK LOST & last setpoint (sent again when the link is back) & no & yes & Heartbeat lost while starting or running. The PCC runs the pump at last setpoint $\times$ 0.8 ([FRAMO-FD] rev.~04; in stand-alone the last setpoint); the PLC counts it in LIC01's total at that estimate (\var{ActualSpeed}), the pumps in REMOTE correct for it (DEC9); oxygenation stops; no Reset needed. \\
 STOP & 0 & no & yes & \\
-LOCKDOWN & 0 & no & no & Needs Reset after the fault is cleared\open{3}. \\
+LOCKDOWN & 0 & no & no & Needs Reset after the fault is cleared\open{3}. The only state in which the PLC sends Reset. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -717,11 +722,14 @@ The PLC and each PCC supervise the link between them with a heartbeat. As implem
   \item the PCC clears it when it is TRUE;
   \item the bit always says whose turn it is, so after a (re)connect neither side waits for the other;
   \item only the PCC's clear (falling edge) proves that the PCC is alive. When the PCC has not cleared
-        the bit for \var{HeartbeatTimeout} (10~s), the PLC raises \emph{Communication loss}, shows the
-        pump UNAVAILABLE, sends no Start, keeps the pump in LIC01's total at its last speed (DEC9) and
-        removes the oxygenation permit of the line;
-  \item the PCC, seeing no set from the PLC within its timeout, moves the pump to HOLD and runs it at
-        a preset safe speed.
+        the bit for \var{HeartbeatTimeout} (10~s), the PLC raises \emph{Communication loss}, shows a
+        running pump LINK LOST (any other UNAVAILABLE), sends no Start, keeps the pump in LIC01's total at
+        last setpoint $\times$ \var{CommLossFactor} (DEC9) and removes the oxygenation permit of the line;
+  \item the PCC, seeing no set from the PLC within its timeout, keeps the pump in normal operation at
+        its last setpoint $\times$ 0.8, or at the last setpoint if CAS has set \emph{stand-alone}
+        ([FRAMO-FD] rev.~04 \S7--8, [FRAMO-SCD] sheet~3). When the heartbeat is back the PCC follows the
+        setpoint again and resets stand-alone; no Reset is needed. The stand-alone command has no node
+        yet, so the PLC does not send it\open{1}.
 \end{itemize}
 The timeout is 10~s instead of the 5~s DUT default because the round trip through the CODESYS Data
 Sources takes about 4.6~s in the test rig. [FRAMO] rev.~B lists \var{HeartbeatToggle} (BOOL, RW),
@@ -738,7 +746,7 @@ baseline must be agreed with Framo\open{1}.
   \draw[dashed, red] (8,3.2) node[above, text=red] {PCC stops answering} -- (8,-1.3);
   \draw[<->] (5,-1.9) -- node[below] {HeartbeatTimeout 10 s since the last clear} (18,-1.9);
   \draw[dashed] (18,2.6) -- (18,-2.6);
-  \node[anchor=west, align=left] at (18.2,0.6) {YF: alarm,\\UNAVAILABLE,\\last speed in LIC01,\\O$_2$ permit off};
+  \node[anchor=west, align=left] at (18.2,0.6) {YF: alarm,\\LINK LOST,\\0.8 $\times$ last SP in LIC01,\\O$_2$ permit off};
 \end{tikzpicture}
 \caption{Heartbeat as implemented in [PLC]: one shared bit, the PLC sets it, the PCC clears it.}
 \label{fig:hb}
@@ -765,7 +773,7 @@ the mode.
         and let the operator start, stop and set the speed of a pump in manual.
   \item While the pen runs, the system shall run only as many pumps as the flow needs, near their
         operating speed, and rotate the running pumps by run time (Section~\ref{sec:count}).
-  \item The system shall supervise the link to each Framo controller and react to its loss (HOLD).
+  \item The system shall supervise the link to each Framo controller and react to its loss (LINK LOST).
   \item The system shall give each oxygen line its permit only while its inlet pump runs in REMOTE
         with a live link (interlock I1).
   \item The system shall present the pump state, the Framo values and alarms, and the levels on the HMI.
@@ -781,7 +789,7 @@ the mode.
 Input & Source & Used for \\
 \midrule
 LT01--03, LT21--23 & InletRIO $n$ words 0, 1 & PV of LIC01, display, alarms \\
-Pump state flags (7 per pump) & PCC$n$, OPC UA & F4, tracking, hold, start permissive \\
+Pump state flags (6 used per pump; HOLD no longer read) & PCC$n$, OPC UA & F4, tracking, start permissive \\
 MotorVelocity & PCC$n$, OPC UA & tracking, bumpless transfer, display \\
 Framo alarms (11 per pump) & PCC$n$, OPC UA & alarms, info panel \\
 HeartbeatToggle & PCC$n$, OPC UA & link supervision \\
@@ -800,7 +808,7 @@ Operator commands and parameters & HMI, OPC UA & Table~\ref{tab:hmi} \\
   \item To the HMI: states, PV, setpoint, LIC01 output and mode, alarms.
 \end{itemize}
 The inlet system has no hard-wired outputs; the PLC has no command path to the pumps other than
-OPC UA. A lost link therefore always leaves the pump to the PCC (HOLD).
+OPC UA. A lost link therefore always leaves the pump to the PCC (LINK LOST: last setpoint $	imes$ 0.8).
 
 \subsection{Startup and shutdown}
 \textbf{PLC start (power-up, download).} Configuration and the level setpoint are retained. The pen
@@ -841,11 +849,11 @@ Transmitter disabled by operator & Config.Enable FALSE & Pair drops out & Operat
 All pairs lost & no valid pair & Alarm \emph{Level measurement lost} (LAL01); LIC01 to manual at \var{SafeOutput} 60~rpm (interlock I6) & Back to auto bumplessly when a pair is valid \\
 InletRIO $n$ link lost & Master not connected, or no new response for 2~s while the master still reports connected (freshness watchdog on the master's receive counter, \var{HasReceivedChannelData}; \var{Status.DataStale}) & Alarm \emph{InletRIO comm.\ error}; both transmitters of inlet $n$ count as bad, so its pair drops out of the PV (DEC6); the master is restarted at once (disabled 1~s, channels added again) and every 10~s while stale (\var{Status.Restarts}). The station's RIO and oxy pump drive have one master each and restart independently: a restart of one does not interrupt the other & Automatic \\
 24 V field breaker XF05 tripped & InletRIO word 4.0 & Alarm; both transmitters of that inlet read bad $\Rightarrow$ pair drops out & Reset XF05 (HMI, DO 0.0) \\
-Framo link / heartbeat lost & no clear for 10~s, or the data source \var{Framo_n} not connected & Alarm \emph{Communication loss}; PLC shows UNAVAILABLE; the pump stays in LIC01's total at its last speed and the pumps in REMOTE keep controlling (DEC9); with no pump left in REMOTE LIC01 tracks; oxygenation permit off. PCC: HOLD at preset speed & Link back: PCC still in HOLD $\Rightarrow$ operator Reset\open{2}; in REMOTE the pump takes its share, the total is unchanged \\
+Framo link / heartbeat lost & no clear for 10~s, or the data source \var{Framo_n} not connected & Alarm \emph{Communication loss}; PLC shows a running pump LINK LOST; it stays in LIC01's total at last setpoint $\times$ 0.8 and the pumps in REMOTE keep controlling (DEC9); with no pump left in REMOTE LIC01 tracks; oxygenation permit off. PCC: normal operation at last setpoint $\times$ 0.8 (stand-alone: last setpoint) & Link back: the pump is in REMOTE, takes its share, the total is unchanged; no Reset \\
 Pump trip / fault & PCC alarm flags; state LOCKDOWN & Common alarm \emph{Pump $n$ failed}; pump leaves level control; the remaining pumps take over its share in the same cycle (DEC5); if their share stays $\ge$ \var{PumpAddSpeed}, a standby candidate is started; permit off & Fix the fault, operator Reset\open{3}; as a candidate it is started again while the pen runs \\
 Start not acknowledged & Start sent, still AVAILABLE after 30~s & Alarm \emph{Start failed}; a candidate is left out of the pump count and another one is started if the share stays high (Section~\ref{sec:count}) & Operator \\
-Stop not acknowledged & Stop sent, still in START, REMOTE or HOLD after 30~s & Alarm \emph{Stop failed} & Operator, locally at the PCC \\
-Reset not answered & Reset given in HOLD or LOCKDOWN, pump still in that state after $2\times$\var{ResetExpectedTime} (10~s) & Reset withdrawn; warning \emph{Failed to reset} (no acknowledge) & Check the PCC; give Reset again \\
+Stop not acknowledged & Stop sent, still in START, REMOTE or LINK LOST after 30~s & Alarm \emph{Stop failed} & Operator, locally at the PCC \\
+Reset not answered & Reset given in LOCKDOWN, pump still in that state after $2\times$\var{ResetExpectedTime} (10~s) & Reset withdrawn; warning \emph{Failed to reset} (no acknowledge) & Check the PCC; give Reset again \\
 Speed deviation & $|n_\text{SP}-n| >$ \var{SpeedDeviationLimit} (10~rpm) for \var{SpeedDeviationDelay} (30~s), in REMOTE & Alarm \emph{Speed deviation} & Operator; automatic when the pump follows again \\
 Vacuum chamber overfill & LSH3$n$ & not implemented (5~s delay in [FD])\open{11} & -- \\
 Emergency stop & PCC \var{EmergencyStop} & Pump stops (STO); alarm; LOCKDOWN & Release E-stop, Reset\open{13} \\
@@ -885,7 +893,7 @@ I8 & Over-height above LevelAHH: all inlet pumps stop, the pen stops, until belo
         the heartbeat times out. Only the pump variables are mapped, not the server's standard
         \texttt{Server} object.
         Start, Stop and Reset are events acted on at the rising edge\open{4}. The PLC holds Reset TRUE
-        from the operator's command until it reads the pump out of HOLD or LOCKDOWN, at most
+        from the operator's command until it reads the pump out of LOCKDOWN, at most
         $2\times$\var{ResetExpectedTime}; then it withdraws Reset and warns \emph{Failed to reset}.
   \item \textbf{PLC $\leftrightarrow$ InletRIO $n$:} Modbus TCP, function code 23, every 100~ms.
   \item \textbf{HMI $\leftrightarrow$ PLC:} OPC UA (PLC is the server).
@@ -1031,8 +1039,8 @@ Alarm & Condition & Class & Action & PLC \\
 \endfoot
 Communication loss pump $n$ & PCC has not cleared HeartbeatToggle for 10~s & A & UNAVAILABLE; last speed kept in LIC01's total; O$_2$ line $n$ stops & \impl \\
 Start of pump $n$ failed & Start sent and still AVAILABLE after StartupTime (30~s) & A & none & \impl \\
-Stop of pump $n$ failed & Stop sent and still in START, REMOTE or HOLD after ShutdownTime (30~s) & A & none & \impl \\
-Failed to reset pump $n$ & Reset given in HOLD/LOCKDOWN, no state change within $2\times$ResetExpectedTime (10~s); clears when the pump leaves HOLD/LOCKDOWN or on a new Reset & W (auto-ack) & Reset withdrawn & \impl \\
+Stop of pump $n$ failed & Stop sent and still in START, REMOTE or LINK LOST after ShutdownTime (30~s) & A & none & \impl \\
+Failed to reset pump $n$ & Reset given in LOCKDOWN, no state change within $2\times$ResetExpectedTime (10~s); clears when the pump leaves LOCKDOWN or on a new Reset & W (auto-ack) & Reset withdrawn & \impl \\
 Pump $n$ failed (common) & any of DriveError, DriveCommunication, DriveNotInRemote, MotorTemperature, EmergencyStop, DCUndervoltageError, PumpStopped, UPSSupplyError, EmergencyRunMode & A & shown on info panel & \impl\open{10} \\
 Individual Framo alarms & each flag above, own alarm & A & logged & \impl \\
 Pump $n$ low / high power & LowPower / HighPower from PCC; not in the common alarm & N (auto-ack) & none, notification only [FD] & \impl \\
@@ -1175,7 +1183,7 @@ Level setpoint & \var{Pen.LevelController.Command.Setpoint} & m; from the mode i
 LIC01 auto / manual, manual output & \var{Pen.LevelController.Command.Manual}, \var{.Auto} (pulses; mode in \var{.Status.Manual}), \var{.ManualOutput} & rpm per pump \\
 Pump auto / manual & \var{Inlet[i].InletPump.Command.Auto}, \var{.Manual} (pulses; mode in \var{.Status.Manual}) & default auto \\
 Pump start / stop / speed in manual & \var{Inlet[i].InletPump.Command.Start}, \var{.Stop}, \var{.Setpoint} & speed used in REMOTE; Start / Stop written in auto are cleared, they do not act at the switch to manual \\
-Reset pump (HOLD, LOCKDOWN) & \var{Inlet[i].InletPump.Command.Reset} & pulse, accepted only in HOLD or LOCKDOWN; the PLC clears it and holds the PCC's Reset until it sees the state change. HMI button per pump\open{24} \\
+Reset pump (LOCKDOWN) & \var{Inlet[i].InletPump.Command.Reset} & pulse, accepted only in LOCKDOWN; the PLC clears it and holds the PCC's Reset until it sees the state change. HMI button per pump\open{24} \\
 Enable/disable transmitter or pair & \var{...LevelInsidePen.Config.Enable}, \var{...PenOverHeight.Config.Enable} & takes a pair out of the PV \\
 Info panel per pump & \var{Inlet[i].InletPump.Input.*}, \var{.State} & [FD] Figur 3 \\
 Alarm list and acknowledgement & \var{*.Alarm.*}, \var{*.AlarmAck.*} & classes \TBD\open{21} \\
@@ -1198,16 +1206,16 @@ agreement with the supplier.
         connect, interval 1~s, timeout 10~s (DUT default 5~s). [FRAMO] rev.~B: HeartbeatToggle with
         HeartbeatInterval and HeartbeatElapsed. [FD]: INT counter 0--32767. Agree one with Framo, incl.\
         the PCC's own timeout and whether the PLC writes Interval.
-  \item \textbf{HOLD $\to$ REMOTE.} [FD] requires an operator Reset; [FRAMO] rev.~B returns to REMOTE
-        automatically when the heartbeat is back. The PLC works either way: it follows the state the PCC
-        reports (a pump in HOLD counts at its own speed, one in REMOTE takes its share) and sends Reset only when the
-        operator gives it. Open with Framo: which behaviour the PCC implements, and whether the PCC's own
-        panel also has a local Reset.
+  \item \textbf{HOLD $\to$ REMOTE.} Closed 2026-11-05 by [FRAMO-FD] rev.~04: no HOLD; on link loss the
+        pump runs at last setpoint $\times$ 0.8 and follows the setpoint again when the link is back, without
+        Reset. Still open with Framo (questions of 2026-11-05): the interface list for rev.~04 (state flags,
+        stand-alone, Remote and Inhibit commands), what the PCC reports while on the reduced setpoint, and
+        what happens on a link loss during start or stop.
   \item \textbf{LOCKDOWN exit and Reset.} [FD]: operator Reset after the fault is fixed. [FRAMO]:
         LOCKDOWN ends with ``sequence end'' to UNAVAILABLE, no Reset. What Reset does (all alarms? edge?)
         is not described (Framo review comment).
-  \item \textbf{Stop and command semantics.} [FRAMO] rev.~B accepts Stop only in REMOTE (not in START or
-        HOLD). The PLC sends Stop in any state and raises Stop failed for START, REMOTE and HOLD. Are Start/Stop/Reset
+  \item \textbf{Stop and command semantics.} [FRAMO] rev.~B accepts Stop only in REMOTE (not in START). The PLC
+        sends Stop in any state and raises Stop failed for START, REMOTE and LINK LOST. Are Start/Stop/Reset
         edge- or level-triggered?
   \item \textbf{LIC01 parameter sets.} \emph{Closed in rev~B} by DEC5: with the total output the loop gain
         does not depend on the pump count; one set ($K_p$ 1350 total rpm/m, $T_i$ 60~s). [FD] Tabell~8 to
@@ -1255,10 +1263,10 @@ agreement with the supplier.
         with the outlet open'' (I3) are not in the PLC.
   \item \textbf{Alarm classes.} [AL] has no priority or acknowledgement class; define them.
   \item \textbf{Framo dynamics and preset speeds.} Speed response $T_p$ (10~s assumed), START preset
-        speed (88~rpm assumed), HOLD safe speed and ramp rates: to be given by Framo.
+        speed (88~rpm assumed) and ramp rates: to be given by Framo (the link-loss factor 0.8 is in [FRAMO-FD] rev.~04).
   \item \textbf{Platform.} Task watchdogs disabled in the test application; IP plan and network
         drawing missing ([PID] C3).
-  \item \textbf{Operator Reset on the HMI.} A Reset button per inlet pump (enabled in HOLD and LOCKDOWN,
+  \item \textbf{Operator Reset on the HMI.} A Reset button per inlet pump (enabled in LOCKDOWN,
         with confirmation) is in review for the test HMI (heimdall-cas-hmi); the production HMI needs the
         same function.
 \end{enumerate}
@@ -1286,7 +1294,8 @@ agreement with the supplier.
         \var{Pen.Config} (IN-09).
   \item 2026-10-23 (Sigurd): when a pump goes to HOLD or its link is lost, LIC01 keeps controlling the level
         with the pumps it can set, instead of freezing ([FD] Tabell~5, [FRAMO] rev~B): the three PCCs do not
-        know each other's state. The HOLD pump counts in the total at its own speed. Implemented as rules
+        know each other's state. The HOLD pump counts in the total at its own speed (since 2026-11-05: a
+        LINK LOST pump at last setpoint $\times$ 0.8). Implemented as rules
         R1/R2 (Section~\ref{sec:lic}) in the split of \var{InletSupervisor} (IN-33).
 \end{enumerate}
 \end{small}
