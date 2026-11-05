@@ -12,7 +12,7 @@
 \newcommand{\TBD}{\textcolor{red}{TBD}}
 \setlength{\emergencystretch}{2em}
 
-\casfdheader{Oxygen system}{CAS-FD-20}{A4}
+\casfdheader{Oxygen system}{CAS-FD-20}{A5}
 
 \begin{document}
 \maketitle
@@ -128,6 +128,7 @@ A3 & 2026-11-03 & Drive link loss also detected when the master still reports co
   program: removed from the text (register OX-31). OIC01 limit / overflow alarms only in auto. \\
 \bottomrule
 A4 & 2026-11-05 & PLC node structure by system: the oxy pump's settings and the drive address are \var{OxySystem[i].OxyPump.Config}, the drive link status \var{OxySystem[i].OxyPump.Status} (DriveDataStale, DriveRestarts); OIC01 is \var{Pen.OxyController} with its settings in \var{.Config} and the setpoint in \var{.Command.Setpoint} (retained); the valve's auto setpoint, written by the PLC, is \var{OxyValve.InternalCommand.AutoSetpoint}. Behaviour unchanged. \\
+A5 & 2026-11-05 & Bad line flow: the line counts with its last good flow in OIC01's sharing, not 0 (\var{Status.FlowValid}; OI15). OIC01 manual$\to$auto: the active setpoint starts at the PV and ramps to the operator's (\var{Config.SetpointRamp}); the PLC no longer overwrites \var{Command.Setpoint}. New alarms, off until limits are set: InjectorDpLow (OI10), OxygenDeviationHigh / Low (OI11), OxygenSensorDisagreement (OI12). Oxy pump Start / Stop written in auto are cleared; Reset is a pulse the PLC clears. Leakage / temperature contacts: word 9.7 / 9.8. \\
 \end{tabularx}
 \end{small}
 
@@ -421,10 +422,11 @@ of lines running; one parameter set is enough (the three sets of [FD] table~13 a
         (\var{Pen.OxyController.Command.Manual}, \var{.ManualOutput}). Bumpless both ways, as LIC01
         (CAS-FD-10 rev~B1), while the pen is started and lines are in auto: auto$\to$manual sets the
         manual output to the current total flow output, so the \Otwo{} flow does not jump (before, it
-        went to the last \var{ManualOutput}, 0 if never set); manual$\to$auto sets the \Otwo{} setpoint
-        (\var{Pen.OxyController.Command.Setpoint}) to the pen \Otwo{} (PV), if the measurement is valid, and restarts
-        the PID from the manual output with a cleared integral (\var{RESET}, \var{Y\_OFFSET}). The
-        operator then moves the setpoint to where it should be.
+        went to the last \var{ManualOutput}, 0 if never set); manual$\to$auto restarts
+        the PID from the manual output with a cleared integral (\var{RESET}, \var{Y\_OFFSET}); its active
+        setpoint (\var{Pen.OxyController.Input.Setpoint}) starts at the pen \Otwo{} (PV), if the measurement
+        is valid, and ramps to the operator's setpoint (\var{.Command.Setpoint}) at \var{.Config.SetpointRamp}.
+        The operator's setpoint is never written by the PLC.
   \item \textbf{Bad \Otwo{} measurement}: the output is frozen at its last value (interlock I7
         on CAS-PID-400) for as long as the measurement is bad\open{14}.
 \end{itemize}
@@ -452,7 +454,8 @@ to the 750-563 as 0--65535 = 4--20\,mA.
         \var{.ManualSetpoint}); the FIC tracks it, so the return to auto is bumpless. The line then
         counts as ``not in auto'' with its measured flow.
   \item \textbf{Flow measurement bad}: the FIC holds the last valve position and the line leaves
-        auto; its flow is then counted as 0 in the sharing\open{15}.
+        auto; in the sharing it counts with its last good flow (the valve being held), so the other lines do
+        not add the same \Otwo{} again; 0 once its valve is closed. \var{Status.FlowValid} is FALSE meanwhile.
   \item \textbf{No permit or oxygenation not active}: output forced to 0\,\% = 4\,mA = valve closed,
         also in valve manual (Section~\ref{sec:permit}).
 \end{itemize}
@@ -625,7 +628,7 @@ Tag & Signal & Node / channel & PLC variable \\
 \multicolumn{4}{@{}l}{\textit{Inputs}} \\
 PT4$n$ & pressure after pump, 4--20 mA & InletRIO$n$ -R1-106 ch3, word 2 & \var{OxySystem[i].Input.OxyPumpPressure} \\
 PT4($n$+3) & pressure after injector, 4--20 mA & InletRIO$n$ -R1-106 ch4, word 3 & \var{OxySystem[i].Input.OxynatorOutletPressure} \\
-XS41 / TSH41 & pump leakage / motor temp., DI & InletRIO1 -R1-104 ch8/9, word 5.7/5.8 (line 1 only) & \var{.Input.OxyPumpLeakDetedtion} / \var{.OxyPumpHighTemperature} \\
+XS41 / TSH41 & pump leakage / motor temp., DI & InletRIO1 -R1-104 ch8/9, word 9.7/9.8 (line 1 only) & \var{.Input.OxyPumpLeakDetection} / \var{.OxyPumpHighTemperature} \\
 FT41..43 & \Otwo{} flow, 4--20 mA & CommonRIO -R1-008 ch1--3, words 24--26 & \var{OxySystem[i].Input.OxygenFlow} \\
 PT40 & \Otwo{} supply pressure, 4--20 mA & CommonRIO -R1-008 ch4, word 27 & \var{Pen.Input.OxygenInjectionPressure} \\
 OT01..03, OT21..23 & Orbit 864, Modbus RTU & CommonRIO -R1-003 750-652, words 0--11 & \var{Pen.Input.Orbit864Sensor[0..5]} \\
@@ -672,7 +675,7 @@ Drive communication lost & \var{DriveMaster.comOk} FALSE (socket timeout 5\,s), 
 Drive not in remote & ETA bit 9 = 0 & Alarm DriveNotInRemote; commands ignored by the drive & Set drive to remote \\
 Pump does not start / stop & not turning 10\,s after Run; turning 10\,s after stop & StartUpTimeout / StopTimeout & Operator ack \\
 Pressure after pump low & PT4$n$ $\leq$ 3.0\,bar or bad, while oxygenation active & Valve forced closed (4\,mA), alarm ValvePressureLow; PIC on preset speed if PT bad & Automatic when pressure returns; operator ack \\
-Line flow measurement bad & 750-455 diagnostic (wire break, under/over range) & Line leaves auto; valve holds last position; its flow counts as 0 in the sharing\open{15} & Automatic when good \\
+Line flow measurement bad & 750-455 diagnostic (wire break, under/over range) & Line leaves auto; valve holds last position; it counts with its last good flow in the sharing (\var{Status.FlowValid} FALSE) & Automatic when good \\
 Pen \Otwo{} measurement lost & no selected Orbit sensor with good quality & OIC01 output frozen indefinitely\open{14}; lines keep their share & Automatic, bumpless \\
 One Orbit sensor fails & Modbus timeout / bad quality & Sensor drops out of the mean; CommFail alarm after delay & Automatic \\
 Inlet pump lost & inlet permit FALSE (not REMOTE or heartbeat lost) & Line stops: valve closed, oxy pump stopped; other lines take over the share at once & Automatic: while oxygenation is on and the line enabled, the line starts again when its inlet pump is back in REMOTE \\
@@ -767,12 +770,12 @@ StopTimeout & stop commanded, still turning after \var{OxyShutdownTime} 10\,s & 
 \multicolumn{4}{@{}l}{\textit{Line}} \\
 ValvePressureLow (PAL4$n$) & oxygenation active but no valve permit: valve held closed & ack & PLC \\
 Sensor quality PT4$n$, PT4($n$+3), FT4$n$ & 750-455 diagnostic bad for \var{QualityDelay} & ack & PLC \\
-Low $\Delta p$ over injector & PT4($n$+3) -- PT4$n$ too small (limit from HMI) & -- & FD/AL, not in PLC\open{10} \\
+InjectorDpLow & oxygenating with \var{Status.InjectorDp} = PT4$n$ -- PT4($n$+3) below \var{Config.InjectorDpLow} for \var{InjectorDpDelay} (default 0 = off, 30\,s) & ack & PLC \\
 Pump leakage / temp. & XS4$n$ / TSH4$n$ & -- & not in PLC\open{24} \\
 \multicolumn{4}{@{}l}{\textit{Pen and supply}} \\
-OIC01 deviation & $|$PV -- SP$|$ $>$ limit while in auto, with delay (HMI) & -- & FD/AL, not in PLC\open{11} \\
+OxygenDeviationHigh / Low & OIC01 controlling (oxygenation on, auto, good \Otwo{}) and pen \Otwo{} beyond the active setpoint $\pm$ \var{Pen.Config.OxygenDeviationLimit} for \var{OxygenDeviationDelay} (default 0 = off, 15\,min) & ack & PLC \\
 OT$nn$ low / high \Otwo{} & per sensor, limits and delay from HMI, only for active sensors & -- & FD/AL; L/H in DUT, not configured\open{12} \\
-\Otwo{} sensor disagreement & spread between OT01..03 $>$ limit & -- & FD/AL, not in PLC\open{12} \\
+OxygenSensorDisagreement & spread of the \Otwo{} sensors for control (\var{Pen.Status.OxygenSensorSpread}) above \var{Pen.Config.OxygenSensorSpread} for its delay (default 0 = off, 5\,min) & ack & PLC \\
 \Otwo{} sensor fault & Orbit communication failure (CommFail) after delay & ack & PLC \\
 \Otwo{} high-high shut-off & supersaturation (\Otwo{} HH / TDGP) closes oxygenation & -- & FD (HOLD), not in PLC\open{9} \\
 PAL40 \Otwo{} not available & PT40 low & -- & FD/AL, not in PLC\open{4} \\
@@ -797,6 +800,10 @@ Parameter & Default & Meaning \\
 \endfoot
 \var{Pen.OxyController.Command.Setpoint} & 8.0 mg/L & OIC01 setpoint (placeholder)\open{13} \\
 \var{Pen.OxyController.Config} & $K_p$ 50, $T_i$ 1800 s, Min 0, Max 0 & OIC01; Max 0 = what the lines can deliver \\
+\var{Pen.OxyController.Config.SetpointRamp} & 0.2 mg/L per min & active setpoint from the PV to the operator's after manual$\to$auto; 0 = at once \\
+\var{Pen.Config.OxygenDeviationLimit / Delay} & 0 (off) / 15 min & OIC01 deviation alarms \\
+\var{Pen.Config.OxygenSensorSpread / SpreadDelay} & 0 (off) / 5 min & \Otwo{} sensor disagreement alarm \\
+\var{OxySystem[i].Config.InjectorDpLow / InjectorDpDelay} & 0 (off) / 30 s & low pressure drop over the injector \\
 \var{Orbit864SensorConfig[k]} & slaves 1--6; EnableForAutoControl for 1--3 & sensor address, polling, selection for OIC01 \\
 \var{OxySystem[i].OxyPump.Config.MinSpeed_Hz / MaxSpeed_Hz} & 20 / 50 Hz & PIC output range\open{19} \\
 \var{.OxyPump.PresetSpeed_Hz} & 40 Hz & speed while starting, with bad PT, or PIC disabled \\
@@ -830,7 +837,7 @@ PT-01.1..3 & \Otwo{} pressure after valve & Normex panel & \TBD{} (not connected
 OT01..03 & \Otwo{}, temp., salinity, inside pen & pen, near outlet & Modbus RTU, 750-652 & 0--60 mg/L & 0.01 mg/L & OIC PV \\
 OT21..23 & \Otwo{}, temp., salinity, outside & 3/30/50 m from pen & Modbus RTU, 750-652 & 0--60 mg/L & 0.01 mg/L & reference \\
 SC41..43 & side-stream pump drive & DC$n$ & Modbus TCP & 20--50 Hz & 0.1 Hz & PIC out \\
-XS41, TSH41 & pump leakage, motor temp. & DC1 MiniCAS II & DI InletRIO1 5.7/5.8 & on/off & -- & not used\open{24} \\
+XS41, TSH41 & pump leakage, motor temp. & DC1 MiniCAS II & DI InletRIO1 9.7/9.8 & on/off & -- & not used\open{24} \\
 PT11, QT11 & TDGP, CO\textsubscript{2} (Solu-Blu) & pen near outlet & 4--20 mA, CommonRIO -R1-007 & \TBD & 12 bit & display; HH?\open{9} \\
 \end{instrumenttable}
 \setlength{\tabcolsep}{6pt}
@@ -888,7 +895,7 @@ OIC01 manual output & \var{Pen.OxyController.Command.Manual/ManualOutput} & -- \
 Select sensors for control & \var{Orbit864SensorConfig[k].EnableForAutoControl} & selector; inactive sensors yellow \\
 Preset speed, run delay, tuning & \var{OxySystemConfig[i]}, \var{Pen.Config} & preset speed from HMI \\
 Drive info panel & \var{OxyPump.Input}: ready, remote, running, power, warning, error, speed, current, LFT & table 12 \\
-Alarm limits (deviation, L/H, $\Delta p$) & not yet in PLC & tables 15, 17\open{11}\textsuperscript{,}\open{12} \\
+Alarm limits (deviation, sensor spread, $\Delta p$) & \var{Pen.Config.OxygenDeviationLimit}, \var{.OxygenSensorSpread}, \var{OxySystem[i].Config.InjectorDpLow} (0 = off); per-sensor L/H not yet & tables 15, 17\open{12} \\
 \end{longtable}
 \end{small}
 
@@ -947,12 +954,12 @@ OI6 & (N) Non-return protection: HAZID ``oxygen pressure lost, water enters inje
 OI7 & (N) Injector model and gas ratio: \var{FlowMax} 104.2 kg/h = CT10 at 15\,\% v/v; 34.7 kg/h at 5\,\%. Which applies in sea water at Heimdall? & Chucaotech / Normex; set \var{FlowMax}. \\
 OI8 & (N) Signal list and interface FD for the Normex panel (terminals, 24\,V supply, cable list). & Normex. \\
 OI9 & \Otwo{} high-high / supersaturation (TDGP) shut-off asked by [FD] (HOLD); not in the PLC. Needs limits and an actuator (OI5). & Decide limits; implement. \\
-OI10 & Injector low differential pressure alarm ([FD] table 15): \var{OxynatorOutletPressure} is read but unused. & Implement with HMI limit. \\
-OI11 & OIC01 deviation alarm ([FD] table 15): not implemented. & Implement. \\
-OI12 & \Otwo{} sensor disagreement alarm and per-sensor low/high alarms: not implemented (L/H fields exist in the Orbit DUT, not configured). & Implement; set limits. \\
+OI10 & Injector low differential pressure alarm ([FD] table 15): implemented 2026-11-05 (InjectorDpLow), off until a limit is set. & Set \var{InjectorDpLow} at commissioning. \\
+OI11 & OIC01 deviation alarm ([FD] table 15): implemented 2026-11-05 (OxygenDeviationHigh / Low), off until a limit is set. & Set \var{OxygenDeviationLimit}. \\
+OI12 & \Otwo{} sensor disagreement alarm: implemented 2026-11-05 (OxygenSensorDisagreement), off until a limit is set. Per-sensor low/high alarms: not configured (L/H fields exist in the Orbit DUT). & Set \var{OxygenSensorSpread}; per-sensor limits. \\
 OI13 & \Otwo{} setpoint 8.0\,mg/L is a placeholder; [FD] asks \% or mg/L. [O2S] uses \% saturation: $\geq$80\,\%, 90\,\% at 16\degC. A \% setpoint needs temperature/salinity correction. & Customer / biology to decide. \\
 OI14 & Loss of pen \Otwo{} measurement: OIC01 holds its output indefinitely ([FD] sentence unfinished). Hold, fixed fallback flow, or time limit? & Decide; implement. \\
-OI15 & Loss of line flow measurement: valve holds last position, line flow counted as 0, so the other lines may over-dose. Hold, close, or fixed opening? & Decide; implement. \\
+OI15 & Loss of line flow measurement: valve holds last position; since 2026-11-05 the line counts with its last good flow in the sharing, so the other lines do not over-dose. & Closed; confirm at commissioning. \\
 OI16 & Units and tuning differ from [FD] (Table~\ref{tab:dev}); deliberate. & Accept; update [FD] to rev~C. \\
 OI17 & Pressure transmitters: make, range, absolute or gauge unknown ([SO] ``find sensors''). \var{PressureSetpoint} 4.0 and \var{ValveOpenPressure} 3.0 must change together. Transmitter before the pump wanted? & Select transmitters; set ranges. \\
 OI18 & Pump head vs. pressure setpoint: NX 3153 gives 10.2\,m at 5.05\,m\textsuperscript{3}/min, 18.3\,m shut-off at 50\,Hz; the simulator assumes 4.5\,bar rise. Required injector inlet pressure from Chucaotech? & Check suction pressure and injector requirement; reset SP. \\
