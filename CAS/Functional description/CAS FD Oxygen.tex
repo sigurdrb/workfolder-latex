@@ -130,6 +130,7 @@ A3 & 2026-11-03 & Drive link loss also detected when the master still reports co
 A4 & 2026-11-05 & PLC node structure by system: the oxy pump's settings and the drive address are \var{OxySystem[i].OxyPump.Config}, the drive link status \var{OxySystem[i].OxyPump.Status} (DriveDataStale, DriveRestarts); OIC01 is \var{Pen.OxyController} with its settings in \var{.Config} and the setpoint in \var{.Command.Setpoint} (retained); the valve's auto setpoint, written by the PLC, is \var{OxyValve.InternalCommand.AutoSetpoint}. Behaviour unchanged. \\
 A5 & 2026-11-05 & Bad line flow: the line counts with its last good flow in OIC01's sharing, not 0 (\var{Status.FlowValid}; OI15). OIC01 manual$\to$auto: the active setpoint starts at the PV and ramps to the operator's (\var{Config.SetpointRamp}); the PLC no longer overwrites \var{Command.Setpoint}. New alarms, off until limits are set: InjectorDpLow (OI10), OxygenDeviationHigh / Low (OI11), OxygenSensorDisagreement (OI12). Oxy pump Start / Stop written in auto are cleared; Reset is a pulse the PLC clears. Leakage / temperature contacts: word 9.7 / 9.8. \\
 A6 & 2026-11-05 & Pen \Otwo{} limits (configurable): WL 6, AL 5, WH 10, AH 11, AHH 12\,mg/L; warnings clear by themselves, alarms are acknowledged; AHH trips oxygenation for all lines and it starts again by itself below \var{OxygenTripReset} (6\,mg/L) (OI9). \\
+A7 & 2026-11-06 & Line trip (Section~\ref{sec:trip}): low pressure drop over the injector (InjectorDpLow, now on with 0.5\,bar) or the drive's dry-running fault DRYF (new alarm DryRun) set the oxy pump to manual and stop it, so the motor valve closes. Pump Auto or a manual Start is refused until the alarm is acknowledged and the drive fault reset (\var{Status.StartBlocked}). There is no on/off \Otwo{} valve per line: the pneumatic valve PV-01.$n$ is out of the Normex scope; only the motor valve MV-01.$n$ (OV4$n$) is closed. \\
 \end{tabularx}
 \end{small}
 
@@ -492,6 +493,8 @@ sequence.
         stops, oxygenation ends at once and the valve command goes to 4\,mA (closed) in the same
         cycle; the 2\,s ramp applies only while the valve is permitted. The pump stops when the line
         is not started (pump in auto).
+  \item \textbf{Trip}: low injector $\Delta p$ or drive dry running sets the pump to manual and stops
+        it; the line leaves the group start until the operator restarts it (Section~\ref{sec:trip}).
 \end{enumerate}
 In pump manual the operator can start and stop the oxy pump alone (\var{OxyPump.Command.Start/Stop}),
 also without the inlet permit; oxygenation still needs the line to be started.
@@ -550,6 +553,39 @@ The valve may open only when oxygen can be dissolved: the side stream must flow 
 \var{ValveOpenPressure} (3.0\,bar) is on the same scale as \var{PressureSetpoint} (4.0\,bar); if
 the transmitters turn out to read gauge pressure, both must be lowered together by 1\,bar\open{17}.
 
+\subsection{Line trip: injector \texorpdfstring{$\Delta p$}{dp} and dry running}
+\label{sec:trip}
+Two conditions trip a line (block \var{OxyControl}):
+\begin{itemize}[nosep]
+  \item \textbf{InjectorDpLow}: while oxygenating (valve open), the pressure drop over the injector
+        \var{Status.InjectorDp} = PT4$n$ -- PT4($n$+3), both measurements good, stays below
+        \var{Config.InjectorDpLow} (0.5\,bar) for \var{InjectorDpDelay} (30\,s). Too little water through
+        the injector for the gas. With a bad PT4$n$ or PT4($n$+3), or the pump stopped, the drop is
+        not judged. 0 = off. No supplier figure exists (the injector is not in the Normex scope); set
+        it at commissioning to about half the normal drop\open{10}.
+  \item \textbf{DryRun}: the ATV650 trips on its dry-running fault DRYF (LFT 126). The drive
+        compares its estimated power with a no-flow curve (DRYM = power, Section~\ref{sec:dryrun}) and
+        stops the motor itself; the PLC reads the fault.
+\end{itemize}
+On the rising edge of either, the PLC sets the oxy pump to manual (\var{OxyPump.Status.Manual}) and
+stops it (\var{OxyPump.Command.Stop}). The valve permit is lost with the pump, so the motor valve
+OV4$n$ goes to 4\,mA (closed) in the same cycle, and the line leaves the group start and the sharing:
+the other lines in auto take over its share. There is no on/off \Otwo{} valve per line to close
+as well: the pneumatic valve PV-01.$n$ is out of the Normex scope (request of 15.10.26).
+
+\textbf{Restart, per line.} \var{Status.StartBlocked} is TRUE while the drive is in DRYF or either
+alarm is not back to normal (unacknowledged, or still present). While it is TRUE, pump Auto and
+a manual Start are refused (the commands are cleared). To restart:
+\begin{enumerate}[nosep]
+  \item acknowledge the alarm;
+  \item after DryRun: reset the drive (\var{OxyPump.Command.Reset}); the drive refuses the reset for
+        its restart time DRYR (60\,s);
+  \item set the pump to Auto (follows the group start again) or start it in manual.
+\end{enumerate}
+The valve opens again after \var{RunDelay} and the valve permit; FIC4$n$ starts from 0. If the
+pressure drop is still low, the line trips again after \var{InjectorDpDelay}. The trip is held by
+the pump's manual mode only: a PLC restart leaves the pump in the mode it starts in.
+
 \subsection{Drive state machine (DRIVECOM)}
 The PLC walks the ATV650 through the DRIVECOM (CiA 402) states by writing the command word CMD
 (8501) and reading the status word ETA (3201) every 100\,ms (block \var{OxyPumpATV650}).
@@ -605,6 +641,9 @@ statements are requirements; ``PLC:'' says how the program of 2026-10-21 fulfils
   \item Each line shall run its side-stream pump at constant pressure into the injector (PIC4$n$).
   \item A line shall add oxygen only while its inlet pump runs under remote control, its side-stream
         pump runs and the pressure after the pump is above the valve-open limit.
+  \item A line shall trip on low pressure drop over the injector or on dry running of its pump:
+        pump stopped and set to manual, \Otwo{} valve closed. It shall start again only after the
+        alarm is acknowledged, the fault cleared and the operator sets the pump to auto or starts it.
   \item The total oxygen flow shall be shared equally between the lines in auto, up to each line's
         maximum; lines in manual shall be accounted for with their measured flow.
   \item The system shall measure and display pen \Otwo{} (mg/L, \% saturation), temperature and
@@ -676,6 +715,8 @@ Drive communication lost & \var{DriveMaster.comOk} FALSE (socket timeout 5\,s), 
 Drive not in remote & ETA bit 9 = 0 & Alarm DriveNotInRemote; commands ignored by the drive & Set drive to remote \\
 Pump does not start / stop & not turning 10\,s after Run; turning 10\,s after stop & StartUpTimeout / StopTimeout & Operator ack \\
 Pressure after pump low & PT4$n$ $\leq$ 3.0\,bar or bad, while oxygenation active & Valve forced closed (4\,mA), alarm ValvePressureLow; PIC on preset speed if PT bad & Automatic when pressure returns; operator ack \\
+Too little water through the injector & PT4$n$ -- PT4($n$+3) $<$ \var{InjectorDpLow} (0.5\,bar) for 30\,s while oxygenating; alarm InjectorDpLow & Trip: pump to manual and stopped, valve closed, line out of the group start (Section~\ref{sec:trip}) & Acknowledge; pump Auto or manual Start (refused before) \\
+Side-stream pump dry running & ATV650 fault DRYF (LFT 126), power below the no-flow curve; alarm DryRun & Trip as above; the drive has stopped the motor itself & Acknowledge, reset the drive (after DRYR 60\,s), pump Auto or manual Start \\
 Line flow measurement bad & 750-455 diagnostic (wire break, under/over range) & Line leaves auto; valve holds last position; it counts with its last good flow in the sharing (\var{Status.FlowValid} FALSE) & Automatic when good \\
 Pen \Otwo{} measurement lost & no selected Orbit sensor with good quality & OIC01 output frozen indefinitely\open{14}; lines keep their share & Automatic, bumpless \\
 One Orbit sensor fails & Modbus timeout / bad quality & Sensor drops out of the mean; CommFail alarm after delay & Automatic \\
@@ -771,7 +812,8 @@ StopTimeout & stop commanded, still turning after \var{OxyShutdownTime} 10\,s & 
 \multicolumn{4}{@{}l}{\textit{Line}} \\
 ValvePressureLow (PAL4$n$) & oxygenation active but no valve permit: valve held closed & ack & PLC \\
 Sensor quality PT4$n$, PT4($n$+3), FT4$n$ & 750-455 diagnostic bad for \var{QualityDelay} & ack & PLC \\
-InjectorDpLow & oxygenating with \var{Status.InjectorDp} = PT4$n$ -- PT4($n$+3) below \var{Config.InjectorDpLow} for \var{InjectorDpDelay} (default 0 = off, 30\,s) & ack & PLC \\
+InjectorDpLow & oxygenating with \var{Status.InjectorDp} = PT4$n$ -- PT4($n$+3) below \var{Config.InjectorDpLow} for \var{InjectorDpDelay} (0.5\,bar, 30\,s; 0 = off): trip & ack & PLC, FD \\
+DryRun & drive in fault DRYF (LFT 126, dry running by the power curve): trip & ack & PLC \\
 Pump leakage / temp. & XS4$n$ / TSH4$n$ & -- & not in PLC\open{24} \\
 \multicolumn{4}{@{}l}{\textit{Pen and supply}} \\
 OxygenDeviationHigh / Low & OIC01 controlling (oxygenation on, auto, good \Otwo{}) and pen \Otwo{} beyond the active setpoint $\pm$ \var{Pen.Config.OxygenDeviationLimit} for \var{OxygenDeviationDelay} (default 0 = off, 15\,min) & ack & PLC \\
@@ -809,7 +851,7 @@ Parameter & Default & Meaning \\
 \var{Pen.Config.OxygenTripReset / OxygenAlarmDelay} & 6 mg/L / 30 s & oxygenation on again below; delay of the limits \\
 \var{Pen.Config.OxygenAlarmHysteresis} & 0.2 mg/L & an \Otwo{} limit clears only this far back inside \\
 \var{Pen.Config.OxygenSensorSpread / SpreadDelay} & 0 (off) / 5 min & \Otwo{} sensor disagreement alarm \\
-\var{OxySystem[i].Config.InjectorDpLow / InjectorDpDelay} & 0 (off) / 30 s & low pressure drop over the injector \\
+\var{OxySystem[i].Config.InjectorDpLow / InjectorDpDelay} & 0.5 bar / 30 s & low pressure drop over the injector: alarm and trip (0 = off); a PLC that already holds 0 keeps it until set from the HMI \\
 \var{Orbit864SensorConfig[k]} & slaves 1--6; EnableForAutoControl for 1--3 & sensor address, polling, selection for OIC01 \\
 \var{OxySystem[i].OxyPump.Config.MinSpeed_Hz / MaxSpeed_Hz} & 20 / 50 Hz & PIC output range\open{19} \\
 \var{.OxyPump.PresetSpeed_Hz} & 40 Hz & speed while starting, with bad PT, or PIC disabled \\
@@ -865,12 +907,23 @@ THD & 3209 & Drive thermal state & R & 1 \% & DriveTemperatureHigh \\
 OPR & 3211 & Motor power in \% & R & 1 \% & display \\
 LFT & 7121 & Last error occurred & R & enum & fault code, FC3 every 1\,s \\
 ETHL & 7021 & Ethernet error response & cfg & enum & set in drive: factory freewheel stop; options include fallback speed LFF (7080) and speed maintain\open{19} \\
+DRYM & 15950 & Dry running monitoring & cfg & enum & set in drive: power (Section~\ref{sec:dryrun}) \\
+DRYD / DRYR & 15952 / 15953 & Dry running delay / restart time & cfg & 1 s & 5 s / 60 s (factory) \\
+DRYX & 15954 & Dry running power factor & cfg & 1 \% & below curve $\times$ DRYX = dry \\
+NFLS, NFLP, NFHS, NFHP & 15960--63 & No-flow curve, low / high point & cfg & Hz, kW & commissioning\open{29} \\
 \bottomrule
 \end{tabularx}
 \end{small}
 \end{center}
+\label{sec:dryrun}\textbf{Dry running in the drive.} With DRYM = power the ATV650 estimates the shaft
+power and compares it with a no-flow curve through two points, (NFLS, NFLP) and (NFHS, NFHP): the power
+the pump takes full of water but with no flow, at a low and a high speed [EAV, EAV64318 \S7.22]. Below
+the curve $\times$ DRYX for DRYD it warns (DRYA) and trips on DRYF; a reset is refused for DRYR. The
+function is standard firmware. The curve shall be measured at commissioning with the flow stopped (an
+existing isolation valve in the line), or taken from the Flygt NX~3153 curve at $Q = 0$ and the
+affinity law ($P \propto n^3$)\open{29}.
 All register numbers and the fault codes used by \var{OxyPumpATV650} (16 OHF, 17 OLF, 21 PHF,
-22 USF, 54 TJF, 110/112/120/122 TH2F--TH5F, communication fault ETHF 150) match [EAV]. The program
+22 USF, 54 TJF, 110/112/120/122 TH2F--TH5F, 126 DRYF, communication fault ETHF 150) match [EAV]. The program
 design [PD] still documents the ATV320 block with codes from the ATV320 list NVE41316 (including
 PTFL 49 and OTFL 50, which the ATV600 list does not have); the codes shall be re-checked on the
 real drive's firmware at commissioning and [PD] updated\open{21}.
@@ -894,7 +947,7 @@ Function & PLC variable & [FD] \\
 \endfoot
 Oxygen Start / Stop (pen) & \var{Pen.Command.OxygenStart}, \var{.OxygenStop}; \var{Pen.Status.OxygenOn} & pulses; enabled lines follow their inlet pumps \\
 Enable / disable oxygen line $n$ & \var{OxySystem[i].Config.Enable} & retained \\
-Pump auto / manual, start, stop, speed, reset & \var{OxySystem[i].OxyPump.Command.Auto/Manual/Start/Stop/Setpoint/Reset} & manual start allowed \\
+Pump auto / manual, start, stop, speed, reset & \var{OxySystem[i].OxyPump.Command.Auto/Manual/Start/Stop/Setpoint/Reset}; Auto and Start refused while \var{OxySystem[i].Status.StartBlocked} (trip not cleared) & manual start allowed \\
 Valve auto / manual, manual position & \var{OxySystem[i].OxyValve.Command.Manual/Auto} (pulses; mode in \var{.Status.Manual}), \var{.ManualSetpoint} & -- \\
 OIC01 setpoint & \var{Pen.OxyController.Command.Setpoint} & \% or mg/L?\open{13} \\
 OIC01 manual output & \var{Pen.OxyController.Command.Manual/ManualOutput} & -- \\
@@ -960,7 +1013,7 @@ OI6 & (N) Non-return protection: HAZID ``oxygen pressure lost, water enters inje
 OI7 & (N) Injector model and gas ratio: \var{FlowMax} 104.2 kg/h = CT10 at 15\,\% v/v; 34.7 kg/h at 5\,\%. Which applies in sea water at Heimdall? & Chucaotech / Normex; set \var{FlowMax}. \\
 OI8 & (N) Signal list and interface FD for the Normex panel (terminals, 24\,V supply, cable list). & Normex. \\
 OI9 & \Otwo{} high-high / supersaturation shut-off asked by [FD] (HOLD): pen \Otwo{} AHH 12\,mg/L implemented 2026-11-05 (oxygenation off, on again below 6\,mg/L). TDGP / supersaturation not monitored (no sensor in use). & Confirm limits; TDGP open. \\
-OI10 & Injector low differential pressure alarm ([FD] table 15): implemented 2026-11-05 (InjectorDpLow), off until a limit is set. & Set \var{InjectorDpLow} at commissioning. \\
+OI10 & Injector low differential pressure ([FD] table 15): alarm and trip, on with 0.5\,bar (2026-11-06). No supplier figure: the injector is not in the Normex scope. & Read the normal drop at commissioning; set \var{InjectorDpLow} to about half. \\
 OI11 & OIC01 deviation alarm ([FD] table 15): implemented 2026-11-05 (OxygenDeviationHigh / Low), off until a limit is set. & Set \var{OxygenDeviationLimit}. \\
 OI12 & \Otwo{} sensor disagreement alarm: implemented 2026-11-05 (OxygenSensorDisagreement), off until a limit is set. Per-sensor low/high alarms: not configured (L/H fields exist in the Orbit DUT). & Set \var{OxygenSensorSpread}; per-sensor limits. \\
 OI13 & \Otwo{} setpoint 8.0\,mg/L is a placeholder; [FD] asks \% or mg/L. [O2S] uses \% saturation: $\geq$80\,\%, 90\,\% at 16\degC. A \% setpoint needs temperature/salinity correction. & Customer / biology to decide. \\
@@ -979,6 +1032,7 @@ OI25 & Production HMI not specified; operator functions of Table~\ref{tab:hmi}. 
 OI26 & Oxygen capacity with one inlet pump out: two lines carry only about 560--730\,t [DB]; fallback is emergency oxygenation and stopped feeding. & Project / customer. \\
 OI27 & PT numbering [FD] (PT41/43/45 in, PT42/44/46 out) vs. drawings (PT41--43 after pump, PT44--46 after injector). & Update [FD]. \\
 OI28 & RIO link loss freezes the line's analog values with good quality (register OX-28; the inlet level pairs got this fix in CAS-FD-10 rev~B). & Mark the RIO's sensors bad while \var{CommOK} is FALSE; line leaves auto, valve per OI15. \\
+OI29 & Dry running in the ATV650: DRYM = power and the no-flow curve (NFLS/NFLP, NFHS/NFHP) are drive settings, not set by the PLC. Measuring the curve needs the flow stopped with the pump full of water. & Commissioning: measure with an existing isolation valve, or calculate from the Flygt NX~3153 curve; set DRYM. \\
 \end{longtable}
 \end{small}
 
