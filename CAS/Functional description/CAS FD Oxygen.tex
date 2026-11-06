@@ -132,6 +132,7 @@ A5 & 2026-11-05 & Bad line flow: the line counts with its last good flow in OIC0
 A6 & 2026-11-05 & Pen \Otwo{} limits (configurable): WL 6, AL 5, WH 10, AH 11, AHH 12\,mg/L; warnings clear by themselves, alarms are acknowledged; AHH trips oxygenation for all lines and it starts again by itself below \var{OxygenTripReset} (6\,mg/L) (OI9). \\
 A7 & 2026-11-06 & Line trip (Section~\ref{sec:trip}): low pressure drop over the injector (InjectorDpLow, now on with 0.5\,bar) or the drive's dry-running fault DRYF (new alarm DryRun) set the oxy pump to manual and stop it, so the motor valve closes. Pump Auto or a manual Start is refused until the alarm is acknowledged and the drive fault reset (\var{Status.StartBlocked}). There is no on/off \Otwo{} valve per line: the pneumatic valve PV-01.$n$ is out of the Normex scope; only the motor valve MV-01.$n$ (OV4$n$) is closed. \\
 A8 & 2026-11-06 & RIO link loss (fault table, OI28 closed). InletRIO$n$: its pressures count as bad, the line holds its pump speed and valve permit (tested in the simulator). CommonRIO: the line flows and now also the Orbit \Otwo{} sensors (750-652 on CommonRIO, \var{ModbusRTUData}) count as bad at once, so OIC01 holds its output; the coupler watchdog closes the \Otwo{} valves after 2\,s (tested). OIC01 starts bumpless from the measured flow only at its first run after a pen start; a later restart (all lines briefly out of auto) continues from its last output (before, it restarted from the measured flow, near 0 after the watchdog had closed the valves, and Ti of 1800\,s took long to recover). Implemented, CommonRIO case to be tested again. \\
+A9 & 2026-11-06 & OIC01 $K_p$ 50 $\to$ 240 (kg/h)/(mg/L), $T_i$ unchanged 1800\,s (PLC main ConfigValues). With 50 the loop took about 25\,min; 240 gives about 5\,min and a phase margin of about 85\,° with the 20\,s sensor lag. Sim start 2026-11-05 22:44: output 190\,kg/h 5\,min after the valves opened (44 with $K_p$ 50). On site start at 150 and step the setpoint 0.5\,mg/L to check the mixing delay. \\
 \end{tabularx}
 \end{small}
 
@@ -760,7 +761,7 @@ The values are start values from \var{ConfigValues} [DB], to be tuned at commiss
 \toprule
 Loop & PV / SP & Output & $K_p$, $T_i$ & Basis \\
 \midrule
-OIC01 & pen \Otwo{} mg/L; SP 8.0\,mg/L\open{13} & total \Otwo{} 0..$\sum$ kg/h & 50 (kg/h)/(mg/L), 1800\,s & Pen time constant about 44\,min, gain about 0.024 mg/L per kg/h [DB] \\
+OIC01 & pen \Otwo{} mg/L; SP 8.0\,mg/L\open{13} & total \Otwo{} 0..$\sum$ kg/h & 240 (kg/h)/(mg/L), 1800\,s & Pen time constant $V/Q$ (35\,min in O-35), gain $1000/Q$ mg/L per kg/h [DB]; $K_p = V/(1000\,\lambda)$ for a 5\,min closed loop, the same in every mode. On site start at 150 \\
 FIC4$n$ & \Otwo{} flow kg/h; SP from FY01 & valve 0--100\,\% & 0.3\,\%/(kg/h), 5\,s & Valve and meter lag about 0.2\,s; closed loop about 2\,s \\
 PIC4$n$ & PT4$n$ bar; SP 4.0 & speed 20--50\,Hz & 2\,Hz/bar, 5\,s & Pump affinity law (simulator) \\
 \bottomrule
@@ -850,7 +851,7 @@ Parameter & Default & Meaning \\
 \bottomrule
 \endfoot
 \var{Pen.OxyController.Command.Setpoint} & 8.0 mg/L & OIC01 setpoint (placeholder)\open{13} \\
-\var{Pen.OxyController.Config} & $K_p$ 50, $T_i$ 1800 s, Min 0, Max 0 & OIC01; Max 0 = what the lines can deliver \\
+\var{Pen.OxyController.Config} & $K_p$ 240, $T_i$ 1800 s, Min 0, Max 0 & OIC01; Max 0 = what the lines can deliver \\
 \var{Pen.OxyController.Config.SetpointRamp} & 0.2 mg/L per min & active setpoint from the PV to the operator's after manual$\to$auto; 0 = at once \\
 \var{Pen.Config.OxygenDeviationLimit / Delay} & 0 (off) / 15 min & OIC01 deviation alarms \\
 \var{Pen.Config.OxygenWL / AL / WH / AH / AHH} & 6 / 5 / 10 / 11 / 12 mg/L & pen \Otwo{} limits; AHH trips oxygenation \\
