@@ -133,14 +133,14 @@
  },
  "OxyPumpCommandDUT.Auto": {
   "desc": "Return the oxy pump to auto (Status.Manual := FALSE).",
-  "behaviour": "Pulse, cleared in the same scan. In auto the pump runs while the line is started: Pen.Status.OxygenOn AND OxyConfig.Enable AND inlet OxyPermit AND NOT EmergencyStop; speed from the PIC (pressure) or PresetSpeed_Hz.",
+  "behaviour": "Pulse, cleared in the same scan. In auto the pump runs while the line is started: Pen.Status.OxygenOn AND OxyConfig.Enable AND inlet OxyPermit AND NOT EmergencyStop; speed from the PIC (pressure) or PresetSpeed_Hz. Refused (cleared, mode unchanged) while OxySystem[i].Status.StartBlocked.",
   "client": "write",
   "unit": "",
   "source": "OxyControl.OxyPumpControl"
  },
  "OxyPumpCommandDUT.Start": {
   "desc": "Manual start of the oxy pump drive.",
-  "behaviour": "Acted on only in manual; latched until Stop. Runs the drive unless State is Unavailable (no comm or drive fault) or EmergencyStop. The PLC clears Command.Start when State = Running; it stays TRUE otherwise (also in auto). Alarm StartUpTimeout if the drive does not turn within OxyConfig.OxyStartupTime (10 s). Response: State Available -> Starting -> Running (speed above MinSpeed_Hz - 0.5).",
+  "behaviour": "Acted on only in manual; latched until Stop. Runs the drive unless State is Unavailable (no comm or drive fault) or EmergencyStop. The PLC clears Command.Start when State = Running; it stays TRUE otherwise (also in auto). Alarm StartUpTimeout if the drive does not turn within OxyConfig.OxyStartupTime (10 s). Response: State Available -> Starting -> Running (speed above MinSpeed_Hz - 0.5). Refused while OxySystem[i].Status.StartBlocked.",
   "client": "write",
   "unit": "",
   "source": "OxyControl.OxyPumpControl, OxyPumpATV650"
@@ -1315,8 +1315,8 @@
   "source": "OxyControl"
  },
  "OxySystemStatusDUT.OxyFlow": {
-  "desc": "Measured O2 flow; 0 when the measurement is bad.",
-  "behaviour": "",
+  "desc": "Measured O2 flow; with a bad measurement the last good one (valve held), 0 with the valve closed.",
+  "behaviour": "Status.FlowValid tells which. CommonRIO link lost: the measurement counts as bad.",
   "client": "read",
   "unit": "kg/h",
   "source": "OxyControl"
@@ -1511,7 +1511,7 @@
   "source": "ModbusRTUData"
  },
  "Orbit864SensorStatusDUT.CommOK": {
-  "desc": "Last oxygen-block poll valid.",
+  "desc": "Last oxygen-block poll valid; FALSE at once while the CommonRIO link is down.",
   "behaviour": "Enabled mirrors Config.Enabled.",
   "client": "read",
   "unit": "",
@@ -1761,5 +1761,75 @@
   "client": "read",
   "unit": "",
   "source": "IO_Processing (InletRIO)"
+ },
+ "OxySystemStatusDUT.StartBlocked": {
+  "desc": "Line tripped and not cleared: OxyPump Auto and manual Start are refused.",
+  "behaviour": "TRUE while the drive is in DRYF or Alarm.InjectorDpLow / Alarm.DryRun is not Normal (unacknowledged, or still present). Trip (InjectorDpLow or DryRun): the oxy pump is set to manual and stopped, the valve closes and the line leaves the group start until the operator restarts it. Clear: acknowledge, and after DryRun reset the drive (OxyPump.Command.Reset); then Auto or Start.",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemStatusDUT.InjectorDp": {
+  "desc": "Pressure drop over the injector: OxyPumpPressure - OxynatorOutletPressure.",
+  "behaviour": "0 unless both pressures are good.",
+  "client": "read",
+  "unit": "bar",
+  "source": "OxyControl"
+ },
+ "OxySystemStatusDUT.FlowValid": {
+  "desc": "OxyFlow is measured (FALSE: held value).",
+  "behaviour": "",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemAlarmDUT.ValvePressureLow": {
+  "desc": "Oxygenation active but no valve permit: valve held closed.",
+  "behaviour": "Acknowledged alarm.",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemAlarmDUT.InjectorDpLow": {
+  "desc": "Oxygenating with Status.InjectorDp below Config.InjectorDpLow for InjectorDpDelay: trip.",
+  "behaviour": "Trip (InjectorDpLow or DryRun): the oxy pump is set to manual and stopped, the valve closes and the line leaves the group start until the operator restarts it. Acknowledged alarm; off with InjectorDpLow = 0.",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemAlarmDUT.DryRun": {
+  "desc": "Oxy pump drive in fault DRYF (LFT 126, dry running by the drive's power curve): trip.",
+  "behaviour": "Trip (InjectorDpLow or DryRun): the oxy pump is set to manual and stopped, the valve closes and the line leaves the group start until the operator restarts it. The drive stops the motor itself (DRYM = power, set in the drive); it refuses a reset for DRYR (60 s).",
+  "client": "read",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemAlarmAckDUT.InjectorDpLow": {
+  "desc": "Acknowledge InjectorDpLow (rising edge).",
+  "behaviour": "",
+  "client": "write",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemAlarmAckDUT.DryRun": {
+  "desc": "Acknowledge DryRun (rising edge).",
+  "behaviour": "",
+  "client": "write",
+  "unit": "",
+  "source": "OxyControl"
+ },
+ "OxySystemConfigDUT.InjectorDpLow": {
+  "desc": "Trip limit for the pressure drop over the injector; 0 = off.",
+  "behaviour": "Retained; default 0.5 bar (no supplier figure: set at commissioning to about half the normal drop). A PLC that already holds 0 keeps it until set.",
+  "client": "read/write",
+  "unit": "bar",
+  "source": "OxyControl"
+ },
+ "OxySystemConfigDUT.InjectorDpDelay": {
+  "desc": "Time the drop must stay below InjectorDpLow before the trip.",
+  "behaviour": "Retained; default 30 s.",
+  "client": "read/write",
+  "unit": "TIME",
+  "source": "OxyControl"
  }
 }

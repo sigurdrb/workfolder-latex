@@ -519,7 +519,7 @@ manual line, the lines in auto take over the difference in the same cycle; the c
 through the integral of OIC01, and gives no over- or undershoot of its own. The output of OIC01 is
 limited to what the lines can deliver, $\sum_{A}\dot m_{\text{max},i} + \sum_{M}\dot
 m_{\text{meas},j}$, so the integral does not wind up beyond reach. It starts bumplessly from the
-measured total flow, and freezes while no O$_2$ sensor for control is good ([FD] §3.2.4).
+measured total flow after a pen start (a later restart continues from its last output), and freezes while no O$_2$ sensor for control is good ([FD] §3.2.4).
 
 \textbf{Per line} (\texttt{OxyControl}): the line starts while oxygenation is on for the pen and the
 line is enabled, only while its inlet pump runs in REMOTE with a live link

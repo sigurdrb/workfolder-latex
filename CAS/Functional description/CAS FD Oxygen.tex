@@ -131,6 +131,7 @@ A4 & 2026-11-05 & PLC node structure by system: the oxy pump's settings and the 
 A5 & 2026-11-05 & Bad line flow: the line counts with its last good flow in OIC01's sharing, not 0 (\var{Status.FlowValid}; OI15). OIC01 manual$\to$auto: the active setpoint starts at the PV and ramps to the operator's (\var{Config.SetpointRamp}); the PLC no longer overwrites \var{Command.Setpoint}. New alarms, off until limits are set: InjectorDpLow (OI10), OxygenDeviationHigh / Low (OI11), OxygenSensorDisagreement (OI12). Oxy pump Start / Stop written in auto are cleared; Reset is a pulse the PLC clears. Leakage / temperature contacts: word 9.7 / 9.8. \\
 A6 & 2026-11-05 & Pen \Otwo{} limits (configurable): WL 6, AL 5, WH 10, AH 11, AHH 12\,mg/L; warnings clear by themselves, alarms are acknowledged; AHH trips oxygenation for all lines and it starts again by itself below \var{OxygenTripReset} (6\,mg/L) (OI9). \\
 A7 & 2026-11-06 & Line trip (Section~\ref{sec:trip}): low pressure drop over the injector (InjectorDpLow, now on with 0.5\,bar) or the drive's dry-running fault DRYF (new alarm DryRun) set the oxy pump to manual and stop it, so the motor valve closes. Pump Auto or a manual Start is refused until the alarm is acknowledged and the drive fault reset (\var{Status.StartBlocked}). There is no on/off \Otwo{} valve per line: the pneumatic valve PV-01.$n$ is out of the Normex scope; only the motor valve MV-01.$n$ (OV4$n$) is closed. \\
+A8 & 2026-11-06 & RIO link loss (fault table, OI28 closed). InletRIO$n$: its pressures count as bad, the line holds its pump speed and valve permit (tested in the simulator). CommonRIO: the line flows and now also the Orbit \Otwo{} sensors (750-652 on CommonRIO, \var{ModbusRTUData}) count as bad at once, so OIC01 holds its output; the coupler watchdog closes the \Otwo{} valves after 2\,s (tested). OIC01 starts bumpless from the measured flow only at its first run after a pen start; a later restart (all lines briefly out of auto) continues from its last output (before, it restarted from the measured flow, near 0 after the watchdog had closed the valves, and Ti of 1800\,s took long to recover). Implemented, CommonRIO case to be tested again. \\
 \end{tabularx}
 \end{small}
 
@@ -418,8 +419,11 @@ of lines running; one parameter set is enough (the three sets of [FD] table~13 a
   \item \textbf{Output limits}: 0 to the sum of \var{FlowMax} of the lines in auto plus the
         measured flow of the active lines not in auto (and \var{MaxOutput} if set), so the
         integral cannot wind up beyond what the lines can deliver.
-  \item \textbf{Bumpless start}: on the first enabled cycle the output starts at the measured
-        total flow.
+  \item \textbf{Bumpless start}: on its first enabled cycle after a pen start the output starts at
+        the measured total flow. When OIC01 starts again with the pen still running (all lines were
+        briefly out of auto: CommonRIO link lost, inlet pumps out, Oxygen Stop / Start), it continues
+        from its last output (\var{FreshStart} in \var{PenOxygenControl}): the measured flow is then near 0
+        and the long $T_i$ would take tens of minutes to bring the output back.
   \item \textbf{Manual}: the operator can set the total flow by hand
         (\var{Pen.OxyController.Command.Manual}, \var{.ManualOutput}). Bumpless both ways, as LIC01
         (CAS-FD-10 rev~B1), while the pen is started and lines are in auto: auto$\to$manual sets the
@@ -686,7 +690,8 @@ SC4$n$ & CMD, LFR & ATV650 DC$n$, Modbus TCP & \var{OxySystem[i].OxyPump.Output}
         (Section~\ref{sec:params}); oxygenation starts off; valves at 4\,mA. The operator gives Oxygen
         Start again. Orbit sensor selection for control is retained (default sensors 1--3).
   \item \textbf{Pen start}: OIC01 is enabled with the pen start (\var{Pen.Command.Start}) once a line
-        is in auto, and starts bumplessly from the measured total flow.
+        is in auto, and starts bumplessly from the measured total flow; a later restart while the pen
+        runs continues from its last output.
   \item \textbf{Line start}: Section~\ref{sec:seq}; [FD] requires auto restart after power return
         (table 2.2: auto-restart ``Yes'', sequence 3, after the inlet pumps). PLC: \var{Pen.Status.OxygenOn}
         is not retained over a power cut; whether oxygenation shall restart by itself is \TBD\open{23}.
@@ -718,11 +723,12 @@ Pressure after pump low & PT4$n$ $\leq$ 3.0\,bar or bad, while oxygenation activ
 Too little water through the injector & PT4$n$ -- PT4($n$+3) $<$ \var{InjectorDpLow} (0.5\,bar) for 30\,s while oxygenating; alarm InjectorDpLow & Trip: pump to manual and stopped, valve closed, line out of the group start (Section~\ref{sec:trip}) & Acknowledge; pump Auto or manual Start (refused before) \\
 Side-stream pump dry running & ATV650 fault DRYF (LFT 126), power below the no-flow curve; alarm DryRun & Trip as above; the drive has stopped the motor itself & Acknowledge, reset the drive (after DRYR 60\,s), pump Auto or manual Start \\
 Line flow measurement bad & 750-455 diagnostic (wire break, under/over range) & Line leaves auto; valve holds last position; it counts with its last good flow in the sharing (\var{Status.FlowValid} FALSE) & Automatic when good \\
-Pen \Otwo{} measurement lost & no selected Orbit sensor with good quality & OIC01 output frozen indefinitely\open{14}; lines keep their share & Automatic, bumpless \\
+Pen \Otwo{} measurement lost & no selected Orbit sensor with good quality; all sensors at once when the CommonRIO link is lost & OIC01 output frozen indefinitely\open{14}; lines keep their share & Automatic, bumpless \\
 One Orbit sensor fails & Modbus timeout / bad quality & Sensor drops out of the mean; CommFail alarm after delay & Automatic \\
 Inlet pump lost & inlet permit FALSE (not REMOTE or heartbeat lost) & Line stops: valve closed, oxy pump stopped; other lines take over the share at once & Automatic: while oxygenation is on and the line enabled, the line starts again when its inlet pump is back in REMOTE \\
 Inlet pump stopped by the pump count or rotation & inlet permit FALSE & As inlet pump lost. A line whose inlet pump is started by the pump count or rotation starts when that pump reaches REMOTE, if it is enabled & Automatic while oxygenation is on\open{23} \\
-RIO link lost (InletRIO$n$ or CommonRIO) & Modbus TCP \var{CommOK} FALSE, also when no new response has come for 2\,s (freshness watchdog, with automatic reconnect); alarm RIO comm.\ error & \emph{None yet}: PT4$n$, PT4($n$+3) (InletRIO$n$) and FT4$n$, PT40 (CommonRIO) keep their last value and good quality, so PIC4$n$, the valve permit and FIC4$n$ run on frozen values\open{28} & -- \\
+InletRIO$n$ link lost & Modbus TCP \var{CommOK} FALSE, also when no new response has come for 2\,s (freshness watchdog, with automatic reconnect); alarm RIO comm.\ error, about 4\,s after the break & PT4$n$, PT4($n$+3) count as bad. The line holds: the pump keeps its last PIC speed and the valve permit is kept while it runs, so FIC4$n$ goes on (OX-28); the injector $\Delta p$ is not judged. The coupler watchdog switches the station's outputs off after 2\,s & Automatic when the link is back (pressures back in about 3\,s, no bump); ack. Tested in the simulator 2026-11-06 \\
+CommonRIO link lost & as above, alarm CommonRIO comm.\ error & FT4$n$ and the Orbit \Otwo{} sensors count as bad at once: the lines leave auto (each holds its valve command, counts with its last good flow) and OIC01 holds its output (pen \Otwo{} bad). The coupler watchdog sets the \Otwo{} valves' AO to 0\,mA after 2\,s, so no oxygen is added until the link is back\open{28} & Automatic: valves back at the held command, lines back in auto, OIC01 continues from its last output once the Orbit sensors are read again; ack. Watchdog tested 2026-11-06; the bad-quality and hold behaviour implemented the same day, to be tested again \\
 \Otwo{} supply lost & PT40 (displayed only) & \emph{None}: no alarm, no interlock\open{4}\textsuperscript{,}\open{10}; FIC opens valve fully, flow stays low & -- \\
 Water back into injector / supply & -- & Mechanical only (check valves)\open{6} & -- \\
 Emergency stop & not wired\open{22} & (Drive quick stop is alarmed as EmergencyStop) & -- \\
@@ -1031,7 +1037,7 @@ OI24 & Pump leakage / temperature (XS, TSH) only on RIO1, not used in logic. & A
 OI25 & Production HMI not specified; operator functions of Table~\ref{tab:hmi}. & HMI design. \\
 OI26 & Oxygen capacity with one inlet pump out: two lines carry only about 560--730\,t [DB]; fallback is emergency oxygenation and stopped feeding. & Project / customer. \\
 OI27 & PT numbering [FD] (PT41/43/45 in, PT42/44/46 out) vs. drawings (PT41--43 after pump, PT44--46 after injector). & Update [FD]. \\
-OI28 & RIO link loss freezes the line's analog values with good quality (register OX-28; the inlet level pairs got this fix in CAS-FD-10 rev~B). & Mark the RIO's sensors bad while \var{CommOK} is FALSE; line leaves auto, valve per OI15. \\
+OI28 & RIO link loss froze the line's analog values with good quality (register OX-28). \textbf{Closed 2026-11-06}: InletRIO pressures and CommonRIO flows and Orbit sensors count as bad while \var{CommOK} is FALSE; behaviour in the fault table. Open: with the CommonRIO link lost no oxygen is added (watchdog closes the valves); whether the pen O2 can wait for the link, or needs a fallback, is a process decision. & Retest the CommonRIO case; decide on a fallback. \\
 OI29 & Dry running in the ATV650: DRYM = power and the no-flow curve (NFLS/NFLP, NFHS/NFHP) are drive settings, not set by the PLC. Measuring the curve needs the flow stopped with the pump full of water. & Commissioning: measure with an existing isolation valve, or calculate from the Flygt NX~3153 curve; set DRYM. \\
 \end{longtable}
 \end{small}

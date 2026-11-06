@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.3) (preloaded format=pdflatex 2025.3.19)  26 OCT 2026 14:46
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.3) (preloaded format=pdflatex 2025.3.19)  6 NOV 2026 14:43
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1027,10 +1027,10 @@ level pair (Sec-tion []7.3[]), \T1/lmtt/m/n/10.95 Pen.Status.LevelControlOK
  []
 
 
-Overfull \hbox (153.87074pt too wide) in paragraph at lines 476--481
+Overfull \hbox (159.61948pt too wide) in paragraph at lines 476--481
 \T1/lmr/m/n/10.95 is FALSE, the alarm \T1/lmtt/m/n/10.95 LevelMeasurementLost \
-T1/lmr/m/n/10.95 is raised and LIC01 runs in man-ual at \T1/lmtt/m/n/10.95 PenC
-onfig.LevelController.SafeOutput
+T1/lmr/m/n/10.95 is raised and LIC01 runs in man-ual at \T1/lmtt/m/n/10.95 Pen.
+Config.LevelController.SafeOutput
  []
 
 
@@ -1135,7 +1135,7 @@ fonts/type1/public/lm/lmsy10.pfb><C:/Users/sigurd.brekk/AppData/Local/Programs/
 MiKTeX/fonts/type1/public/lm/lmsy6.pfb><C:/Users/sigurd.brekk/AppData/Local/Pro
 grams/MiKTeX/fonts/type1/public/lm/lmsy8.pfb><C:/Users/sigurd.brekk/AppData/Loc
 al/Programs/MiKTeX/fonts/type1/public/lm/lmtt10.pfb>
-Output written on "CAS design basis.pdf" (32 pages, 538386 bytes).
+Output written on "CAS design basis.pdf" (32 pages, 538615 bytes).
 PDF statistics:
  522 PDF objects out of 1000 (max. 8388607)
  128 named destinations out of 1000 (max. 500000)

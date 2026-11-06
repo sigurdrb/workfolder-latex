@@ -204,9 +204,15 @@ INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\bitset\bit
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\bitset\bitset.sty
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\bigintcalc\bigintcalc.sty
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\bigintcalc\bigintcalc.sty
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\atbegshi\atbegshi.sty
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\base\atbegshi-ltx.sty
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\base\atbegshi-ltx.sty
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\hyperref\hpdftex.def
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\hyperref\hpdftex.def
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\hyperref\hpdftex.def
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\atveryend\atveryend.sty
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\base\atveryend-ltx.sty
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\base\atveryend-ltx.sty
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\rerunfilecheck\rerunfilecheck.sty
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\rerunfilecheck\rerunfilecheck.sty
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\uniquecounter\uniquecounter.sty
@@ -232,8 +238,6 @@ INPUT .\CAS design basis.aux
 INPUT .\CAS design basis.aux
 INPUT CAS design basis.aux
 OUTPUT CAS design basis.aux
-INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\babel\locale\en\babel-en-US.ini
-INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\generic\babel\locale\en\babel-en-US.ini
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\translations\dicts\translations-basic-dictionary-english.trsl
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\translations\dicts\translations-basic-dictionary-english.trsl
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\tex\latex\translations\dicts\translations-basic-dictionary-english.trsl
@@ -315,14 +319,14 @@ INPUT .\generated\params_pen.tex
 INPUT .\generated\params_pen.tex
 INPUT generated\params_pen.tex
 INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\fonts\enc\dvips\lm\lm-ts1.enc
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\fonts\enc\dvips\lm\lm-mathsy.enc
+INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\fonts\enc\dvips\lm\lm-mathex.enc
 INPUT .\generated\params_pumps.tex
 INPUT .\generated\params_pumps.tex
 INPUT generated\params_pumps.tex
-INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\fonts\enc\dvips\lm\lm-mathex.enc
 INPUT .\generated\modes.tex
 INPUT .\generated\modes.tex
 INPUT generated\modes.tex
-INPUT C:\Users\sigurd.brekk\AppData\Local\Programs\MiKTeX\fonts\enc\dvips\lm\lm-mathsy.enc
 INPUT .\generated\params_water.tex
 INPUT .\generated\params_water.tex
 INPUT generated\params_water.tex
@@ -372,6 +376,12 @@ INPUT generated\params_framo.tex
 INPUT .\generated\params_oxypump.tex
 INPUT .\generated\params_oxypump.tex
 INPUT generated\params_oxypump.tex
+INPUT .\generated\sea_states.tex
+INPUT .\generated\sea_states.tex
+INPUT generated\sea_states.tex
+INPUT .\generated\params_waves.tex
+INPUT .\generated\params_waves.tex
+INPUT generated\params_waves.tex
 INPUT .\generated\capacity.tex
 INPUT .\generated\capacity.tex
 INPUT generated\capacity.tex

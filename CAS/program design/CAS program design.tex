@@ -801,8 +801,8 @@ O2 & \var{PenOxygenControl}: \var{ControllerMode}, \var{PIDController} &
   SP \var{Pen.Config.OxySetpoint}, PV O1, \var{Pen.Config.OxyController}, the lines' status &
   PI to the total O$_2$ flow [kg/h]. Enabled with \var{PenStart} and at least one line in auto.
   Limited to what the lines in auto can deliver plus the manual lines' flow. Manual: operator;
-  frozen while \code{NOT OxyControlOK}; first enabled cycle from the measured total flow
-  (bumpless). &
+  frozen while \code{NOT OxyControlOK}; first enabled cycle after a pen start from the measured total
+  flow (bumpless), a later restart with the pen running from its last output (\code{FreshStart}). &
   \var{OxyController.Output.OUT} [kg/h] \\
 O3 & \var{PenOxygenControl} &
   O2, \var{OxySystem[i].Status.InAuto}, \var{.OxyFlow}, \var{OxySystem[i].Config.FlowMax} &

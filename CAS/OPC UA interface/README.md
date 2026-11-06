@@ -15,7 +15,7 @@ request/response). Structures and enumerations are linked.
 ## Regenerate
 
 ```bash
-git clone --depth 1 -b inletControl https://github.com/scaleaq/heimdall-plc.git /tmp/hplc
+git clone --depth 1 -b main https://github.com/scaleaq/heimdall-plc.git /tmp/hplc
 py gen_opc_interface.py /tmp/hplc
 ```
 
